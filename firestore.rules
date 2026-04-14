@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: employees
+    // Fields: name (string), status (string), basicSalary (number), allowances (array), ...
+    //
+    // Collection: allowanceTypes
+    // Fields: name (string)
+    //
+    // Collection: transactions
+    // Fields: employeeId (string), month (string), actualWorkDays (number), ...
+    //
+    // Collection: payrollRuns
+    // Fields: month (string), status (string), totalNet (number), employeeCount (number)
+    //
+    // Collection: payrollResults
+    // Fields: payrollRunId (string), employeeId (string), employeeName (string), ...
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == "yahia167199@gmail.com" ||
+        (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Admin')
+      );
+    }
+
+    function isHR() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'HR')
+      );
+    }
+
+    function isFinance() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Finance')
+      );
+    }
+
+    // Employees
+    match /employees/{employeeId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isHR() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Allowance Types
+    match /allowanceTypes/{typeId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Transactions
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Payroll Runs
+    match /payrollRuns/{runId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isFinance() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Payroll Results
+    match /payrollResults/{resultId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isFinance() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Test Connection
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

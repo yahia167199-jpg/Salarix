@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "AllowanceType": {
+      "title": "AllowanceType",
+      "description": "Types of allowances available for selection",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee basic information and salary structure",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "name": { "type": "string" },
+        "iqamaNumber": { "type": "string" },
+        "officialEmployer": { "type": "string" },
+        "professionAsPerIqama": { "type": "string" },
+        "nationality": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "joinDate": { "type": "string" },
+        "lastDirectDate": { "type": "string" },
+        "sectorManagement": { "type": "string" },
+        "sectors": { "type": "string" },
+        "costCenterMain": { "type": "string" },
+        "costCenterDept": { "type": "string" },
+        "location": { "type": "string" },
+        "bankAccount": { "type": "string" },
+        "bankCode": { "type": "string" },
+        "basicSalary": { "type": "number" },
+        "housingAllowance": { "type": "number" },
+        "transportAllowance": { "type": "number" },
+        "subsistenceAllowance": { "type": "number" },
+        "otherAllowances": { "type": "number" },
+        "mobileAllowance": { "type": "number" },
+        "managementAllowance": { "type": "number" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "allowances": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "amount": { "type": "number" }
+            }
+          }
+        },
+        "role": { "type": "string", "enum": ["HR", "Finance", "Admin", "Viewer"] },
+        "email": { "type": "string" }
+      },
+      "required": ["name", "status", "basicSalary"]
+    },
+    "Transaction": {
+      "title": "Monthly Transaction",
+      "description": "Monthly employee transactions and movements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "month": { "type": "string" },
+        "actualWorkDays": { "type": "number" },
+        "basicSalary": { "type": "number" },
+        "housingAllowance": { "type": "number" },
+        "transportAllowance": { "type": "number" },
+        "subsistenceAllowance": { "type": "number" },
+        "otherAllowances": { "type": "number" },
+        "mobileAllowance": { "type": "number" },
+        "managementAllowance": { "type": "number" },
+        "otherIncome": { "type": "number" },
+        "overtimeHours": { "type": "number" },
+        "overtimeValue": { "type": "number" },
+        "totalIncome": { "type": "number" },
+        "socialInsurance": { "type": "number" },
+        "salaryReceived": { "type": "number" },
+        "loans": { "type": "number" },
+        "bankReceived": { "type": "number" },
+        "otherDeductions": { "type": "number" },
+        "deductionHours": { "type": "number" },
+        "departureDelayDeduction": { "type": "number" },
+        "absenceDays": { "type": "number" },
+        "absenceDeduction": { "type": "number" },
+        "totalDeductions": { "type": "number" },
+        "netSalary": { "type": "number" },
+        "status": { "type": "string" },
+        "salaryIncrease": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["employeeId", "month"]
+    },
+    "PayrollRun": {
+      "title": "Payroll Run",
+      "description": "A monthly payroll batch and its workflow status",
+      "type": "object",
+      "properties": {
+        "month": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Under Review", "Approved", "Locked"] },
+        "totalNet": { "type": "number" },
+        "employeeCount": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["month", "status"]
+    },
+    "PayrollResult": {
+      "title": "Payroll Result",
+      "description": "Calculated salary for a specific employee in a specific run",
+      "type": "object",
+      "properties": {
+        "payrollRunId": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "basicSalary": { "type": "number" },
+        "allowances": { "type": "number" },
+        "overtime": { "type": "number" },
+        "deductions": { "type": "number" },
+        "netSalary": { "type": "number" },
+        "bankAccount": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of employees"
+    },
+    "/allowanceTypes/{typeId}": {
+      "schema": "AllowanceType",
+      "description": "Collection of allowance types"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Monthly transactions"
+    },
+    "/payrollRuns/{runId}": {
+      "schema": "PayrollRun",
+      "description": "Payroll batches"
+    },
+    "/payrollResults/{resultId}": {
+      "schema": "PayrollResult",
+      "description": "Calculated results for a run"
+    }
+  }
+}
