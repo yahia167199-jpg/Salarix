@@ -1,20 +1,12 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="1200" height="475" alt="GHBanner" src="https://paradise-solutions.com/assets/website/public/ParadiseLogo.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# The fastest path from speed to production with the Paradise team
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/9152ecee-2704-40b6-a472-653612bc1f08
+View your app in paradise AI: https://paradise-solutions.com/
 
-## Run Locally
+## The application was created by engineer Muhammad Yahya
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
