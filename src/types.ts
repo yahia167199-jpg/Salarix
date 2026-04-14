@@ -1,6 +1,7 @@
 export type UserRole = 'HR' | 'Finance' | 'Admin' | 'Viewer';
 
 export interface Allowance {
+  id?: string;
   type: string;
   amount: number;
 }
@@ -8,6 +9,15 @@ export interface Allowance {
 export interface AllowanceType {
   id: string;
   name: string;
+}
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  status: 'Active' | 'Inactive';
+  createdAt: string;
 }
 
 export interface Employee {

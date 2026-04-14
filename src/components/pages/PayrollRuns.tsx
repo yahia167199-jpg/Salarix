@@ -41,7 +41,8 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const calculatePayroll = async () => {
-    const runId = Math.random().toString(36).substr(2, 9);
+    const runDocRef = doc(collection(db, 'payrollRuns'));
+    const runId = runDocRef.id;
     
     // 1. Get all active employees
     const empSnap = await getDocs(query(collection(db, 'employees'), where('status', '==', 'Active')));
@@ -80,8 +81,9 @@ export const PayrollRuns: React.FC = () => {
       
       totalNet += netSalary;
 
+      const resultDocRef = doc(collection(db, 'payrollResults'));
       const result: PayrollResult = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: resultDocRef.id,
         payrollRunId: runId,
         employeeId: emp.employeeId || emp.id,
         employeeName: emp.name,
@@ -94,7 +96,7 @@ export const PayrollRuns: React.FC = () => {
         bankCode: emp.bankCode
       };
 
-      batch.set(doc(db, 'payrollResults', result.id), result);
+      batch.set(resultDocRef, result);
       return result;
     });
 
@@ -107,7 +109,7 @@ export const PayrollRuns: React.FC = () => {
       updatedAt: new Date().toISOString()
     };
 
-    batch.set(doc(db, 'payrollRuns', runId), run);
+    batch.set(runDocRef, run);
     await batch.commit();
     setIsModalOpen(false);
   };

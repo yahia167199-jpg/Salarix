@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, doc, getDoc } from './firebase';
+import { auth, db, doc, getDoc, collection, query, where, getDocs } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { Employee } from './types';
+import { Employee, AppUser } from './types';
 
 interface AuthContextType {
   user: User | null;
-  profile: Employee | null;
+  profile: Employee | AppUser | null;
   loading: boolean;
   isAdmin: boolean;
   isHR: boolean;
@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Employee | null>(null);
+  const [profile, setProfile] = useState<Employee | AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,14 +31,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Fetch user profile from employees collection
+        // 1. Check users collection by email
+        const userEmail = firebaseUser.email?.toLowerCase();
+        if (userEmail) {
+          const userDoc = await getDoc(doc(db, 'users', userEmail));
+          if (userDoc.exists()) {
+            setProfile({ id: userDoc.id, ...userDoc.data() } as AppUser);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Fallback to employees collection by UID
         const docRef = doc(db, 'employees', firebaseUser.uid);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
           setProfile({ id: docSnap.id, ...docSnap.data() } as Employee);
         } else {
-          // If user is the default admin email, we might want to handle it
+          // 3. Fallback to default admin
           if (firebaseUser.email === 'yahia167199@gmail.com') {
             setProfile({
               id: firebaseUser.uid,
@@ -46,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: 'Admin',
               status: 'Active',
               email: firebaseUser.email,
-            } as Employee);
+            } as any);
           } else {
             setProfile(null);
           }

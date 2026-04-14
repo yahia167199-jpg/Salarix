@@ -122,8 +122,8 @@ export const Dashboard: React.FC = () => {
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
           <h3 className="text-xl font-black text-gray-900 mb-6">آخر الحركات</h3>
           <div className="space-y-6">
-            {transactions.slice(0, 5).map((t, i) => (
-              <div key={i} className="flex items-center gap-4">
+            {transactions.slice(0, 5).map((t) => (
+              <div key={t.id} className="flex items-center gap-4">
                 <div className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                   t.type === 'Overtime' ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"

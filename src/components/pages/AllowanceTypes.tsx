@@ -20,8 +20,8 @@ export const AllowanceTypes: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    const id = Math.random().toString(36).substr(2, 9);
-    await setDoc(doc(db, 'allowanceTypes', id), { name: newName });
+    const docRef = doc(collection(db, 'allowanceTypes'));
+    await setDoc(docRef, { name: newName });
     setNewName('');
     setIsModalOpen(false);
   };

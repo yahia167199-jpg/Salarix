@@ -32,7 +32,9 @@ service cloud.firestore {
       return isAuthenticated() && (
         request.auth.token.email == "yahia167199@gmail.com" ||
         (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Admin')
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Admin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'Admin')
       );
     }
 
@@ -40,7 +42,9 @@ service cloud.firestore {
       return isAuthenticated() && (
         isAdmin() ||
         (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'HR')
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'HR') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'HR')
       );
     }
 
@@ -48,8 +52,16 @@ service cloud.firestore {
       return isAuthenticated() && (
         isAdmin() ||
         (exists(/databases/$(database)/documents/employees/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Finance')
+         get(/databases/$(database)/documents/employees/$(request.auth.uid)).data.role == 'Finance') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'Finance')
       );
+    }
+
+    // Users and Permissions
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // Employees

@@ -104,8 +104,8 @@ export const Transactions: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const totals = calculateTotals(formData);
-    const id = Math.random().toString(36).substr(2, 9);
-    await setDoc(doc(db, 'transactions', id), {
+    const docRef = doc(collection(db, 'transactions'));
+    await setDoc(docRef, {
       ...formData,
       ...totals,
       createdAt: new Date().toISOString()

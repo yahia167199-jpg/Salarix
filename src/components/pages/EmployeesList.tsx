@@ -13,7 +13,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { db, collection, onSnapshot, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
-import { writeBatch } from 'firebase/firestore';
+import { writeBatch, doc as firestoreDoc } from 'firebase/firestore';
 import { Employee, Allowance, AllowanceType } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -72,7 +72,7 @@ export const EmployeesList: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = editingEmployee?.id || Math.random().toString(36).substr(2, 9);
+    const id = editingEmployee?.id || doc(collection(db, 'employees')).id;
     await setDoc(doc(db, 'employees', id), formData);
     setIsModalOpen(false);
     setEditingEmployee(null);
@@ -138,7 +138,7 @@ export const EmployeesList: React.FC = () => {
   const handleAddAllowance = () => {
     setFormData({
       ...formData,
-      allowances: [...formData.allowances, { type: '', amount: 0 }]
+      allowances: [...formData.allowances, { id: crypto.randomUUID(), type: '', amount: 0 }]
     });
   };
 
@@ -208,10 +208,10 @@ export const EmployeesList: React.FC = () => {
 
       const batch = writeBatch(db);
       data.forEach((row) => {
-        const id = Math.random().toString(36).substr(2, 9);
+        const docRef = doc(collection(db, 'employees'));
         const allowances: Allowance[] = [];
         
-        batch.set(doc(db, 'employees', id), {
+        batch.set(docRef, {
           employeeId: String(row['رقم الموظف'] || row['الرقم الوظيفي'] || ''),
           name: row['الإسم'] || row['اسم الموظف'] || row['الاسم'] || 'بدون اسم',
           iqamaNumber: String(row['رقم الأقامة'] || row['رقم الإقامة'] || ''),
@@ -249,7 +249,10 @@ export const EmployeesList: React.FC = () => {
 
   const handleEdit = (emp: Employee) => {
     setEditingEmployee(emp);
-    setFormData({ ...emp });
+    setFormData({ 
+      ...emp,
+      allowances: (emp.allowances || []).map(a => ({ ...a, id: a.id || crypto.randomUUID() }))
+    });
     setIsModalOpen(true);
   };
 
@@ -260,8 +263,9 @@ export const EmployeesList: React.FC = () => {
 
   const filteredEmployees = useMemo(() => {
     return employees.filter(e => 
-      e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.department.toLowerCase().includes(searchTerm.toLowerCase())
+      (e.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (e.jobTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
   }, [employees, searchTerm]);
 
@@ -356,7 +360,7 @@ export const EmployeesList: React.FC = () => {
                   </td>
                   <td className="px-8 py-5">
                     <span className="px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">
-                      {emp.department}
+                      {emp.sectorManagement || 'غير محدد'}
                     </span>
                   </td>
                   <td className="px-8 py-5">
@@ -644,7 +648,7 @@ export const EmployeesList: React.FC = () => {
                     </div>
                     <div className="space-y-3">
                       {formData.allowances.map((allowance, index) => (
-                        <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                        <div key={allowance.id || index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                           <select 
                             className="flex-1 bg-white px-4 py-2 rounded-xl border border-gray-100 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
                             value={allowance.type}

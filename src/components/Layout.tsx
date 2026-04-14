@@ -22,6 +22,7 @@ import { EmployeesList } from './pages/EmployeesList';
 import { PayrollRuns } from './pages/PayrollRuns';
 import { Transactions } from './pages/Transactions';
 import { AllowanceTypes } from './pages/AllowanceTypes';
+import { UsersManagement } from './pages/UsersManagement';
 
 export const Layout: React.FC = () => {
   const { user, profile, isAdmin, isHR, isFinance } = useAuth();
@@ -34,6 +35,7 @@ export const Layout: React.FC = () => {
     { id: 'allowance-types', label: 'أنواع البدلات', icon: Settings, show: isHR },
     { id: 'transactions', label: 'الحركات الشهرية', icon: History, show: isHR },
     { id: 'payroll', label: 'مسير الرواتب', icon: Receipt, show: isFinance },
+    { id: 'users', label: 'المستخدمين والصلاحيات', icon: ShieldCheck, show: isAdmin },
   ];
 
   const handleLogout = () => signOut(auth);
@@ -45,6 +47,7 @@ export const Layout: React.FC = () => {
       case 'allowance-types': return <AllowanceTypes />;
       case 'transactions': return <Transactions />;
       case 'payroll': return <PayrollRuns />;
+      case 'users': return <UsersManagement />;
       default: return <Dashboard />;
     }
   };
