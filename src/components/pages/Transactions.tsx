@@ -73,38 +73,103 @@ export const Transactions: React.FC = () => {
     return () => { unsubTrans(); unsubEmp(); };
   }, []);
 
+  // Update calculated values when dependencies change
+  useEffect(() => {
+    const basic = formData.basicSalary || 0;
+    const ovHours = formData.overtimeHours || 0;
+    const absDays = formData.absenceDays || 0;
+
+    // OT Formula: (Basic / 30 / 10) * 1.5 * hours
+    const calculatedOT = (basic / 30 / 10) * 1.5 * ovHours;
+
+    // Absence Formula: ((Basic + All Allowances listed) / 30) * absenceDays
+    const totalAllowancesBase = basic + 
+                                formData.transportAllowance + 
+                                formData.subsistenceAllowance + 
+                                formData.otherAllowances + 
+                                formData.mobileAllowance + 
+                                formData.managementAllowance;
+    const calculatedAbsence = (totalAllowancesBase / 30) * absDays;
+
+    if (calculatedOT !== formData.overtimeValue || calculatedAbsence !== formData.absenceDeduction) {
+      setFormData(prev => ({
+        ...prev,
+        overtimeValue: Number(calculatedOT.toFixed(2)),
+        absenceDeduction: Number(calculatedAbsence.toFixed(2))
+      }));
+    }
+  }, [
+    formData.basicSalary, 
+    formData.overtimeHours, 
+    formData.absenceDays,
+    formData.housingAllowance,
+    formData.transportAllowance,
+    formData.subsistenceAllowance,
+    formData.otherAllowances,
+    formData.mobileAllowance,
+    formData.managementAllowance
+  ]);
+
   const handleEmployeeChange = (empId: string) => {
     const emp = employees.find(e => e.id === empId);
     if (emp) {
+      const days = formData.actualWorkDays || 30;
+      // Pro-rate based on actual work days: (Monthly / 30) * actualWorkDays
+      const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
+
       setFormData({
         ...formData,
         employeeId: empId,
-        basicSalary: emp.basicSalary || 0,
-        housingAllowance: emp.housingAllowance || 0,
-        transportAllowance: emp.transportAllowance || 0,
-        subsistenceAllowance: emp.subsistenceAllowance || 0,
-        otherAllowances: emp.otherAllowances || 0,
-        mobileAllowance: emp.mobileAllowance || 0,
-        managementAllowance: emp.managementAllowance || 0,
+        basicSalary: proRate(emp.basicSalary || 0),
+        housingAllowance: proRate(emp.housingAllowance || 0),
+        transportAllowance: proRate(emp.transportAllowance || 0),
+        subsistenceAllowance: proRate(emp.subsistenceAllowance || 0),
+        otherAllowances: proRate(emp.otherAllowances || 0),
+        mobileAllowance: proRate(emp.mobileAllowance || 0),
+        managementAllowance: proRate(emp.managementAllowance || 0),
       });
     } else {
       setFormData({ ...formData, employeeId: empId });
     }
   };
 
+  // Re-run pro-rating if actualWorkDays changes
+  useEffect(() => {
+    if (!formData.employeeId) return;
+    const emp = employees.find(e => e.id === formData.employeeId);
+    if (!emp) return;
+
+    const days = formData.actualWorkDays || 30;
+    const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
+
+    setFormData(prev => ({
+      ...prev,
+      basicSalary: proRate(emp.basicSalary || 0),
+      housingAllowance: proRate(emp.housingAllowance || 0),
+      transportAllowance: proRate(emp.transportAllowance || 0),
+      subsistenceAllowance: proRate(emp.subsistenceAllowance || 0),
+      otherAllowances: proRate(emp.otherAllowances || 0),
+      mobileAllowance: proRate(emp.mobileAllowance || 0),
+      managementAllowance: proRate(emp.managementAllowance || 0),
+    }));
+  }, [formData.actualWorkDays]);
+
   const calculateTotals = (data: typeof formData) => {
     const totalIncome = data.basicSalary + data.housingAllowance + data.transportAllowance + 
                         data.subsistenceAllowance + data.otherAllowances + data.mobileAllowance + 
                         data.managementAllowance + data.otherIncome + data.overtimeValue + data.salaryIncrease;
     
+    const absenceDed = data.absenceDeduction;
+    const hourDed = (data.deductionHours * (data.basicSalary / 240));
+
     const totalDeductions = data.socialInsurance + data.salaryReceived + data.loans + 
                             data.bankReceived + data.otherDeductions + data.departureDelayDeduction + 
-                            data.absenceDeduction + (data.deductionHours * (data.basicSalary / 240)); // Assuming 240 hours/month
+                            absenceDed + hourDed;
 
     return {
-      totalIncome,
-      totalDeductions,
-      netSalary: totalIncome - totalDeductions
+      totalIncome: Number(totalIncome.toFixed(2)),
+      totalDeductions: Number(totalDeductions.toFixed(2)),
+      netSalary: Number((totalIncome - totalDeductions).toFixed(2))
     };
   };
 
