@@ -54,6 +54,7 @@ export const EmployeesList: React.FC = () => {
     mobileAllowance: 0,
     managementAllowance: 0,
     status: 'Active',
+    paymentMethod: 'Bank',
     allowances: [],
     email: ''
   });
@@ -105,6 +106,7 @@ export const EmployeesList: React.FC = () => {
       mobileAllowance: 0,
       managementAllowance: 0,
       status: 'Active',
+      paymentMethod: 'Bank',
       allowances: [],
       email: ''
     });
@@ -168,8 +170,9 @@ export const EmployeesList: React.FC = () => {
       'بدل جوال': emp.mobileAllowance || 0,
       'بدل ادارة': emp.managementAllowance || 0,
       'بدلات اخرى': emp.otherAllowances || 0,
-      'كود البنك': emp.bankCode || '',
       'الايبــــــــــان': emp.bankAccount || '',
+      'كود البنك': emp.bankCode || '',
+      'طريقة الاستلام': emp.paymentMethod === 'Bank' ? 'استلام بنك' : 'استلام راتب',
       'المهنة حسب الاقامة': emp.professionAsPerIqama || '',
       'الإسم': emp.name,
       'الجنسية': emp.nationality || '',
@@ -200,17 +203,33 @@ export const EmployeesList: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
+      const dataArr = evt.target?.result;
+      const wb = XLSX.read(dataArr, { type: 'binary', cellDates: true });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+      const parseExcelDate = (val: any) => {
+        if (!val) return '';
+        if (val instanceof Date) return val.toISOString().split('T')[0];
+        if (typeof val === 'number') {
+          const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+          return date.toISOString().split('T')[0];
+        }
+        return String(val);
+      };
 
       const batch = writeBatch(db);
       data.forEach((row) => {
         const docRef = doc(collection(db, 'employees'));
         const allowances: Allowance[] = [];
         
+        let paymentMethod: 'Bank' | 'Cash' = 'Bank';
+        const pMethodRaw = row['نوع استلام الراتب'] || row['طريقة الاستلام'] || '';
+        if (pMethodRaw === 'استلام راتب' || pMethodRaw === 'Cash') {
+          paymentMethod = 'Cash';
+        }
+
         batch.set(docRef, {
           employeeId: String(row['رقم الموظف'] || row['الرقم الوظيفي'] || ''),
           name: row['الإسم'] || row['اسم الموظف'] || row['الاسم'] || 'بدون اسم',
@@ -219,8 +238,8 @@ export const EmployeesList: React.FC = () => {
           professionAsPerIqama: row['المهنة حسب الاقامة'] || '',
           nationality: row['الجنسية'] || '',
           jobTitle: row['الوظيفة'] || '',
-          joinDate: row['بداية العمل'] || '',
-          lastDirectDate: row['آخر مباشرة'] || '',
+          joinDate: parseExcelDate(row['بداية العمل']),
+          lastDirectDate: parseExcelDate(row['آخر مباشرة']),
           sectorManagement: row['ادارة القطاع'] || '',
           sectors: row['القطاعات'] || '',
           costCenterMain: row['مركز التكلفة / رئيسي'] || '',
@@ -228,6 +247,7 @@ export const EmployeesList: React.FC = () => {
           location: row['الموقع'] || '',
           bankAccount: row['الايبــــــــــان'] || row['رقم الحساب (IBAN)'] || '',
           bankCode: row['كود البنك'] || row['البنك'] || '',
+          paymentMethod: paymentMethod,
           basicSalary: Number(row['الراتب الاساسي'] || row['الراتب الأساسي']) || 0,
           housingAllowance: Number(row['بدل سكن']) || 0,
           transportAllowance: Number(row['بدل نقل']) || 0,
@@ -541,6 +561,17 @@ export const EmployeesList: React.FC = () => {
                       value={formData.location}
                       onChange={(e) => setFormData({...formData, location: e.target.value})}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">نوع استلام الراتب</label>
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      value={formData.paymentMethod}
+                      onChange={(e) => setFormData({...formData, paymentMethod: e.target.value as any})}
+                    >
+                      <option value="Bank">استلام بنك</option>
+                      <option value="Cash">استلام راتب</option>
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">كود البنك</label>

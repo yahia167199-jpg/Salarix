@@ -60,6 +60,7 @@ export const PayrollRuns: React.FC = () => {
       const empTrans = transactions.find(t => t.employeeId === emp.id);
       
       let basicSalary = emp.basicSalary;
+      let housingAllowance = emp.housingAllowance || 0;
       let allowances = (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0) + 
                        (emp.housingAllowance || 0) + (emp.transportAllowance || 0) + 
                        (emp.subsistenceAllowance || 0) + (emp.otherAllowances || 0) + 
@@ -70,6 +71,7 @@ export const PayrollRuns: React.FC = () => {
 
       if (empTrans) {
         basicSalary = empTrans.basicSalary;
+        housingAllowance = empTrans.housingAllowance;
         allowances = empTrans.housingAllowance + empTrans.transportAllowance + 
                      empTrans.subsistenceAllowance + empTrans.otherAllowances + 
                      empTrans.mobileAllowance + empTrans.managementAllowance + 
@@ -87,7 +89,12 @@ export const PayrollRuns: React.FC = () => {
         payrollRunId: runId,
         employeeId: emp.employeeId || emp.id,
         employeeName: emp.name,
+        iqamaNumber: emp.iqamaNumber,
+        officialEmployer: emp.officialEmployer,
+        location: emp.location,
+        paymentMethod: emp.paymentMethod,
         basicSalary,
+        housingAllowance,
         allowances,
         overtime,
         deductions,
@@ -119,19 +126,22 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
-    const data = results.map((r, index) => ({
-      'م': index + 1,
-      'رقم الموظف': r.employeeId || '', // Need to ensure this is in results
-      'اسم الموظف': r.employeeName,
-      'رقم الحساب (IBAN)': r.bankAccount,
-      'البنك': r.bankCode || '', // Need to ensure this is in results
-      'الراتب الأساسي': r.basicSalary,
-      'البدلات': r.allowances,
-      'الإضافي': r.overtime,
-      'الخصومات': r.deductions,
-      'صافي الراتب': r.netSalary,
-      'أيام العمل': 30, // Default as per file
-      'ملاحظات': ''
+    // Filter only Bank paymentMethod
+    const bankResults = results.filter(r => r.paymentMethod === 'Bank');
+
+    const data = bankResults.map((r) => ({
+      'Bank': r.bankCode || '',
+      'Account Number': r.bankAccount || '',
+      'Total Salary': r.netSalary,
+      'Comments': `Salary for ${run.month}`,
+      'Employee Name': r.employeeName,
+      'National ID/Iqama ID': r.iqamaNumber || '',
+      'Employee Address': r.location || '',
+      'Basic Salary': r.basicSalary,
+      'Housing Allowance': r.housingAllowance,
+      'Other Earnings': (r.allowances + r.overtime) - r.housingAllowance,
+      'Deductions': r.deductions,
+      'صاحب العمل الرسمي': r.officialEmployer || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);

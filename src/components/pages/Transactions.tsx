@@ -7,12 +7,17 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   X,
-  Trash2
+  Trash2,
+  Upload,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { db, collection, onSnapshot, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
+import { writeBatch } from 'firebase/firestore';
 import { Employee, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 
 import { useMemo } from 'react';
 
@@ -21,6 +26,8 @@ export const Transactions: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [empSearch, setEmpSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Form State
   const [formData, setFormData] = useState<Omit<Transaction, 'id' | 'createdAt'>>({
@@ -152,21 +159,138 @@ export const Transactions: React.FC = () => {
     setDeleteConfirmId(null);
   };
 
+  const handleEdit = (t: Transaction) => {
+    setFormData({ ...t });
+    setIsModalOpen(true);
+  };
+
+  const handleExportExcel = () => {
+    const data = sortedTransactions.map((t) => {
+      const emp = employees.find(e => e.id === t.employeeId);
+      return {
+        'اسم الموظف': emp?.name || 'موظف محذوف',
+        'الشهر': t.month,
+        'أيام العمل': t.actualWorkDays,
+        'الأساسي': t.basicSalary,
+        'بدل سكن': t.housingAllowance,
+        'إضافي': t.overtimeValue,
+        'كافة الإيرادات': t.totalIncome,
+        'الخصومات': t.totalDeductions,
+        'الصافي': t.netSalary,
+        'ملاحظات': t.notes || ''
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+    XLSX.writeFile(wb, `Salarix_Monthly_Transactions_${new Date().toISOString().slice(0, 7)}.xlsx`);
+  };
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const dataArr = evt.target?.result;
+      const wb = XLSX.read(dataArr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+      const batch = writeBatch(db);
+      data.forEach((row) => {
+        const emp = employees.find(e => e.name === row['اسم الموظف'] || e.employeeId === row['رقم الموظف']);
+        if (emp) {
+          const docRef = doc(collection(db, 'transactions'));
+          const basic = Number(row['الأساسي'] || row['الراتب الأساسي']) || emp.basicSalary;
+          const housing = Number(row['بدل سكن']) || emp.housingAllowance;
+          const transport = Number(row['بدل نقل']) || emp.transportAllowance;
+          
+          const rawData = {
+            employeeId: emp.id,
+            month: row['الشهر'] || new Date().toISOString().slice(0, 7),
+            actualWorkDays: Number(row['أيام العمل']) || 30,
+            basicSalary: basic,
+            housingAllowance: housing,
+            transportAllowance: transport,
+            subsistenceAllowance: Number(row['بدل إعاشه']) || emp.subsistenceAllowance,
+            otherAllowances: Number(row['بدلات اخرى']) || emp.otherAllowances,
+            mobileAllowance: Number(row['بدل جوال']) || emp.mobileAllowance,
+            managementAllowance: Number(row['بدل ادارة']) || emp.managementAllowance,
+            otherIncome: Number(row['دخل آخر']) || 0,
+            overtimeHours: Number(row['ساعات الإضافي']) || 0,
+            overtimeValue: Number(row['قيمة الإضافي']) || 0,
+            socialInsurance: Number(row['تأمين اجتماعي']) || 0,
+            salaryReceived: Number(row['استلام راتب']) || 0,
+            loans: Number(row['سلف']) || 0,
+            bankReceived: Number(row['استلام بنك']) || 0,
+            otherDeductions: Number(row['خصومات أخرى']) || 0,
+            deductionHours: Number(row['ساعات الخصم']) || 0,
+            departureDelayDeduction: 0,
+            absenceDays: Number(row['أيام الغياب']) || 0,
+            absenceDeduction: Number(row['خصم الغياب']) || 0,
+            salaryIncrease: Number(row['زيادة راتب']) || 0,
+            notes: row['ملاحظات'] || '',
+            status: 'Draft'
+          };
+
+          const totals = calculateTotals(rawData as any);
+          batch.set(docRef, { ...rawData, ...totals, createdAt: new Date().toISOString() });
+        }
+      });
+
+      await batch.commit();
+      alert('تم استيراد الحركات بنجاح');
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const sortedTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => b.month.localeCompare(a.month));
-  }, [transactions]);
+    return [...transactions]
+      .filter(t => {
+        const empName = employees.find(e => e.id === t.employeeId)?.name || '';
+        return empName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               t.month.includes(searchTerm);
+      })
+      .sort((a, b) => b.month.localeCompare(a.month));
+  }, [transactions, employees, searchTerm]);
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-black text-gray-900">سجل الحركات الشهرية</h3>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
-        >
-          <Plus className="w-5 h-5" />
-          <span>إضافة حركة</span>
-        </button>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input 
+            type="text" 
+            placeholder="البحث بالموظف أو الشهر (YYYY-MM)..."
+            className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
+            <Upload className="w-5 h-5" />
+            <span className="hidden md:inline">استيراد</span>
+            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+          </label>
+          <button 
+            onClick={handleExportExcel}
+            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+          >
+            <Download className="w-5 h-5" />
+            <span className="hidden md:inline">تصدير</span>
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
+          >
+            <Plus className="w-5 h-5" />
+            <span>إضافة حركة</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -221,13 +345,31 @@ export const Transactions: React.FC = () => {
               <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الموظف</label>
-                    <select required className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.employeeId} onChange={(e) => handleEmployeeChange(e.target.value)}>
-                      <option value="">اختر الموظف...</option>
-                      {employees.filter(e => e.status === 'Active').map(e => (
-                        <option key={e.id} value={e.id}>{e.name}</option>
-                      ))}
-                    </select>
+                    <label className="text-sm font-bold text-gray-500 mr-2">الموظف (ابحث واختر)</label>
+                    <div className="relative">
+                      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input 
+                        type="text"
+                        placeholder="ابحث بالاسم هنا..."
+                        className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2"
+                        value={empSearch}
+                        onChange={(e) => setEmpSearch(e.target.value)}
+                      />
+                      <select 
+                        required 
+                        className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" 
+                        value={formData.employeeId} 
+                        onChange={(e) => handleEmployeeChange(e.target.value)}
+                      >
+                        <option value="">اختر الموظف من القائمة...</option>
+                        {employees
+                          .filter(e => e.status === 'Active')
+                          .filter(e => e.name.toLowerCase().includes(empSearch.toLowerCase()))
+                          .map(e => (
+                            <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>
+                          ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">الشهر</label>

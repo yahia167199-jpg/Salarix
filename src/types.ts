@@ -20,6 +20,8 @@ export interface AppUser {
   createdAt: string;
 }
 
+export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
+
 export interface Employee {
   id: string;
   employeeId: string; // الرقم الوظيفي
@@ -38,6 +40,7 @@ export interface Employee {
   location: string; // الموقع
   bankAccount: string; // الايبــــــــــان
   bankCode: string; // كود البنك
+  paymentMethod: PaymentMethod; // نوع استلام الراتب
   basicSalary: number; // الراتب الاساسي
   housingAllowance: number; // بدل سكن
   transportAllowance: number; // بدل نقل
@@ -98,7 +101,12 @@ export interface PayrollResult {
   payrollRunId: string;
   employeeId: string;
   employeeName: string;
+  iqamaNumber?: string;
+  officialEmployer?: string;
+  location?: string;
+  paymentMethod?: PaymentMethod;
   basicSalary: number;
+  housingAllowance: number;
   allowances: number;
   overtime: number;
   deductions: number;
