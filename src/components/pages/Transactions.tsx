@@ -396,6 +396,7 @@ export const Transactions: React.FC = () => {
                         <option value="">اختر الموظف من القائمة...</option>
                         {employees
                           .filter(e => e.status === 'Active')
+                          .filter(e => e.classification === 'Standard' || !e.classification)
                           .filter(e => (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()))
                           .map(e => (
                             <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>

@@ -97,6 +97,30 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Branches
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Sectors
+    match /sectors/{sectorId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Managements
+    match /managements/{managementId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Company Settings
+    match /companySettings/{settingsId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     // Test Connection
     match /test/connection {
       allow read: if true;

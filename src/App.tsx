@@ -5,9 +5,12 @@ import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { DataProvider } from './contexts/DataContext';
+import { SecurityProvider, useSecurity } from './contexts/SecurityContext';
+import { LockScreen } from './components/LockScreen';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
+  const { isLocked } = useSecurity();
 
   if (loading) {
     return (
@@ -20,6 +23,10 @@ const AppContent: React.FC = () => {
     );
   }
 
+  if (user && isLocked) {
+    return <LockScreen />;
+  }
+
   return user ? <Layout /> : <Login />;
 };
 
@@ -28,7 +35,9 @@ export default function App() {
     <ErrorBoundary>
       <AuthProvider>
         <DataProvider>
-          <AppContent />
+          <SecurityProvider>
+            <AppContent />
+          </SecurityProvider>
         </DataProvider>
       </AuthProvider>
     </ErrorBoundary>

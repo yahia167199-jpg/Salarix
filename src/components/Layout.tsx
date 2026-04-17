@@ -25,20 +25,37 @@ import { Transactions } from './pages/Transactions';
 import { AllowanceTypes } from './pages/AllowanceTypes';
 import { UsersManagement } from './pages/UsersManagement';
 import { Settlements } from './pages/Settlements';
+import { Settings as SettingsPage } from './pages/Settings';
+import { useSecurity } from '../contexts/SecurityContext';
+import { useData } from '../contexts/DataContext';
+import { Lock } from 'lucide-react';
 
 export const Layout: React.FC = () => {
   const { user, profile, isAdmin, isHR, isFinance } = useAuth();
+  const { lock, hasSystemPassword } = useSecurity();
+  const { companySettings } = useData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const menuItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard, show: true },
-    { id: 'employees', label: 'الموظفين', icon: Users, show: isHR },
+    { 
+      id: 'employees-module', 
+      label: 'الموظفين', 
+      icon: Users, 
+      show: isHR,
+      children: [
+        { id: 'employees', label: 'كافة الموظفين', icon: Users },
+        { id: 'employees-saudi', label: 'السعوديين', icon: ShieldCheck },
+        { id: 'employees-accounting', label: 'رواتب المحاسبات', icon: Receipt },
+      ]
+    },
     { id: 'allowance-types', label: 'أنواع البدلات', icon: Settings, show: isHR },
     { id: 'transactions', label: 'الحركات الشهرية', icon: History, show: isHR },
     { id: 'payroll', label: 'مسير الرواتب', icon: Receipt, show: isFinance },
     { id: 'settlements', label: 'تصفية البيانات', icon: FileText, show: isHR || isFinance },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: ShieldCheck, show: isAdmin },
+    { id: 'settings', label: 'إعدادات النظام', icon: Settings, show: isAdmin },
   ];
 
   const handleLogout = () => signOut(auth);
@@ -47,11 +64,14 @@ export const Layout: React.FC = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
       case 'employees': return <EmployeesList />;
+      case 'employees-saudi': return <EmployeesList filterClassification="Saudi" />;
+      case 'employees-accounting': return <EmployeesList filterClassification="Accounting" />;
       case 'allowance-types': return <AllowanceTypes />;
       case 'transactions': return <Transactions />;
       case 'payroll': return <PayrollRuns />;
       case 'settlements': return <Settlements />;
       case 'users': return <UsersManagement />;
+      case 'settings': return <SettingsPage />;
       default: return <Dashboard />;
     }
   };
@@ -68,12 +88,18 @@ export const Layout: React.FC = () => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="h-24 flex items-center px-6 border-b border-gray-50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
-                <ShieldCheck className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 shrink-0 overflow-hidden">
+                {companySettings?.logoUrl ? (
+                  <img src={companySettings.logoUrl} alt="Logo" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                ) : (
+                  <ShieldCheck className="w-6 h-6 text-white" />
+                )}
               </div>
               {isSidebarOpen && (
-                <span className="text-2xl font-black text-gray-900 tracking-tight">Salarix</span>
+                <span className="text-xl font-black text-gray-900 tracking-tight truncate">
+                  {companySettings?.companyName || 'Salarix'}
+                </span>
               )}
             </div>
           </div>
@@ -81,28 +107,50 @@ export const Layout: React.FC = () => {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto">
             {menuItems.filter(item => item.show).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={cn(
-                  "w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 group relative",
-                  activeTab === item.id 
-                    ? "bg-blue-50 text-blue-600 font-bold" 
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+              <React.Fragment key={item.id}>
+                <button
+                  onClick={() => setActiveTab(item.children ? item.children[0].id : item.id)}
+                  className={cn(
+                    "w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 group relative",
+                    (activeTab === item.id || item.children?.some(c => c.id === activeTab))
+                      ? "bg-blue-50 text-blue-600 font-bold" 
+                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <item.icon className={cn(
+                    "w-6 h-6 shrink-0 transition-transform duration-200",
+                    (activeTab === item.id || item.children?.some(c => c.id === activeTab)) ? "scale-110" : "group-hover:scale-110"
+                  )} />
+                  {isSidebarOpen && <span className="text-lg">{item.label}</span>}
+                  {(activeTab === item.id || (item.children?.some(c => c.id === activeTab) && !isSidebarOpen)) && (
+                    <motion.div 
+                      layoutId="active-pill"
+                      className="absolute left-2 w-1.5 h-6 bg-blue-600 rounded-full"
+                    />
+                  )}
+                </button>
+
+                {/* Sub-menu items */}
+                {isSidebarOpen && item.children && item.children.length > 0 && (
+                  <div className="mr-6 pr-4 border-r-2 border-gray-50 space-y-1 mt-1 mb-4">
+                    {item.children.map((child) => (
+                      <button
+                        key={child.id}
+                        onClick={() => setActiveTab(child.id)}
+                        className={cn(
+                          "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right text-sm font-bold",
+                          activeTab === child.id
+                            ? "text-blue-600 bg-blue-50/50"
+                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                        )}
+                      >
+                        <child.icon className="w-4 h-4" />
+                        <span>{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              >
-                <item.icon className={cn(
-                  "w-6 h-6 shrink-0 transition-transform duration-200",
-                  activeTab === item.id ? "scale-110" : "group-hover:scale-110"
-                )} />
-                {isSidebarOpen && <span className="text-lg">{item.label}</span>}
-                {activeTab === item.id && isSidebarOpen && (
-                  <motion.div 
-                    layoutId="active-pill"
-                    className="absolute left-2 w-1.5 h-6 bg-blue-600 rounded-full"
-                  />
-                )}
-              </button>
+              </React.Fragment>
             ))}
           </nav>
 
@@ -148,12 +196,21 @@ export const Layout: React.FC = () => {
       )}>
         <header className="h-24 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between border-b border-gray-100">
           <h2 className="text-2xl font-black text-gray-900">
-            {menuItems.find(i => i.id === activeTab)?.label}
+            {menuItems.flatMap(i => [i, ...(i.children || [])]).find(i => i.id === activeTab)?.label}
           </h2>
           <div className="flex items-center gap-4">
+            {hasSystemPassword && (
+              <button 
+                onClick={lock}
+                className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm"
+                title="قفل النظام"
+              >
+                <Lock className="w-5 h-5" />
+              </button>
+            )}
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="text-xs text-gray-400 font-medium">مرحباً بك في نظام Salarix</span>
+              <span className="text-xs text-gray-400 font-medium">مرحباً بك في نظام {companySettings?.companyName || 'Salarix'}</span>
             </div>
           </div>
         </header>

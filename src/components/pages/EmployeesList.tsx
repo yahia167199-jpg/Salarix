@@ -15,13 +15,13 @@ import {
 import { db, collection, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
 import { writeBatch, doc as firestoreDoc } from 'firebase/firestore';
-import { Employee, Allowance, AllowanceType } from '../../types';
+import { Employee, Allowance, AllowanceType, EmployeeCategory } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
-export const EmployeesList: React.FC = () => {
-  const { employees, allowanceTypes } = useData();
+export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification }) => {
+  const { employees, allowanceTypes, branches, sectors, managements } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
@@ -30,6 +30,7 @@ export const EmployeesList: React.FC = () => {
 
   // Form State
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
+    classification: 'Standard',
     employeeId: '',
     name: '',
     iqamaNumber: '',
@@ -71,6 +72,7 @@ export const EmployeesList: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
+      classification: 'Standard',
       employeeId: '',
       name: '',
       iqamaNumber: '',
@@ -222,34 +224,34 @@ export const EmployeesList: React.FC = () => {
         }
 
         batch.set(docRef, {
-          employeeId: String(row['رقم الموظف'] || row['الرقم الوظيفي'] || ''),
-          name: row['الإسم'] || row['اسم الموظف'] || row['الاسم'] || 'بدون اسم',
-          iqamaNumber: String(row['رقم الأقامة'] || row['رقم الإقامة'] || ''),
-          officialEmployer: row['صاحب العمل الرسمي'] || '',
-          professionAsPerIqama: row['المهنة حسب الاقامة'] || '',
-          nationality: row['الجنسية'] || '',
-          jobTitle: row['الوظيفة'] || '',
-          joinDate: parseExcelDate(row['بداية العمل']),
-          lastDirectDate: parseExcelDate(row['آخر مباشرة']),
-          sectorManagement: row['ادارة القطاع'] || '',
-          sectors: row['القطاعات'] || '',
+          employeeId: String(row['رقم الموظف'] || row['الرقم الوظيفي'] || row['ID'] || ''),
+          name: row['الإسم'] || row['اسم الموظف'] || row['الاسم'] || row['Name'] || 'بدون اسم',
+          iqamaNumber: String(row['رقم الأقامة'] || row['رقم الإقامة'] || row['Iqama'] || ''),
+          officialEmployer: row['صاحب العمل الرسمي'] || row['الفرع'] || row['Branch'] || '',
+          professionAsPerIqama: row['المهنة حسب الاقامة'] || row['المهنة'] || '',
+          nationality: row['الجنسية'] || row['Nationality'] || '',
+          jobTitle: row['الوظيفة'] || row['Job Title'] || '',
+          joinDate: parseExcelDate(row['بداية العمل'] || row['تاريخ التعيين'] || row['Join Date']),
+          lastDirectDate: parseExcelDate(row['آخر مباشرة'] || row['تاريخ المباشرة']),
+          sectorManagement: row['ادارة القطاع'] || row['القطاع'] || row['Sector'] || '',
+          sectors: row['القطاعات'] || row['الإدارة'] || row['Management'] || '',
           costCenterMain: row['مركز التكلفة / رئيسي'] || '',
           costCenterDept: row['مركز التكلفة / قسم'] || '',
-          location: row['الموقع'] || '',
-          bankAccount: row['الايبــــــــــان'] || row['رقم الحساب (IBAN)'] || '',
-          bankCode: row['كود البنك'] || row['البنك'] || '',
+          location: row['الموقع'] || row['Location'] || row['Site'] || '',
+          bankAccount: row['الايبــــــــــان'] || row['رقم الحساب (IBAN)'] || row['IBAN'] || '',
+          bankCode: row['كود البنك'] || row['البنك'] || row['Bank Code'] || '',
           paymentMethod: paymentMethod,
-          basicSalary: Number(row['الراتب الاساسي'] || row['الراتب الأساسي']) || 0,
-          housingAllowance: Number(row['بدل سكن']) || 0,
-          transportAllowance: Number(row['بدل نقل']) || 0,
-          subsistenceAllowance: Number(row['بدل إعاشه']) || 0,
-          otherAllowances: Number(row['بدلات اخرى']) || 0,
-          mobileAllowance: Number(row['بدل جوال']) || 0,
-          managementAllowance: Number(row['بدل ادارة']) || 0,
-          dailyWorkHours: Number(row['ساعات العمل اليومية'] || row['ساعات العمل']) || 8,
-          status: (row['الحالة'] === 'نشط' || row['Status'] === 'Active') ? 'Active' : 'Inactive',
+          basicSalary: Number(row['الراتب الاساسي'] || row['الراتب الأساسي'] || row['Basic Salary']) || 0,
+          housingAllowance: Number(row['بدل سكن'] || row['Housing']) || 0,
+          transportAllowance: Number(row['بدل نقل'] || row['Transportation']) || 0,
+          subsistenceAllowance: Number(row['بدل إعاشه'] || row['Food']) || 0,
+          otherAllowances: Number(row['بدلات اخرى'] || row['Other Allowances']) || 0,
+          mobileAllowance: Number(row['بدل جوال'] || row['Mobile']) || 0,
+          managementAllowance: Number(row['بدل ادارة'] || row['Management Allowance']) || 0,
+          dailyWorkHours: Number(row['ساعات العمل اليومية'] || row['ساعات العمل'] || 8) || 8,
+          status: (row['الحالة'] === 'نشط' || row['Status'] === 'Active' || !row['الحالة']) ? 'Active' : 'Inactive',
           allowances: allowances,
-          email: row['البريد الإلكتروني'] || ''
+          email: row['البريد الإلكتروني'] || row['Email'] || ''
         });
       });
 
@@ -274,12 +276,16 @@ export const EmployeesList: React.FC = () => {
   };
 
   const filteredEmployees = useMemo(() => {
-    return employees.filter(e => 
+    let result = employees;
+    if (filterClassification) {
+      result = result.filter(e => e.classification === filterClassification);
+    }
+    return result.filter(e => 
       (e.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.jobTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
-  }, [employees, searchTerm]);
+  }, [employees, searchTerm, filterClassification]);
 
   return (
     <div className="space-y-6">
@@ -342,9 +348,10 @@ export const EmployeesList: React.FC = () => {
                   />
                 </th>
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الموظف</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">القسم</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الراتب الأساسي</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>
+                {!filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">القسم</th>}
+                {filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رقم الهوية / الإقامة</th>}
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">قيمة المرتب</th>
+                {!filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>}
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الإجراءات</th>
               </tr>
             </thead>
@@ -366,38 +373,47 @@ export const EmployeesList: React.FC = () => {
                       </div>
                       <div>
                         <p className="font-black text-gray-900">{emp.name}</p>
-                        <p className="text-xs text-gray-400 font-medium">{emp.email || 'لا يوجد بريد'}</p>
+                        <p className="text-xs text-gray-400 font-medium">{emp.employeeId}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-8 py-5">
-                    <span className="px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">
-                      {emp.sectorManagement || 'غير محدد'}
-                    </span>
-                  </td>
+                  {!filterClassification && (
+                    <td className="px-8 py-5">
+                      <span className="px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">
+                        {emp.sectorManagement || 'غير محدد'}
+                      </span>
+                    </td>
+                  )}
+                  {filterClassification && (
+                    <td className="px-8 py-5 font-bold text-gray-600">
+                      {emp.iqamaNumber || 'غير مسجل'}
+                    </td>
+                  )}
                   <td className="px-8 py-5">
                     <p className="font-black text-gray-900">{formatCurrency(emp.basicSalary)}</p>
-                    <p className="text-xs text-gray-400 font-medium">بدلات: {formatCurrency((emp.allowances || []).reduce((sum, a) => sum + a.amount, 0))}</p>
+                    {!filterClassification && <p className="text-xs text-gray-400 font-medium">بدلات: {formatCurrency((emp.allowances || []).reduce((sum, a) => sum + a.amount, 0))}</p>}
                   </td>
-                  <td className="px-8 py-5">
-                    <div className={cn(
-                      "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black",
-                      emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" :
-                      emp.status === 'End of Service' ? "bg-red-50 text-red-600" :
-                      emp.status === 'Leave' ? "bg-blue-50 text-blue-600" :
-                      "bg-gray-50 text-gray-600"
-                    )}>
-                      <div className={cn("w-1.5 h-1.5 rounded-full", 
-                        emp.status === 'Active' ? "bg-emerald-600" :
-                        emp.status === 'End of Service' ? "bg-red-600" :
-                        emp.status === 'Leave' ? "bg-blue-600" :
-                        "bg-gray-600"
-                      )} />
-                      {emp.status === 'Active' ? 'نشط' : 
-                       emp.status === 'End of Service' ? 'إنهاء خدمات' :
-                       emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
-                    </div>
-                  </td>
+                  {!filterClassification && (
+                    <td className="px-8 py-5">
+                      <div className={cn(
+                        "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black",
+                        emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" :
+                        emp.status === 'End of Service' ? "bg-red-50 text-red-600" :
+                        emp.status === 'Leave' ? "bg-blue-50 text-blue-600" :
+                        "bg-gray-50 text-gray-600"
+                      )}>
+                        <div className={cn("w-1.5 h-1.5 rounded-full", 
+                          emp.status === 'Active' ? "bg-emerald-600" :
+                          emp.status === 'End of Service' ? "bg-red-600" :
+                          emp.status === 'Leave' ? "bg-blue-600" :
+                          "bg-gray-600"
+                        )} />
+                        {emp.status === 'Active' ? 'نشط' : 
+                         emp.status === 'End of Service' ? 'إنهاء خدمات' :
+                         emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
@@ -449,6 +465,18 @@ export const EmployeesList: React.FC = () => {
               <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">تصنيف الموظف</label>
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      value={formData.classification || 'Standard'}
+                      onChange={(e) => setFormData({...formData, classification: e.target.value as any})}
+                    >
+                      <option value="Standard">موظف عادي</option>
+                      <option value="Saudi">السعوديين</option>
+                      <option value="Accounting">رواتب المحاسبات</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">الرقم الوظيفي</label>
                     <input 
                       required
@@ -476,11 +504,19 @@ export const EmployeesList: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">صاحب العمل الرسمي</label>
-                    <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
                       value={formData.officialEmployer || ''}
                       onChange={(e) => setFormData({...formData, officialEmployer: e.target.value})}
-                    />
+                    >
+                      <option value="">اختر الفرع / صاحب العمل</option>
+                      {branches.map(b => (
+                        <option key={b.id} value={b.name}>{b.name}</option>
+                      ))}
+                      {!branches.some(b => b.name === formData.officialEmployer) && formData.officialEmployer && (
+                        <option value={formData.officialEmployer}>{formData.officialEmployer}</option>
+                      )}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">الجنسية</label>
@@ -526,19 +562,35 @@ export const EmployeesList: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">ادارة القطاع</label>
-                    <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
                       value={formData.sectorManagement || ''}
                       onChange={(e) => setFormData({...formData, sectorManagement: e.target.value})}
-                    />
+                    >
+                      <option value="">اختر القطاع</option>
+                      {sectors.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                      {!sectors.some(s => s.name === formData.sectorManagement) && formData.sectorManagement && (
+                        <option value={formData.sectorManagement}>{formData.sectorManagement}</option>
+                      )}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">القطاعات</label>
-                    <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
                       value={formData.sectors || ''}
                       onChange={(e) => setFormData({...formData, sectors: e.target.value})}
-                    />
+                    >
+                      <option value="">اختر الإدارة</option>
+                      {managements.map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                      {!managements.some(m => m.name === formData.sectors) && formData.sectors && (
+                        <option value={formData.sectors}>{formData.sectors}</option>
+                      )}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">مركز التكلفة / رئيسي</label>

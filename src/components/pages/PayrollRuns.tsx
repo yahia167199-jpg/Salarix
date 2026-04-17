@@ -122,101 +122,146 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
-    // 1. Prepare Employee Data
-    const employeeData = results.map((r) => ({
-      'الرقم الوظيفي': r.employeeId,
-      'اسم الموظف': r.employeeName,
-      'رقم الإقامة': r.iqamaNumber || '',
-      'صاحب العمل الرسمي': r.officialEmployer || '',
-      'الموقع': r.location || '',
-      'طريقة الصرف': r.paymentMethod === 'Bank' ? 'بنك' : 'كاش',
-      'الحساب البنكي': r.bankAccount || '',
-      'كود البنك': r.bankCode || '',
-      'الراتب الأساسي': r.basicSalary,
-      'بدل السكن': r.housingAllowance,
-      'بدلات أخرى': r.otherEarnings,
-      'مبلغ التحويل البنكي': r.bankExportAmount,
-      'مبلغ الصرف الكاش': r.cashExportAmount,
-      'إجمالي الدخل': r.totalIncome,
-      'إجمالي الاستقطاعات': r.totalIncome - (r.bankExportAmount + r.cashExportAmount),
-    }));
+    // 1. Inclusion Rule: Total Salary > 0 AND Payment Method === 'Bank'
+    const bankEmployees = results.filter(r => r.paymentMethod === 'Bank' && r.netSalary > 0);
+    
+    // 2. Prepare Row Data
+    const [year, monthNum] = run.month.split('-');
+    const formattedDate = `${monthNum}/${year}`;
 
-    // 2. Summary by Entity
-    const entitySummaryMap = results.reduce((acc: any, curr) => {
-      const entity = curr.officialEmployer || 'غير محدد';
-      acc[entity] = (acc[entity] || 0) + curr.bankExportAmount + curr.cashExportAmount;
+    const employeeRows = bankEmployees.map((r) => [
+      r.bankCode || '',        // Bank
+      r.bankAccount || '',     // Account Number
+      r.netSalary,             // Total Salary
+      `راتب شهر ${formattedDate}`, // Comments
+      r.employeeName,          // Employee Name
+      r.iqamaNumber || '',     // National ID / Iqama ID
+      '(ALBAHA)',              // Employee Address
+      r.basicSalary,           // Basic Salary
+      r.housingAllowance,      // Housing Allowance
+      r.otherEarnings,         // Other Earnings
+      r.totalDeductions,       // Deductions
+      r.officialEmployer || '' // الفرع
+    ]);
+
+    const headers = [
+      'Bank', 
+      'Account Number', 
+      'Total Salary', 
+      'Comments', 
+      'Employee Name', 
+      'National ID / Iqama ID', 
+      'Employee Address', 
+      'Basic Salary', 
+      'Housing Allowance', 
+      'Other Earnings', 
+      'Deductions', 
+      'الفرع'
+    ];
+
+    // 3. Totals Calculation (Bank Sheet specific)
+    const sumTotalSalary = bankEmployees.reduce((sum, e) => sum + e.netSalary, 0);
+    const sumBasic = bankEmployees.reduce((sum, e) => sum + e.basicSalary, 0);
+    const sumHousing = bankEmployees.reduce((sum, e) => sum + e.housingAllowance, 0);
+    const sumOtherEarnings = bankEmployees.reduce((sum, e) => sum + e.otherEarnings, 0);
+    const sumDeductions = bankEmployees.reduce((sum, e) => sum + e.totalDeductions, 0);
+    
+    const calculatedNet = Number(((sumBasic + sumHousing + sumOtherEarnings) - sumDeductions).toFixed(2));
+    const systemDiff = Number((calculatedNet - sumTotalSalary).toFixed(2));
+
+    // 4. Branch Summary
+    const branchMap = bankEmployees.reduce((acc: any, curr) => {
+      const b = curr.officialEmployer || 'غير محدد';
+      acc[b] = (acc[b] || 0) + curr.netSalary;
       return acc;
     }, {});
+    const branchRows = Object.entries(branchMap).map(([name, amount]) => [name, amount]);
+    const branchGrandTotal = Object.values(branchMap).reduce((sum: any, val: any) => sum + val, 0);
 
-    const entitySummaryData = Object.entries(entitySummaryMap).map(([name, amount]) => [name, amount]);
-    const entityTotal = Object.values(entitySummaryMap).reduce((sum: any, val: any) => sum + val, 0);
+    // 5. Reconciliation (Certified = Standard Employees only)
+    const getIsStandard = (empId: string) => {
+      const emp = allEmployees.find(e => (e.employeeId === empId || e.id === empId));
+      return !emp?.classification || emp.classification === 'Standard';
+    };
 
-    // 3. Bank vs Cash Summary
-    const bankTotal = results.reduce((sum, r) => sum + r.bankExportAmount, 0);
-    const cashTotal = results.reduce((sum, r) => sum + r.cashExportAmount, 0);
-    const totalEmployees = results.length;
-    const grandTotal = bankTotal + cashTotal;
-
-    // 4. Adjustments (Mocked as requested for the example, but dynamic in structure)
-    const adjustments = [
-      { label: "المحاسبات", amount: 0 },
-      { label: "السعودين", amount: 0 },
-    ];
-    const adjustmentsSubtotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
+    const certifiedBankAmount = results
+      .filter(r => r.paymentMethod === 'Bank' && getIsStandard(r.employeeId))
+      .reduce((sum, r) => sum + r.netSalary, 0);
     
-    // Rounding difference: (Expected total vs actual distribution)
-    const roundingDiff = Number((run.totalNet - (bankTotal + cashTotal - adjustmentsSubtotal)).toFixed(2));
-    // Actually, rounding is often the difference between the sum of individual nets and the aggregated expectation
-    const totalIncrease = adjustmentsSubtotal + roundingDiff;
+    const certifiedCashAmount = results
+      .filter(r => r.paymentMethod === 'Cash' && getIsStandard(r.employeeId))
+      .reduce((sum, r) => sum + r.netSalary, 0);
 
-    // Constructing the Final Sheet
+    const bankCount = results.filter(r => r.paymentMethod === 'Bank').length;
+    const cashCount = results.filter(r => r.paymentMethod === 'Cash').length;
+    const totalEmployeesCount = results.length;
+    
+    // الفرق بالزيادة = إجمالي Total Salary (من شيت البنك) – رواتب موظفين البنك (من المعتمد)
+    const excessDiff = Number((sumTotalSalary - certifiedBankAmount).toFixed(2));
+
+    // 6. Difference Breakdown
+    const accountingTotal = results.reduce((sum, r) => {
+      const emp = allEmployees.find(e => (e.employeeId === r.employeeId || e.id === r.employeeId));
+      return emp?.classification === 'Accounting' ? sum + r.netSalary : sum;
+    }, 0);
+
+    const saudiTotal = results.reduce((sum, r) => {
+      const emp = allEmployees.find(e => (e.employeeId === r.employeeId || e.id === r.employeeId));
+      return emp?.classification === 'Saudi' ? sum + r.netSalary : sum;
+    }, 0);
+
+    const breakdownSum = Number((accountingTotal + saudiTotal).toFixed(2));
+    const finalRoundingDiff = Number((excessDiff - breakdownSum).toFixed(2));
+
+    // 7. Consolidating the final AOA
+    const finalAoa = [
+      headers,
+      ...employeeRows,
+      [],
+      ['1. إجمالي التحويل البنكي', sumTotalSalary],
+      [],
+      ['2. إجمالي مكونات الرواتب'],
+      ['إجمالي Basic Salary', sumBasic],
+      ['إجمالي Housing Allowance', sumHousing],
+      ['إجمالي Other Earnings', sumOtherEarnings],
+      ['إجمالي Deductions', sumDeductions],
+      [],
+      ['3. صافي الرواتب المحسوب', calculatedNet],
+      ['4. فرق النظام', systemDiff],
+      [],
+      ['🏢 ملخص الفروع (Branch Summary)'],
+      ['الفرع', 'مجموع Total Salary'],
+      ...branchRows,
+      ['إجمالي كل الفروع', branchGrandTotal],
+      [],
+      ['🔗 قسم المطابقة (Reconciliation)'],
+      ['رواتب موظفين البنك (المعتمد)', certifiedBankAmount],
+      ['رواتب موظفين الكاش', certifiedCashAmount],
+      ['إجمالي الموظفين (عدد)', totalEmployeesCount],
+      ['عدد موظفي البنك', bankCount],
+      ['عدد موظفي الكاش', cashCount],
+      [],
+      ['الفرق بالزيادة (Bank Sheet vs Certified Base)', excessDiff],
+      [],
+      ['📊 تحليل الفروقات (Difference Breakdown)'],
+      ['المحاسبات', accountingTotal],
+      ['السعودين', saudiTotal],
+      ['إجماليهم', breakdownSum],
+      ['فرق جبر الكسور', finalRoundingDiff]
+    ];
+
+    // 8. Generate and Download
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(employeeData);
+    const ws = XLSX.utils.aoa_to_sheet(finalAoa);
     
-    const startRow = employeeData.length + 3;
-
-    // Add Entity Summary
-    XLSX.utils.sheet_add_aoa(ws, [
-      [''],
-      ['ملخص التوزيع حسب الجهة / الشركة / الفرع'],
-      ['اسم الجهة/الشركة/الفرع', 'إجمالي المبلغ المستحق'],
-      ...entitySummaryData,
-      ['إجمالي جميع الجهات', entityTotal]
-    ], { origin: `A${startRow}` });
-
-    // Add Bank/Cash Summary
-    const nextSummaryRow = startRow + entitySummaryData.length + 5;
-    XLSX.utils.sheet_add_aoa(ws, [
-      ['ملخص صرف الرواتب'],
-      ['بيان الصرف', 'القيمة'],
-      ['رواتب موظفين البنك', bankTotal],
-      ['رواتب موظفين الكاش', cashTotal],
-      ['إجمالي الموظفين', totalEmployees],
-      ['الإجمالي الكلي', grandTotal],
-      ['الفرق (جبر الكسور إن وجد)', roundingDiff]
-    ], { origin: `A${nextSummaryRow}` });
-
-    // Add Adjustments Summary
-    const adjRow = nextSummaryRow + 9;
-    XLSX.utils.sheet_add_aoa(ws, [
-      ['قسم التسويات والزيادات'],
-      ['بند التسوية', 'المبلغ'],
-      ...adjustments.map(a => [a.label, a.amount]),
-      ['إجمالي التسويات الفرعي', adjustmentsSubtotal],
-      ['فرق جبر الكسور', roundingDiff],
-      ['إجمالي الفرق بالزيادة النهائي', totalIncrease]
-    ], { origin: `A${adjRow}` });
-
-    // Styles & Column Widths
     ws['!cols'] = [
-      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 25 },
-      { wch: 15 }, { wch: 12 }, { wch: 30 }, { wch: 10 },
-      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }
+      { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 20 },
+      { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 12 },
+      { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 20 }
     ];
 
-    XLSX.utils.book_append_sheet(wb, ws, "Payroll_Report");
-    XLSX.writeFile(wb, `Payroll_Summary_${run.month}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Bank_Payroll_Statement");
+    XLSX.writeFile(wb, `Bank_Payroll_${run.month}.xlsx`);
   };
 
   const sortedRuns = useMemo(() => {

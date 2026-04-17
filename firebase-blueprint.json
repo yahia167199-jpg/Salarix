@@ -16,6 +16,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "classification": { "type": "string", "enum": ["Standard", "Saudi", "Accounting"] },
         "employeeId": { "type": "string" },
         "name": { "type": "string" },
         "iqamaNumber": { "type": "string" },
@@ -121,6 +122,46 @@
         "netSalary": { "type": "number" },
         "bankAccount": { "type": "string" }
       }
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Company branch or entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Sector": {
+      "title": "Sector",
+      "description": "Organizational Sector",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Management": {
+      "title": "Management",
+      "description": "Organizational Management (Department)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "CompanySettings": {
+      "title": "Company Settings",
+      "description": "System-wide configurations",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "systemPassword": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -143,6 +184,22 @@
     "/payrollResults/{resultId}": {
       "schema": "PayrollResult",
       "description": "Calculated results for a run"
+    },
+    "/branches/{branchId}": {
+      "schema": "Branch",
+      "description": "Company branches"
+    },
+    "/sectors/{sectorId}": {
+      "schema": "Sector",
+      "description": "Organizational sectors"
+    },
+    "/managements/{managementId}": {
+      "schema": "Management",
+      "description": "Organizational managements"
+    },
+    "/companySettings/main": {
+      "schema": "CompanySettings",
+      "description": "Singleton settings document"
     }
   }
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { db, collection, onSnapshot, OperationType, auth, FirestoreErrorInfo } from '../firebase';
-import { Employee, Transaction, PayrollRun, AllowanceType, AppUser } from '../types';
+import { db, collection, onSnapshot, OperationType, auth, FirestoreErrorInfo, doc } from '../firebase';
+import { Employee, Transaction, PayrollRun, AllowanceType, AppUser, Branch, Sector, Management, CompanySettings } from '../types';
+import { useAuth } from '../AuthContext';
 
 interface DataContextType {
   employees: Employee[];
@@ -8,6 +9,10 @@ interface DataContextType {
   payrollRuns: PayrollRun[];
   allowanceTypes: AllowanceType[];
   appUsers: AppUser[];
+  branches: Branch[];
+  sectors: Sector[];
+  managements: Management[];
+  companySettings: CompanySettings | null;
   loading: boolean;
   error: FirestoreErrorInfo | null;
 }
@@ -18,21 +23,42 @@ const DataContext = createContext<DataContextType>({
   payrollRuns: [],
   allowanceTypes: [],
   appUsers: [],
+  branches: [],
+  sectors: [],
+  managements: [],
+  companySettings: null,
   loading: true,
   error: null,
 });
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading: authLoading } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
+  const [managements, setManagements] = useState<Management[]>([]);
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreErrorInfo | null>(null);
 
   useEffect(() => {
+    if (authLoading || !user) {
+      if (!authLoading && !user) {
+        setLoading(false);
+      }
+      return;
+    }
+
     const handleLocalError = (err: unknown, op: OperationType, path: string) => {
+      // Ignore "Missing or insufficient permissions" if we just signed out or are signing in
+      if (err instanceof Error && err.message.includes('permissions')) {
+        console.warn(`Permission denied for ${path}, might be auth transition.`);
+        return;
+      }
       try {
         const errInfo: FirestoreErrorInfo = {
           error: err instanceof Error ? err.message : String(err),
@@ -79,6 +105,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAppUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
     }, (err) => handleLocalError(err, OperationType.LIST, 'users'));
 
+    const unsubBranches = onSnapshot(collection(db, 'branches'), (snap) => {
+      setBranches(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Branch)));
+    }, (err) => handleLocalError(err, OperationType.LIST, 'branches'));
+
+    const unsubSectors = onSnapshot(collection(db, 'sectors'), (snap) => {
+      setSectors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sector)));
+    }, (err) => handleLocalError(err, OperationType.LIST, 'sectors'));
+
+    const unsubManagements = onSnapshot(collection(db, 'managements'), (snap) => {
+      setManagements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Management)));
+    }, (err) => handleLocalError(err, OperationType.LIST, 'managements'));
+
+    const unsubSettings = onSnapshot(doc(db, 'companySettings', 'main'), (snap) => {
+      if (snap.exists()) {
+        setCompanySettings(snap.data() as CompanySettings);
+      } else {
+        setCompanySettings({ companyName: 'نظام الرواتب الذكي' });
+      }
+    }, (err) => handleLocalError(err, OperationType.GET, 'companySettings/main'));
+
     const timer = setTimeout(() => setLoading(false), 2000);
 
     return () => {
@@ -87,16 +133,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubPayrollRuns();
       unsubAllowanceTypes();
       unsubUsers();
+      unsubBranches();
+      unsubSectors();
+      unsubManagements();
+      unsubSettings();
       clearTimeout(timer);
     };
-  }, []);
+  }, [user, authLoading]);
 
   if (error) {
     throw new Error(JSON.stringify(error));
   }
 
   return (
-    <DataContext.Provider value={{ employees, transactions, payrollRuns, allowanceTypes, appUsers, loading, error }}>
+    <DataContext.Provider value={{ employees, transactions, payrollRuns, allowanceTypes, appUsers, branches, sectors, managements, companySettings, loading, error }}>
       {children}
     </DataContext.Provider>
   );

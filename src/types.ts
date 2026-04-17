@@ -23,8 +23,11 @@ export interface AppUser {
 export type EmployeeStatus = 'Active' | 'Inactive' | 'End of Service' | 'Leave';
 export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
 
+export type EmployeeCategory = 'Standard' | 'Saudi' | 'Accounting';
+
 export interface Employee {
   id: string;
+  classification?: EmployeeCategory;
   employeeId: string; // الرقم الوظيفي
   name: string; // الإسم
   iqamaNumber: string; // رقم الإقامة
@@ -131,4 +134,25 @@ export interface PayrollResult {
   cashExportAmount: number;
   netSalary: number;
   adjustments?: PayrollAdjustment[];
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+}
+
+export interface Sector {
+  id: string;
+  name: string;
+}
+
+export interface Management {
+  id: string;
+  name: string;
+}
+
+export interface CompanySettings {
+  companyName: string;
+  logoUrl?: string;
+  systemPassword?: string;
 }
