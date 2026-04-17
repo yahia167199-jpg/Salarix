@@ -1,21 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
-import { db, collection, onSnapshot, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { AllowanceType } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const AllowanceTypes: React.FC = () => {
-  const [types, setTypes] = useState<AllowanceType[]>([]);
+  const { allowanceTypes: types } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'allowanceTypes'), (snap) => {
-      setTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllowanceType)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'allowanceTypes'));
-    return unsub;
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

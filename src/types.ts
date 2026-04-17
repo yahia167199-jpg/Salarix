@@ -99,6 +99,11 @@ export interface PayrollRun {
   updatedAt: any;
 }
 
+export interface PayrollAdjustment {
+  label: string;
+  amount: number;
+}
+
 export interface PayrollResult {
   id: string;
   payrollRunId: string;
@@ -123,5 +128,7 @@ export interface PayrollResult {
   bankReceived: number;
   otherEarnings: number;
   bankExportAmount: number;
+  cashExportAmount: number;
   netSalary: number;
+  adjustments?: PayrollAdjustment[];
 }

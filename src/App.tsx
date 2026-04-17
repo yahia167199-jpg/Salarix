@@ -4,6 +4,8 @@ import { Login } from './components/Login';
 import { Layout } from './components/Layout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+import { DataProvider } from './contexts/DataContext';
+
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
 
@@ -25,7 +27,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <AppContent />
+        <DataProvider>
+          <AppContent />
+        </DataProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

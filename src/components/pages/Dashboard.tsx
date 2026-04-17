@@ -9,7 +9,8 @@ import {
   Clock,
   ShieldCheck
 } from 'lucide-react';
-import { db, collection, onSnapshot, query, where, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, query, where, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { Employee, PayrollRun, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { useMemo } from 'react';
@@ -26,25 +27,7 @@ import {
 } from 'recharts';
 
 export const Dashboard: React.FC = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-
-  useEffect(() => {
-    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
-      setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'employees'));
-
-    const unsubRuns = onSnapshot(collection(db, 'payrollRuns'), (snap) => {
-      setPayrollRuns(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'payrollRuns'));
-
-    const unsubTrans = onSnapshot(collection(db, 'transactions'), (snap) => {
-      setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'transactions'));
-
-    return () => { unsubEmployees(); unsubRuns(); unsubTrans(); };
-  }, []);
+  const { employees, payrollRuns, transactions } = useData();
 
   const totalEmployees = employees.length;
   const activeEmployees = employees.filter(e => e.status === 'Active').length;
@@ -124,21 +107,15 @@ export const Dashboard: React.FC = () => {
           <div className="space-y-6">
             {transactions.slice(0, 5).map((t) => (
               <div key={t.id} className="flex items-center gap-4">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                  t.type === 'Overtime' ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-600"
-                )}>
-                  {t.type === 'Overtime' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600">
+                  <Wallet className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-900 truncate">{employees.find(e => e.id === t.employeeId)?.name || 'موظف'}</p>
-                  <p className="text-xs text-gray-400 font-medium">{t.type === 'Overtime' ? 'إضافي' : 'خصم'} - {t.month}</p>
+                  <p className="text-xs text-gray-400 font-medium">صافي الراتب - {t.month}</p>
                 </div>
-                <span className={cn(
-                  "text-sm font-black",
-                  t.type === 'Overtime' ? "text-blue-600" : "text-red-600"
-                )}>
-                  {t.type === 'Overtime' ? '+' : '-'}{formatCurrency(t.amount)}
+                <span className="text-sm font-black text-blue-600">
+                  {formatCurrency(t.netSalary)}
                 </span>
               </div>
             ))}

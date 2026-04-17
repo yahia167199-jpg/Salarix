@@ -11,41 +11,39 @@ import {
   Globe,
   Settings2
 } from 'lucide-react';
-import { db, collection, onSnapshot } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { Employee, EmployeeStatus, PaymentMethod } from '../../types';
 import { cn, formatCurrency } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
 export const Settlements: React.FC = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { employees } = useData();
   const [filters, setFilters] = useState({
     searchTerm: '',
     officialEmployer: 'all',
     nationality: 'all',
     location: 'all',
-    sector: 'all',
+    sector: 'all', // Sector Management
     status: 'all',
     paymentMethod: 'all',
-    jobTitle: 'all'
+    jobTitle: 'all',
+    costCenterMain: 'all',
+    costCenterDept: 'all',
+    sectors: 'all'
   });
 
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snap) => {
-      setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
-    });
-    return () => unsub();
-  }, []);
-
-  // Extract unique values for filters
   const filterOptions = useMemo(() => {
     const employers = Array.from(new Set(employees.map(e => e.officialEmployer).filter(Boolean)));
     const nationalities = Array.from(new Set(employees.map(e => e.nationality).filter(Boolean)));
     const locations = Array.from(new Set(employees.map(e => e.location).filter(Boolean)));
     const sectors = Array.from(new Set(employees.map(e => e.sectorManagement).filter(Boolean)));
     const jobs = Array.from(new Set(employees.map(e => e.jobTitle).filter(Boolean)));
+    const costCenterMains = Array.from(new Set(employees.map(e => e.costCenterMain).filter(Boolean)));
+    const costCenterDepts = Array.from(new Set(employees.map(e => e.costCenterDept).filter(Boolean)));
+    const sectors_multi = Array.from(new Set(employees.map(e => e.sectors).filter(Boolean)));
     
-    return { employers, nationalities, locations, sectors, jobs };
+    return { employers, nationalities, locations, sectors, jobs, costCenterMains, costCenterDepts, sectors_multi };
   }, [employees]);
 
   const filteredData = useMemo(() => {
@@ -59,8 +57,12 @@ export const Settlements: React.FC = () => {
       const matchStatus = filters.status === 'all' || e.status === filters.status;
       const matchMethod = filters.paymentMethod === 'all' || e.paymentMethod === filters.paymentMethod;
       const matchJob = filters.jobTitle === 'all' || e.jobTitle === filters.jobTitle;
+      const matchCCMain = filters.costCenterMain === 'all' || e.costCenterMain === filters.costCenterMain;
+      const matchCCDept = filters.costCenterDept === 'all' || e.costCenterDept === filters.costCenterDept;
+      const matchSectors = filters.sectors === 'all' || e.sectors === filters.sectors;
 
-      return matchSearch && matchEmployer && matchNationality && matchLocation && matchSector && matchStatus && matchMethod && matchJob;
+      return matchSearch && matchEmployer && matchNationality && matchLocation && matchSector && 
+             matchStatus && matchMethod && matchJob && matchCCMain && matchCCDept && matchSectors;
     });
   }, [employees, filters]);
 
@@ -175,6 +177,34 @@ export const Settlements: React.FC = () => {
 
           <div className="space-y-2">
             <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
+              <Building2 className="w-3 h-3" /> مركز التكلفة / رئيسي
+            </label>
+            <select 
+              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-600"
+              value={filters.costCenterMain}
+              onChange={(e) => setFilters({...filters, costCenterMain: e.target.value})}
+            >
+              <option value="all">الكل</option>
+              {filterOptions.costCenterMains.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
+              <Building2 className="w-3 h-3" /> مركز التكلفة / قسم
+            </label>
+            <select 
+              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-600"
+              value={filters.costCenterDept}
+              onChange={(e) => setFilters({...filters, costCenterDept: e.target.value})}
+            >
+              <option value="all">الكل</option>
+              {filterOptions.costCenterDepts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
               <MapPin className="w-3 h-3" /> الموقع
             </label>
             <select 
@@ -184,6 +214,34 @@ export const Settlements: React.FC = () => {
             >
               <option value="all">الكل</option>
               {filterOptions.locations.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
+              <Briefcase className="w-3 h-3" /> القطاعات
+            </label>
+            <select 
+              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-600"
+              value={filters.sectors}
+              onChange={(e) => setFilters({...filters, sectors: e.target.value})}
+            >
+              <option value="all">الكل</option>
+              {filterOptions.sectors_multi.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
+              <Briefcase className="w-3 h-3" /> إدارة القطاع
+            </label>
+            <select 
+              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-600"
+              value={filters.sector}
+              onChange={(e) => setFilters({...filters, sector: e.target.value})}
+            >
+              <option value="all">الكل</option>
+              {filterOptions.sectors.map(opt => <option key={opt} value={opt}>{opt}</option>)}
             </select>
           </div>
 
@@ -243,7 +301,10 @@ export const Settlements: React.FC = () => {
                 sector: 'all',
                 status: 'all',
                 paymentMethod: 'all',
-                jobTitle: 'all'
+                jobTitle: 'all',
+                costCenterMain: 'all',
+                costCenterDept: 'all',
+                sectors: 'all'
               })}
               className="text-sm font-black text-blue-600 hover:text-blue-700 p-3 h-12 flex items-center gap-2"
             >

@@ -12,7 +12,8 @@ import {
   X as CloseIcon,
   FileSpreadsheet
 } from 'lucide-react';
-import { db, collection, onSnapshot, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { writeBatch, doc as firestoreDoc } from 'firebase/firestore';
 import { Employee, Allowance, AllowanceType } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -20,13 +21,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
 export const EmployeesList: React.FC = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { employees, allowanceTypes } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
 
   // Form State
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
@@ -59,18 +59,6 @@ export const EmployeesList: React.FC = () => {
     allowances: [],
     email: ''
   });
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'employees'), (snap) => {
-      setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'employees'));
-
-    const unsubTypes = onSnapshot(collection(db, 'allowanceTypes'), (snap) => {
-      setAllowanceTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllowanceType)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'allowanceTypes'));
-
-    return () => { unsub(); unsubTypes(); };
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

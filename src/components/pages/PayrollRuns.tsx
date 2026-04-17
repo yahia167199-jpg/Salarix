@@ -10,7 +10,8 @@ import {
   X,
   Calendar
 } from 'lucide-react';
-import { db, collection, onSnapshot, setDoc, doc, query, where, getDocs, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, query, where, getDocs, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { writeBatch } from 'firebase/firestore';
 import { Employee, PayrollRun, PayrollResult, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -21,37 +22,20 @@ import * as XLSX from 'xlsx';
 import { useMemo } from 'react';
 
 export const PayrollRuns: React.FC = () => {
-  const [runs, setRuns] = useState<PayrollRun[]>([]);
+  const { payrollRuns: runs, employees: allEmployees, transactions: allTransactions } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [results, setResults] = useState<PayrollResult[]>([]);
   
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
 
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'payrollRuns'), (snap) => {
-      setRuns(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'payrollRuns'));
-    return unsub;
-  }, []);
-
-  const fetchResults = async (runId: string) => {
-    const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', runId));
-    const snap = await getDocs(q);
-    setResults(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollResult)));
-  };
-
   const calculatePayroll = async () => {
     const runDocRef = doc(collection(db, 'payrollRuns'));
     const runId = runDocRef.id;
     
-    // 1. Get all active employees
-    const empSnap = await getDocs(query(collection(db, 'employees'), where('status', '==', 'Active')));
-    const employees = empSnap.docs.map(d => ({ id: d.id, ...d.data() } as Employee));
-
-    // 2. Get all transactions for this month
-    const transSnap = await getDocs(query(collection(db, 'transactions'), where('month', '==', month)));
-    const transactions = transSnap.docs.map(d => ({ id: d.id, ...d.data() } as Transaction));
+    // Use data from global context to avoid redundant Firestore reads
+    const employees = allEmployees.filter(e => e.status === 'Active');
+    const transactions = allTransactions.filter(t => t.month === month);
 
     const batch = writeBatch(db);
     let totalNet = 0;
@@ -105,6 +89,7 @@ export const PayrollRuns: React.FC = () => {
         bankReceived: details.bankReceived,
         otherEarnings: details.otherEarnings,
         bankExportAmount: details.bankExportAmount,
+        cashExportAmount: details.cashExportAmount,
         netSalary: details.netSalary
       };
 
@@ -126,43 +111,112 @@ export const PayrollRuns: React.FC = () => {
     setIsModalOpen(false);
   };
 
+  const fetchResults = async (runId: string) => {
+    const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', runId));
+    const snap = await getDocs(q);
+    setResults(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollResult)));
+  };
+
   const updateStatus = async (run: PayrollRun, newStatus: PayrollRun['status']) => {
     await setDoc(doc(db, 'payrollRuns', run.id), { ...run, status: newStatus }, { merge: true });
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
-    // Requirement 3: Bank export logic update
-    // Order: Bank, Account Number, Total Salary, Comments, Employee Name, National ID/Iqama ID, 
-    //        Employee Address, Basic Salary, Housing Allowance, Other Earnings, Deductions, صاحب العمل الرسمي
+    // 1. Prepare Employee Data
+    const employeeData = results.map((r) => ({
+      'الرقم الوظيفي': r.employeeId,
+      'اسم الموظف': r.employeeName,
+      'رقم الإقامة': r.iqamaNumber || '',
+      'صاحب العمل الرسمي': r.officialEmployer || '',
+      'الموقع': r.location || '',
+      'طريقة الصرف': r.paymentMethod === 'Bank' ? 'بنك' : 'كاش',
+      'الحساب البنكي': r.bankAccount || '',
+      'كود البنك': r.bankCode || '',
+      'الراتب الأساسي': r.basicSalary,
+      'بدل السكن': r.housingAllowance,
+      'بدلات أخرى': r.otherEarnings,
+      'مبلغ التحويل البنكي': r.bankExportAmount,
+      'مبلغ الصرف الكاش': r.cashExportAmount,
+      'إجمالي الدخل': r.totalIncome,
+      'إجمالي الاستقطاعات': r.totalIncome - (r.bankExportAmount + r.cashExportAmount),
+    }));
+
+    // 2. Summary by Entity
+    const entitySummaryMap = results.reduce((acc: any, curr) => {
+      const entity = curr.officialEmployer || 'غير محدد';
+      acc[entity] = (acc[entity] || 0) + curr.bankExportAmount + curr.cashExportAmount;
+      return acc;
+    }, {});
+
+    const entitySummaryData = Object.entries(entitySummaryMap).map(([name, amount]) => [name, amount]);
+    const entityTotal = Object.values(entitySummaryMap).reduce((sum: any, val: any) => sum + val, 0);
+
+    // 3. Bank vs Cash Summary
+    const bankTotal = results.reduce((sum, r) => sum + r.bankExportAmount, 0);
+    const cashTotal = results.reduce((sum, r) => sum + r.cashExportAmount, 0);
+    const totalEmployees = results.length;
+    const grandTotal = bankTotal + cashTotal;
+
+    // 4. Adjustments (Mocked as requested for the example, but dynamic in structure)
+    const adjustments = [
+      { label: "المحاسبات", amount: 0 },
+      { label: "السعودين", amount: 0 },
+    ];
+    const adjustmentsSubtotal = adjustments.reduce((sum, a) => sum + a.amount, 0);
     
-    const bankResults = results.filter(r => r.paymentMethod === 'Bank');
+    // Rounding difference: (Expected total vs actual distribution)
+    const roundingDiff = Number((run.totalNet - (bankTotal + cashTotal - adjustmentsSubtotal)).toFixed(2));
+    // Actually, rounding is often the difference between the sum of individual nets and the aggregated expectation
+    const totalIncrease = adjustmentsSubtotal + roundingDiff;
 
-    const data = bankResults.map((r) => {
-      // Calculation for bank file as requested:
-      // Total Salary = bankReceived
-      // Deductions = Total Income - Bank Received
-      // Other Earnings = Total Income - Basic Salary - Housing Allowance
-      
-      return {
-        'Bank': r.bankCode || '',
-        'Account Number': r.bankAccount || '',
-        'Total Salary': r.bankExportAmount,
-        'Comments': `Salary for ${run.month}`,
-        'Employee Name': r.employeeName,
-        'National ID/Iqama ID': r.iqamaNumber || '',
-        'Employee Address': r.location || '',
-        'Basic Salary': r.basicSalary,
-        'Housing Allowance': r.housingAllowance,
-        'Other Earnings': r.otherEarnings,
-        'Deductions': r.totalIncome - r.bankExportAmount,
-        'صاحب العمل الرسمي': r.officialEmployer || ''
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Constructing the Final Sheet
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Bank_Payroll");
-    XLSX.writeFile(wb, `Salarix_Bank_Payroll_${run.month}.xlsx`);
+    const ws = XLSX.utils.json_to_sheet(employeeData);
+    
+    const startRow = employeeData.length + 3;
+
+    // Add Entity Summary
+    XLSX.utils.sheet_add_aoa(ws, [
+      [''],
+      ['ملخص التوزيع حسب الجهة / الشركة / الفرع'],
+      ['اسم الجهة/الشركة/الفرع', 'إجمالي المبلغ المستحق'],
+      ...entitySummaryData,
+      ['إجمالي جميع الجهات', entityTotal]
+    ], { origin: `A${startRow}` });
+
+    // Add Bank/Cash Summary
+    const nextSummaryRow = startRow + entitySummaryData.length + 5;
+    XLSX.utils.sheet_add_aoa(ws, [
+      ['ملخص صرف الرواتب'],
+      ['بيان الصرف', 'القيمة'],
+      ['رواتب موظفين البنك', bankTotal],
+      ['رواتب موظفين الكاش', cashTotal],
+      ['إجمالي الموظفين', totalEmployees],
+      ['الإجمالي الكلي', grandTotal],
+      ['الفرق (جبر الكسور إن وجد)', roundingDiff]
+    ], { origin: `A${nextSummaryRow}` });
+
+    // Add Adjustments Summary
+    const adjRow = nextSummaryRow + 9;
+    XLSX.utils.sheet_add_aoa(ws, [
+      ['قسم التسويات والزيادات'],
+      ['بند التسوية', 'المبلغ'],
+      ...adjustments.map(a => [a.label, a.amount]),
+      ['إجمالي التسويات الفرعي', adjustmentsSubtotal],
+      ['فرق جبر الكسور', roundingDiff],
+      ['إجمالي الفرق بالزيادة النهائي', totalIncrease]
+    ], { origin: `A${adjRow}` });
+
+    // Styles & Column Widths
+    ws['!cols'] = [
+      { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 25 },
+      { wch: 15 }, { wch: 12 }, { wch: 30 }, { wch: 10 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 15 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Payroll_Report");
+    XLSX.writeFile(wb, `Payroll_Summary_${run.month}.xlsx`);
   };
 
   const sortedRuns = useMemo(() => {

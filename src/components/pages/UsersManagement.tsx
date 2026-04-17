@@ -10,13 +10,14 @@ import {
   ShieldAlert,
   X as CloseIcon
 } from 'lucide-react';
-import { db, collection, onSnapshot, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { AppUser, UserRole } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const UsersManagement: React.FC = () => {
-  const [users, setUsers] = useState<AppUser[]>([]);
+  const { appUsers: users } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, show: boolean }>({ id: '', show: false });
@@ -27,14 +28,6 @@ export const UsersManagement: React.FC = () => {
     role: 'Viewer',
     status: 'Active'
   });
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'users'), (snap) => {
-      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
-
-    return () => unsub();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

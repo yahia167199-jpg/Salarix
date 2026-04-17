@@ -1,62 +1,92 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { AlertCircle } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertCircle, RefreshCcw } from 'lucide-react';
+import { FirestoreErrorInfo } from '../firebase';
 
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
+interface Props {
+  children: ReactNode;
 }
 
-interface ErrorBoundaryState {
+interface State {
   hasError: boolean;
-  error: Error | null;
+  errorInfo: FirestoreErrorInfo | null;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
-
-  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+export class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      errorInfo: null,
+    };
   }
 
-  public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error', error, errorInfo);
+  public static getDerivedStateFromError(error: Error): State {
+    try {
+      const parsed = JSON.parse(error.message) as FirestoreErrorInfo;
+      if (parsed.error && parsed.authInfo) {
+        return { hasError: true, errorInfo: parsed };
+      }
+    } catch {
+      // Not a Firestore JSON error
+    }
+    return { hasError: true, errorInfo: null };
   }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Uncaught error:', error, errorInfo);
+  }
+
+  private handleReset = () => {
+    window.location.reload();
+  };
 
   public render() {
-    const { children } = (this as any).props;
-    if (this.state.hasError) {
-      let errorMessage = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
-      
-      try {
-        const parsed = JSON.parse(this.state.error?.message || "");
-        if (parsed.error && parsed.error.includes("permissions")) {
-          errorMessage = "ليس لديك الصلاحيات الكافية للقيام بهذه العملية.";
-        }
-      } catch (e) {
-        // Not a JSON error
-      }
+    const { hasError, errorInfo } = this.state;
+    const { children } = this.props;
+
+    if (hasError) {
+      const isQuotaExceeded = errorInfo?.error?.includes('Quota exceeded') || 
+                            errorInfo?.error?.includes('Quota limit exceeded');
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4" dir="rtl">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center border border-red-100"
-          >
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full text-center space-y-6">
+            <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">عذراً، حدث خطأ</h1>
-            <p className="text-gray-600 mb-8 leading-relaxed">
-              {errorMessage}
-            </p>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-gray-900">
+                {isQuotaExceeded ? 'تجاوز حصة الاستخدام' : 'حدث خطأ ما'}
+              </h2>
+              <p className="text-gray-500 font-medium leading-relaxed">
+                {isQuotaExceeded 
+                  ? 'لقد تجاوزت حصة القراءة المجانية لليوم في Firestore. ستتم إعادة تعيين الحصة تلقائياً غداً.' 
+                  : 'عذراً، حدث خطأ غير متوقع أثناء معالجة البيانات.'}
+              </p>
+              {isQuotaExceeded && (
+                <p className="text-sm text-blue-600 font-bold bg-blue-50 p-3 rounded-2xl">
+                  يمكنك مراجعة تفاصيل الحصص في خطة Spark عبر موقع Firebase الرسمي.
+                </p>
+              )}
+            </div>
+
             <button
-              onClick={() => window.location.reload()}
-              className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-blue-200"
+              onClick={this.handleReset}
+              className="w-full py-4 bg-gray-900 hover:bg-black text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2"
             >
-              إعادة تحميل الصفحة
+              <RefreshCcw className="w-5 h-5" />
+              تحديث الصفحة
             </button>
-          </motion.div>
+            
+            {!isQuotaExceeded && errorInfo && (
+              <div className="mt-4 p-4 bg-gray-100 rounded-2xl text-left overflow-auto max-h-40">
+                <code className="text-xs text-gray-600">
+                  {JSON.stringify(errorInfo, null, 2)}
+                </code>
+              </div>
+            )}
+          </div>
         </div>
       );
     }

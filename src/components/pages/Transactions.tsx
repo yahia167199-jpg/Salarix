@@ -12,7 +12,8 @@ import {
   Download,
   FileSpreadsheet
 } from 'lucide-react';
-import { db, collection, onSnapshot, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
+import { useData } from '../../contexts/DataContext';
 import { writeBatch } from 'firebase/firestore';
 import { Employee, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
@@ -23,8 +24,7 @@ import * as XLSX from 'xlsx';
 import { useMemo } from 'react';
 
 export const Transactions: React.FC = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { transactions, employees } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
@@ -62,18 +62,6 @@ export const Transactions: React.FC = () => {
     dailyWorkHours: 8,
     notes: ''
   });
-
-  useEffect(() => {
-    const unsubTrans = onSnapshot(collection(db, 'transactions'), (snap) => {
-      setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'transactions'));
-
-    const unsubEmp = onSnapshot(collection(db, 'employees'), (snap) => {
-      setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'employees'));
-
-    return () => { unsubTrans(); unsubEmp(); };
-  }, []);
 
   const handleEmployeeChange = (empId: string) => {
     const emp = employees.find(e => e.id === empId);
