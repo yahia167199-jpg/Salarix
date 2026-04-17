@@ -10,7 +10,8 @@ import {
   Menu, 
   X,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { auth, signOut } from '../firebase';
@@ -23,6 +24,7 @@ import { PayrollRuns } from './pages/PayrollRuns';
 import { Transactions } from './pages/Transactions';
 import { AllowanceTypes } from './pages/AllowanceTypes';
 import { UsersManagement } from './pages/UsersManagement';
+import { Settlements } from './pages/Settlements';
 
 export const Layout: React.FC = () => {
   const { user, profile, isAdmin, isHR, isFinance } = useAuth();
@@ -35,6 +37,7 @@ export const Layout: React.FC = () => {
     { id: 'allowance-types', label: 'أنواع البدلات', icon: Settings, show: isHR },
     { id: 'transactions', label: 'الحركات الشهرية', icon: History, show: isHR },
     { id: 'payroll', label: 'مسير الرواتب', icon: Receipt, show: isFinance },
+    { id: 'settlements', label: 'تصفية البيانات', icon: FileText, show: isHR || isFinance },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: ShieldCheck, show: isAdmin },
   ];
 
@@ -47,6 +50,7 @@ export const Layout: React.FC = () => {
       case 'allowance-types': return <AllowanceTypes />;
       case 'transactions': return <Transactions />;
       case 'payroll': return <PayrollRuns />;
+      case 'settlements': return <Settlements />;
       case 'users': return <UsersManagement />;
       default: return <Dashboard />;
     }

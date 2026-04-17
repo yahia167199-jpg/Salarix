@@ -60,8 +60,8 @@ export const UsersManagement: React.FC = () => {
 
   const filteredUsers = useMemo(() => {
     return users.filter(u => 
-      (u.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (u.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      ((u.name || '').toLowerCase()).includes((searchTerm || '').toLowerCase()) ||
+      ((u.email || '').toLowerCase()).includes((searchTerm || '').toLowerCase())
     );
   }, [users, searchTerm]);
 
@@ -106,12 +106,12 @@ export const UsersManagement: React.FC = () => {
             className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative"
           >
             <div className="flex justify-between items-start mb-6">
-              <div className={cn(
-                "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl",
-                u.role === 'Admin' ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
-              )}>
-                {u.name?.[0] || 'U'}
-              </div>
+                  <div className={cn(
+                    "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl",
+                    u.role === 'Admin' ? "bg-purple-50 text-purple-600" : "bg-blue-50 text-blue-600"
+                  )}>
+                    {(u.name || 'U')[0].toUpperCase()}
+                  </div>
               <div className="flex gap-2">
                 <button 
                   onClick={() => setDeleteConfirm({ id: u.id, show: true })}
@@ -180,7 +180,7 @@ export const UsersManagement: React.FC = () => {
                     <input 
                       required
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.name}
+                      value={formData.name || ''}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                     />
                   </div>
@@ -190,7 +190,7 @@ export const UsersManagement: React.FC = () => {
                       type="email"
                       required
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.email}
+                      value={formData.email || ''}
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
                     />
                   </div>

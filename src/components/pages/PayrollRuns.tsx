@@ -14,6 +14,7 @@ import { db, collection, onSnapshot, setDoc, doc, query, where, getDocs, Operati
 import { writeBatch } from 'firebase/firestore';
 import { Employee, PayrollRun, PayrollResult, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { calculatePayrollDetails } from '../../lib/payrollUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
@@ -55,33 +56,29 @@ export const PayrollRuns: React.FC = () => {
     const batch = writeBatch(db);
     let totalNet = 0;
 
-    const results: PayrollResult[] = employees.map(emp => {
-      // Find transaction for this employee this month
-      const empTrans = transactions.find(t => t.employeeId === emp.id);
+    const results: PayrollResult[] = employees
+      .filter(emp => emp.status === 'Active')
+      .map(emp => {
+        // Find transaction for this employee this month
+        const empTrans = transactions.find(t => t.employeeId === emp.id);
+        
+        // Use consolidated calculation utility for all financial fields
+        // Requirement: Overtime calculation must use original basic salary from employee profile
+        const details = calculatePayrollDetails({
+          ...(empTrans || {
+            basicSalary: emp.basicSalary,
+            housingAllowance: emp.housingAllowance,
+            transportAllowance: emp.transportAllowance,
+            subsistenceAllowance: emp.subsistenceAllowance,
+            otherAllowances: emp.otherAllowances,
+            mobileAllowance: emp.mobileAllowance,
+            managementAllowance: emp.managementAllowance,
+            dailyWorkHours: emp.dailyWorkHours || 8,
+          }),
+          overtimeBaseSalary: emp.basicSalary 
+        });
       
-      let basicSalary = emp.basicSalary;
-      let housingAllowance = emp.housingAllowance || 0;
-      let allowances = (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0) + 
-                       (emp.housingAllowance || 0) + (emp.transportAllowance || 0) + 
-                       (emp.subsistenceAllowance || 0) + (emp.otherAllowances || 0) + 
-                       (emp.mobileAllowance || 0) + (emp.managementAllowance || 0);
-      let overtime = 0;
-      let deductions = 0;
-      let netSalary = basicSalary + allowances;
-
-      if (empTrans) {
-        basicSalary = empTrans.basicSalary;
-        housingAllowance = empTrans.housingAllowance;
-        allowances = empTrans.housingAllowance + empTrans.transportAllowance + 
-                     empTrans.subsistenceAllowance + empTrans.otherAllowances + 
-                     empTrans.mobileAllowance + empTrans.managementAllowance + 
-                     empTrans.otherIncome + empTrans.salaryIncrease;
-        overtime = empTrans.overtimeValue;
-        deductions = empTrans.totalDeductions;
-        netSalary = empTrans.netSalary;
-      }
-      
-      totalNet += netSalary;
+      totalNet += details.netSalary;
 
       const resultDocRef = doc(collection(db, 'payrollResults'));
       const result: PayrollResult = {
@@ -93,14 +90,22 @@ export const PayrollRuns: React.FC = () => {
         officialEmployer: emp.officialEmployer,
         location: emp.location,
         paymentMethod: emp.paymentMethod,
-        basicSalary,
-        housingAllowance,
-        allowances,
-        overtime,
-        deductions,
-        netSalary,
         bankAccount: emp.bankAccount,
-        bankCode: emp.bankCode
+        bankCode: emp.bankCode,
+
+        // Map calculated details to result object
+        basicSalary: details.basicSalary,
+        housingAllowance: details.housingAllowance,
+        grossBase: details.grossBase,
+        totalIncome: details.totalIncome,
+        overtimeValue: details.overtimeValue,
+        absenceDeduction: details.absenceDeduction,
+        totalDeductions: details.totalDeductions,
+        salaryReceived: details.salaryReceived,
+        bankReceived: details.bankReceived,
+        otherEarnings: details.otherEarnings,
+        bankExportAmount: details.bankExportAmount,
+        netSalary: details.netSalary
       };
 
       batch.set(resultDocRef, result);
@@ -126,23 +131,33 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
-    // Filter only Bank paymentMethod
+    // Requirement 3: Bank export logic update
+    // Order: Bank, Account Number, Total Salary, Comments, Employee Name, National ID/Iqama ID, 
+    //        Employee Address, Basic Salary, Housing Allowance, Other Earnings, Deductions, صاحب العمل الرسمي
+    
     const bankResults = results.filter(r => r.paymentMethod === 'Bank');
 
-    const data = bankResults.map((r) => ({
-      'Bank': r.bankCode || '',
-      'Account Number': r.bankAccount || '',
-      'Total Salary': r.netSalary,
-      'Comments': `Salary for ${run.month}`,
-      'Employee Name': r.employeeName,
-      'National ID/Iqama ID': r.iqamaNumber || '',
-      'Employee Address': r.location || '',
-      'Basic Salary': r.basicSalary,
-      'Housing Allowance': r.housingAllowance,
-      'Other Earnings': (r.allowances + r.overtime) - r.housingAllowance,
-      'Deductions': r.deductions,
-      'صاحب العمل الرسمي': r.officialEmployer || ''
-    }));
+    const data = bankResults.map((r) => {
+      // Calculation for bank file as requested:
+      // Total Salary = bankReceived
+      // Deductions = Total Income - Bank Received
+      // Other Earnings = Total Income - Basic Salary - Housing Allowance
+      
+      return {
+        'Bank': r.bankCode || '',
+        'Account Number': r.bankAccount || '',
+        'Total Salary': r.bankExportAmount,
+        'Comments': `Salary for ${run.month}`,
+        'Employee Name': r.employeeName,
+        'National ID/Iqama ID': r.iqamaNumber || '',
+        'Employee Address': r.location || '',
+        'Basic Salary': r.basicSalary,
+        'Housing Allowance': r.housingAllowance,
+        'Other Earnings': r.otherEarnings,
+        'Deductions': r.totalIncome - r.bankExportAmount,
+        'صاحب العمل الرسمي': r.officialEmployer || ''
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -241,9 +256,8 @@ export const PayrollRuns: React.FC = () => {
                     <tr className="border-b border-gray-100">
                       <th className="pb-4 text-sm font-black text-gray-400 uppercase">الموظف</th>
                       <th className="pb-4 text-sm font-black text-gray-400 uppercase">الأساسي</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">البدلات</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">إضافي</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">خصومات</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">إجمالي الاستحقاقات</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">إجمالي الاستقطاعات</th>
                       <th className="pb-4 text-sm font-black text-gray-400 uppercase">الصافي</th>
                     </tr>
                   </thead>
@@ -252,9 +266,8 @@ export const PayrollRuns: React.FC = () => {
                       <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="py-4 font-bold text-gray-900">{r.employeeName}</td>
                         <td className="py-4 text-gray-600">{formatCurrency(r.basicSalary)}</td>
-                        <td className="py-4 text-gray-600">{formatCurrency(r.allowances)}</td>
-                        <td className="py-4 text-blue-600 font-bold">+{formatCurrency(r.overtime)}</td>
-                        <td className="py-4 text-red-600 font-bold">-{formatCurrency(r.deductions)}</td>
+                        <td className="py-4 text-emerald-600 font-bold">+{formatCurrency(r.totalIncome)}</td>
+                        <td className="py-4 text-red-600 font-bold">-{formatCurrency(r.totalDeductions)}</td>
                         <td className="py-4 font-black text-gray-900">{formatCurrency(r.netSalary)}</td>
                       </tr>
                     ))}

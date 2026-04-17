@@ -53,6 +53,7 @@ export const EmployeesList: React.FC = () => {
     otherAllowances: 0,
     mobileAllowance: 0,
     managementAllowance: 0,
+    dailyWorkHours: 8,
     status: 'Active',
     paymentMethod: 'Bank',
     allowances: [],
@@ -105,6 +106,7 @@ export const EmployeesList: React.FC = () => {
       otherAllowances: 0,
       mobileAllowance: 0,
       managementAllowance: 0,
+      dailyWorkHours: 8,
       status: 'Active',
       paymentMethod: 'Bank',
       allowances: [],
@@ -172,6 +174,7 @@ export const EmployeesList: React.FC = () => {
       'بدلات اخرى': emp.otherAllowances || 0,
       'الايبــــــــــان': emp.bankAccount || '',
       'كود البنك': emp.bankCode || '',
+      'ساعات العمل اليومية': emp.dailyWorkHours || 8,
       'طريقة الاستلام': emp.paymentMethod === 'Bank' ? 'استلام بنك' : 'استلام راتب',
       'المهنة حسب الاقامة': emp.professionAsPerIqama || '',
       'الإسم': emp.name,
@@ -255,6 +258,7 @@ export const EmployeesList: React.FC = () => {
           otherAllowances: Number(row['بدلات اخرى']) || 0,
           mobileAllowance: Number(row['بدل جوال']) || 0,
           managementAllowance: Number(row['بدل ادارة']) || 0,
+          dailyWorkHours: Number(row['ساعات العمل اليومية'] || row['ساعات العمل']) || 8,
           status: (row['الحالة'] === 'نشط' || row['Status'] === 'Active') ? 'Active' : 'Inactive',
           allowances: allowances,
           email: row['البريد الإلكتروني'] || ''
@@ -390,10 +394,20 @@ export const EmployeesList: React.FC = () => {
                   <td className="px-8 py-5">
                     <div className={cn(
                       "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black",
-                      emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                      emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" :
+                      emp.status === 'End of Service' ? "bg-red-50 text-red-600" :
+                      emp.status === 'Leave' ? "bg-blue-50 text-blue-600" :
+                      "bg-gray-50 text-gray-600"
                     )}>
-                      <div className={cn("w-1.5 h-1.5 rounded-full", emp.status === 'Active' ? "bg-emerald-600" : "bg-red-600")} />
-                      {emp.status === 'Active' ? 'نشط' : 'غير نشط'}
+                      <div className={cn("w-1.5 h-1.5 rounded-full", 
+                        emp.status === 'Active' ? "bg-emerald-600" :
+                        emp.status === 'End of Service' ? "bg-red-600" :
+                        emp.status === 'Leave' ? "bg-blue-600" :
+                        "bg-gray-600"
+                      )} />
+                      {emp.status === 'Active' ? 'نشط' : 
+                       emp.status === 'End of Service' ? 'إنهاء خدمات' :
+                       emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
                     </div>
                   </td>
                   <td className="px-8 py-5">
@@ -451,7 +465,7 @@ export const EmployeesList: React.FC = () => {
                     <input 
                       required
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.employeeId}
+                      value={formData.employeeId || ''}
                       onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
                     />
                   </div>
@@ -460,7 +474,7 @@ export const EmployeesList: React.FC = () => {
                     <input 
                       required
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.name}
+                      value={formData.name || ''}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                     />
                   </div>
@@ -468,7 +482,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">رقم الإقامة</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.iqamaNumber}
+                      value={formData.iqamaNumber || ''}
                       onChange={(e) => setFormData({...formData, iqamaNumber: e.target.value})}
                     />
                   </div>
@@ -476,7 +490,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">صاحب العمل الرسمي</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.officialEmployer}
+                      value={formData.officialEmployer || ''}
                       onChange={(e) => setFormData({...formData, officialEmployer: e.target.value})}
                     />
                   </div>
@@ -484,7 +498,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">الجنسية</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.nationality}
+                      value={formData.nationality || ''}
                       onChange={(e) => setFormData({...formData, nationality: e.target.value})}
                     />
                   </div>
@@ -492,7 +506,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">الوظيفة</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.jobTitle}
+                      value={formData.jobTitle || ''}
                       onChange={(e) => setFormData({...formData, jobTitle: e.target.value})}
                     />
                   </div>
@@ -500,7 +514,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">المهنة حسب الاقامة</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.professionAsPerIqama}
+                      value={formData.professionAsPerIqama || ''}
                       onChange={(e) => setFormData({...formData, professionAsPerIqama: e.target.value})}
                     />
                   </div>
@@ -509,7 +523,7 @@ export const EmployeesList: React.FC = () => {
                     <input 
                       type="date"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.joinDate}
+                      value={formData.joinDate || ''}
                       onChange={(e) => setFormData({...formData, joinDate: e.target.value})}
                     />
                   </div>
@@ -518,7 +532,7 @@ export const EmployeesList: React.FC = () => {
                     <input 
                       type="date"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.lastDirectDate}
+                      value={formData.lastDirectDate || ''}
                       onChange={(e) => setFormData({...formData, lastDirectDate: e.target.value})}
                     />
                   </div>
@@ -526,7 +540,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">ادارة القطاع</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.sectorManagement}
+                      value={formData.sectorManagement || ''}
                       onChange={(e) => setFormData({...formData, sectorManagement: e.target.value})}
                     />
                   </div>
@@ -534,7 +548,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">القطاعات</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.sectors}
+                      value={formData.sectors || ''}
                       onChange={(e) => setFormData({...formData, sectors: e.target.value})}
                     />
                   </div>
@@ -542,7 +556,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">مركز التكلفة / رئيسي</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.costCenterMain}
+                      value={formData.costCenterMain || ''}
                       onChange={(e) => setFormData({...formData, costCenterMain: e.target.value})}
                     />
                   </div>
@@ -550,7 +564,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">مركز التكلفة / قسم</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.costCenterDept}
+                      value={formData.costCenterDept || ''}
                       onChange={(e) => setFormData({...formData, costCenterDept: e.target.value})}
                     />
                   </div>
@@ -558,7 +572,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">الموقع</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.location}
+                      value={formData.location || ''}
                       onChange={(e) => setFormData({...formData, location: e.target.value})}
                     />
                   </div>
@@ -574,11 +588,20 @@ export const EmployeesList: React.FC = () => {
                     </select>
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات العمل اليومية</label>
+                    <input 
+                      type="number"
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      value={formData.dailyWorkHours ?? 8}
+                      onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">كود البنك</label>
                     <input 
                       placeholder="مثال: NCBK, RJHI"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.bankCode}
+                      value={formData.bankCode || ''}
                       onChange={(e) => setFormData({...formData, bankCode: e.target.value})}
                     />
                   </div>
@@ -586,7 +609,7 @@ export const EmployeesList: React.FC = () => {
                     <label className="text-sm font-bold text-gray-500 mr-2">الايبــــــــــان</label>
                     <input 
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.bankAccount}
+                      value={formData.bankAccount || ''}
                       onChange={(e) => setFormData({...formData, bankAccount: e.target.value})}
                     />
                   </div>
@@ -596,7 +619,7 @@ export const EmployeesList: React.FC = () => {
                       type="number"
                       required
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.basicSalary}
+                      value={formData.basicSalary ?? 0}
                       onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})}
                     />
                   </div>
@@ -644,6 +667,19 @@ export const EmployeesList: React.FC = () => {
                       value={formData.managementAllowance}
                       onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">حالة الموظف</label>
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      value={formData.status}
+                      onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                    >
+                      <option value="Active">نشط</option>
+                      <option value="Inactive">غير نشط</option>
+                      <option value="End of Service">إنهاء خدمات</option>
+                      <option value="Leave">إجازة</option>
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">بدلات اخرى</label>

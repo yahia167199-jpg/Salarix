@@ -16,6 +16,7 @@ import { db, collection, onSnapshot, setDoc, doc, deleteDoc, serverTimestamp, Op
 import { writeBatch } from 'firebase/firestore';
 import { Employee, Transaction } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
+import { calculatePayrollDetails } from '../../lib/payrollUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
@@ -58,6 +59,7 @@ export const Transactions: React.FC = () => {
     netSalary: 0,
     status: 'Draft',
     salaryIncrease: 0,
+    dailyWorkHours: 8,
     notes: ''
   });
 
@@ -72,43 +74,6 @@ export const Transactions: React.FC = () => {
 
     return () => { unsubTrans(); unsubEmp(); };
   }, []);
-
-  // Update calculated values when dependencies change
-  useEffect(() => {
-    const basic = formData.basicSalary || 0;
-    const ovHours = formData.overtimeHours || 0;
-    const absDays = formData.absenceDays || 0;
-
-    // OT Formula: (Basic / 30 / 10) * 1.5 * hours
-    const calculatedOT = (basic / 30 / 10) * 1.5 * ovHours;
-
-    // Absence Formula: ((Basic + All Allowances listed) / 30) * absenceDays
-    const totalAllowancesBase = basic + 
-                                formData.transportAllowance + 
-                                formData.subsistenceAllowance + 
-                                formData.otherAllowances + 
-                                formData.mobileAllowance + 
-                                formData.managementAllowance;
-    const calculatedAbsence = (totalAllowancesBase / 30) * absDays;
-
-    if (calculatedOT !== formData.overtimeValue || calculatedAbsence !== formData.absenceDeduction) {
-      setFormData(prev => ({
-        ...prev,
-        overtimeValue: Number(calculatedOT.toFixed(2)),
-        absenceDeduction: Number(calculatedAbsence.toFixed(2))
-      }));
-    }
-  }, [
-    formData.basicSalary, 
-    formData.overtimeHours, 
-    formData.absenceDays,
-    formData.housingAllowance,
-    formData.transportAllowance,
-    formData.subsistenceAllowance,
-    formData.otherAllowances,
-    formData.mobileAllowance,
-    formData.managementAllowance
-  ]);
 
   const handleEmployeeChange = (empId: string) => {
     const emp = employees.find(e => e.id === empId);
@@ -127,13 +92,14 @@ export const Transactions: React.FC = () => {
         otherAllowances: proRate(emp.otherAllowances || 0),
         mobileAllowance: proRate(emp.mobileAllowance || 0),
         managementAllowance: proRate(emp.managementAllowance || 0),
+        dailyWorkHours: emp.dailyWorkHours || 8,
       });
     } else {
       setFormData({ ...formData, employeeId: empId });
     }
   };
 
-  // Re-run pro-rating if actualWorkDays changes
+  // Re-run calculations and pro-rating if key inputs change
   useEffect(() => {
     if (!formData.employeeId) return;
     const emp = employees.find(e => e.id === formData.employeeId);
@@ -142,8 +108,7 @@ export const Transactions: React.FC = () => {
     const days = formData.actualWorkDays || 30;
     const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
 
-    setFormData(prev => ({
-      ...prev,
+    const updatedBase = {
       basicSalary: proRate(emp.basicSalary || 0),
       housingAllowance: proRate(emp.housingAllowance || 0),
       transportAllowance: proRate(emp.transportAllowance || 0),
@@ -151,25 +116,37 @@ export const Transactions: React.FC = () => {
       otherAllowances: proRate(emp.otherAllowances || 0),
       mobileAllowance: proRate(emp.mobileAllowance || 0),
       managementAllowance: proRate(emp.managementAllowance || 0),
+    };
+
+    // Requirement 1, 2, 5: Centralized calculation of absence and overtime
+    // Requirement: Overtime calculation must use original basic salary from employee profile
+    const details = calculatePayrollDetails({ 
+      ...formData, 
+      ...updatedBase,
+      overtimeBaseSalary: emp.basicSalary 
+    });
+
+    setFormData(prev => ({
+      ...prev,
+      ...updatedBase,
+      overtimeValue: details.overtimeValue,
+      absenceDeduction: details.absenceDeduction
     }));
-  }, [formData.actualWorkDays]);
+  }, [formData.actualWorkDays, formData.overtimeHours, formData.absenceDays, formData.dailyWorkHours, formData.employeeId]);
 
   const calculateTotals = (data: typeof formData) => {
-    const totalIncome = data.basicSalary + data.housingAllowance + data.transportAllowance + 
-                        data.subsistenceAllowance + data.otherAllowances + data.mobileAllowance + 
-                        data.managementAllowance + data.otherIncome + data.overtimeValue + data.salaryIncrease;
-    
-    const absenceDed = data.absenceDeduction;
-    const hourDed = (data.deductionHours * (data.basicSalary / 240));
-
-    const totalDeductions = data.socialInsurance + data.salaryReceived + data.loans + 
-                            data.bankReceived + data.otherDeductions + data.departureDelayDeduction + 
-                            absenceDed + hourDed;
-
+    const emp = employees.find(e => e.id === data.employeeId);
+    // Requirement: Ensure overtime calculation always uses the contract basic salary from the employee profile
+    const details = calculatePayrollDetails({
+      ...data,
+      overtimeBaseSalary: emp?.basicSalary
+    });
     return {
-      totalIncome: Number(totalIncome.toFixed(2)),
-      totalDeductions: Number(totalDeductions.toFixed(2)),
-      netSalary: Number((totalIncome - totalDeductions).toFixed(2))
+      totalIncome: details.totalIncome,
+      totalDeductions: details.totalDeductions,
+      netSalary: details.netSalary,
+      overtimeValue: details.overtimeValue,
+      absenceDeduction: details.absenceDeduction,
     };
   };
 
@@ -215,6 +192,7 @@ export const Transactions: React.FC = () => {
       netSalary: 0,
       status: 'Draft',
       salaryIncrease: 0,
+      dailyWorkHours: 8,
       notes: ''
     });
   };
@@ -297,6 +275,7 @@ export const Transactions: React.FC = () => {
             absenceDays: Number(row['أيام الغياب']) || 0,
             absenceDeduction: Number(row['خصم الغياب']) || 0,
             salaryIncrease: Number(row['زيادة راتب']) || 0,
+            dailyWorkHours: Number(row['ساعات العمل اليومية'] || emp.dailyWorkHours) || 8,
             notes: row['ملاحظات'] || '',
             status: 'Draft'
           };
@@ -316,8 +295,8 @@ export const Transactions: React.FC = () => {
     return [...transactions]
       .filter(t => {
         const empName = employees.find(e => e.id === t.employeeId)?.name || '';
-        return empName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-               t.month.includes(searchTerm);
+        return (empName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+               (t.month || '').includes(searchTerm || '');
       })
       .sort((a, b) => b.month.localeCompare(a.month));
   }, [transactions, employees, searchTerm]);
@@ -417,19 +396,19 @@ export const Transactions: React.FC = () => {
                         type="text"
                         placeholder="ابحث بالاسم هنا..."
                         className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2"
-                        value={empSearch}
+                        value={empSearch || ''}
                         onChange={(e) => setEmpSearch(e.target.value)}
                       />
                       <select 
                         required 
                         className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" 
-                        value={formData.employeeId} 
+                        value={formData.employeeId || ''} 
                         onChange={(e) => handleEmployeeChange(e.target.value)}
                       >
                         <option value="">اختر الموظف من القائمة...</option>
                         {employees
                           .filter(e => e.status === 'Active')
-                          .filter(e => e.name.toLowerCase().includes(empSearch.toLowerCase()))
+                          .filter(e => (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()))
                           .map(e => (
                             <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>
                           ))}
@@ -438,11 +417,15 @@ export const Transactions: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">الشهر</label>
-                    <input type="month" required className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.month} onChange={(e) => setFormData({...formData, month: e.target.value})} />
+                    <input type="month" required className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.month || ''} onChange={(e) => setFormData({...formData, month: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">أيام العمل الفعلية</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.actualWorkDays} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.actualWorkDays ?? 0} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات العمل في اليوم</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.dailyWorkHours ?? 0} onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})} />
                   </div>
 
                   <div className="md:col-span-3 border-b border-gray-100 pb-2">
@@ -451,27 +434,47 @@ export const Transactions: React.FC = () => {
                   
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">الراتب الأساسي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.basicSalary} onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.basicSalary ?? 0} onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">بدل سكن</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.housingAllowance} onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.housingAllowance ?? 0} onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">بدل نقل</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.transportAllowance} onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.transportAllowance ?? 0} onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">بدل إعاشة</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.subsistenceAllowance ?? 0} onChange={(e) => setFormData({...formData, subsistenceAllowance: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">بدل جوال</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.mobileAllowance ?? 0} onChange={(e) => setFormData({...formData, mobileAllowance: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">بدل إدارة</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.managementAllowance ?? 0} onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">بدلات أخرى</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherAllowances ?? 0} onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">ساعات الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.overtimeHours} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.overtimeHours ?? 0} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">قيمة الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.overtimeValue} onChange={(e) => setFormData({...formData, overtimeValue: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-emerald-600 bg-emerald-50/50" value={formData.overtimeValue ?? 0} onChange={(e) => setFormData({...formData, overtimeValue: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">زيادة راتب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.salaryIncrease ?? 0} onChange={(e) => setFormData({...formData, salaryIncrease: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">دخل آخر</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherIncome} onChange={(e) => setFormData({...formData, otherIncome: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherIncome ?? 0} onChange={(e) => setFormData({...formData, otherIncome: Number(e.target.value)})} />
                   </div>
 
                   <div className="md:col-span-3 border-b border-gray-100 pb-2">
@@ -480,32 +483,44 @@ export const Transactions: React.FC = () => {
 
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">تأمين اجتماعي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.socialInsurance} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">استلام راتب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">استلام بنك</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.bankReceived ?? 0} onChange={(e) => setFormData({...formData, bankReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">سلف</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.loans} onChange={(e) => setFormData({...formData, loans: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.loans ?? 0} onChange={(e) => setFormData({...formData, loans: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">أيام الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.absenceDays} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.absenceDays ?? 0} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">خصم الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.absenceDeduction} onChange={(e) => setFormData({...formData, absenceDeduction: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-red-600 bg-red-50/50" value={formData.absenceDeduction ?? 0} onChange={(e) => setFormData({...formData, absenceDeduction: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">ساعات الخصم</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.deductionHours} onChange={(e) => setFormData({...formData, deductionHours: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.deductionHours ?? 0} onChange={(e) => setFormData({...formData, deductionHours: Number(e.target.value)})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 mr-2">تأخير ومغادرات</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.departureDelayDeduction ?? 0} onChange={(e) => setFormData({...formData, departureDelayDeduction: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">خصومات أخرى</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherDeductions} onChange={(e) => setFormData({...formData, otherDeductions: Number(e.target.value)})} />
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherDeductions ?? 0} onChange={(e) => setFormData({...formData, otherDeductions: Number(e.target.value)})} />
                   </div>
 
                   <div className="md:col-span-3 space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">ملاحظات</label>
-                    <textarea className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium h-24" value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} />
+                    <textarea className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium h-24" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} />
                   </div>
                 </div>
                 <div className="bg-blue-50 p-6 rounded-3xl flex justify-between items-center">

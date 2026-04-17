@@ -20,6 +20,7 @@ export interface AppUser {
   createdAt: string;
 }
 
+export type EmployeeStatus = 'Active' | 'Inactive' | 'End of Service' | 'Leave';
 export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
 
 export interface Employee {
@@ -48,7 +49,8 @@ export interface Employee {
   otherAllowances: number; // بدلات اخرى
   mobileAllowance: number; // بدل جوال
   managementAllowance: number; // بدل ادارة
-  status: 'Active' | 'Inactive';
+  dailyWorkHours: number; // عدد ساعات يوم العمل
+  status: EmployeeStatus;
   allowances: Allowance[]; // Dynamic allowances from DDL
   role?: UserRole;
   email?: string;
@@ -84,6 +86,7 @@ export interface Transaction {
   status: string; // الحالة
   salaryIncrease: number; // زيادة راتب
   notes: string; // ملاحظات
+  dailyWorkHours: number; // عدد ساعات يوم العمل
   createdAt: any;
 }
 
@@ -105,12 +108,20 @@ export interface PayrollResult {
   officialEmployer?: string;
   location?: string;
   paymentMethod?: PaymentMethod;
-  basicSalary: number;
-  housingAllowance: number;
-  allowances: number;
-  overtime: number;
-  deductions: number;
-  netSalary: number;
   bankAccount: string;
   bankCode?: string;
+
+  // Financial fields
+  basicSalary: number;
+  housingAllowance: number;
+  grossBase: number;
+  totalIncome: number;
+  overtimeValue: number;
+  absenceDeduction: number;
+  totalDeductions: number;
+  salaryReceived: number;
+  bankReceived: number;
+  otherEarnings: number;
+  bankExportAmount: number;
+  netSalary: number;
 }
