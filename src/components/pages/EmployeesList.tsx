@@ -10,7 +10,8 @@ import {
   Download,
   Upload,
   X as CloseIcon,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -20,9 +21,10 @@ import { formatCurrency, cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 
-export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification }) => {
+export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification: initialFilterClassification }) => {
   const { employees, allowanceTypes, branches, sectors, managements } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>(initialFilterClassification || 'All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -181,7 +183,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                  (emp.subsistenceAllowance || 0) + (emp.otherAllowances || 0) + 
                  (emp.mobileAllowance || 0) + (emp.managementAllowance || 0) +
                  (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0),
-      'الحالة': emp.status === 'Active' ? 'نشط' : 'غير نشط'
+      'الحالة': emp.status === 'Active' ? 'نشط' : 
+                emp.status === 'Leave' ? 'اجازة' :
+                emp.status === 'End of Service' ? 'انهاء خدمات' :
+                emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'غير نشط'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -249,7 +254,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           mobileAllowance: Number(row['بدل جوال'] || row['Mobile']) || 0,
           managementAllowance: Number(row['بدل ادارة'] || row['Management Allowance']) || 0,
           dailyWorkHours: Number(row['ساعات العمل اليومية'] || row['ساعات العمل'] || 8) || 8,
-          status: (row['الحالة'] === 'نشط' || row['Status'] === 'Active' || !row['الحالة']) ? 'Active' : 'Inactive',
+          status: (row['الحالة'] === 'نشط' || row['Status'] === 'Active' || !row['الحالة']) ? 'Active' : 
+                  (row['الحالة'] === 'اجازة' || row['Status'] === 'Leave') ? 'Leave' :
+                  (row['الحالة'] === 'انهاء خدمات' || row['Status'] === 'End of Service') ? 'End of Service' :
+                  (row['الحالة'] === 'خارج الكفالة' || row['Status'] === 'Out of Sponsorship') ? 'Out of Sponsorship' : 'Inactive',
           allowances: allowances,
           email: row['البريد الإلكتروني'] || row['Email'] || ''
         });
@@ -277,29 +285,51 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
 
   const filteredEmployees = useMemo(() => {
     let result = employees;
-    if (filterClassification) {
-      result = result.filter(e => e.classification === filterClassification);
+    if (classificationFilter !== 'All') {
+      result = result.filter(e => e.classification === classificationFilter);
     }
     return result.filter(e => 
       (e.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.jobTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
-  }, [employees, searchTerm, filterClassification]);
+  }, [employees, searchTerm, classificationFilter]);
 
   return (
     <div className="space-y-6">
       {/* Header Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input 
-            type="text" 
-            placeholder="البحث عن موظف أو قسم..."
-            className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              placeholder="البحث عن موظف أو قسم..."
+              className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="relative group">
+            <Filter className={cn(
+              "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+              classificationFilter !== 'All' ? "text-blue-600" : "text-gray-400"
+            )} />
+            <select
+              value={classificationFilter}
+              onChange={(e) => setClassificationFilter(e.target.value as any)}
+              className={cn(
+                "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[180px] text-sm cursor-pointer",
+                classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
+              )}
+            >
+              <option value="All">كل التصنيفات</option>
+              <option value="Standard">موظف عادي</option>
+              <option value="Saudi">السعوديين</option>
+              <option value="Accounting">رواتب المحاسبات</option>
+            </select>
+            <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {selectedIds.length > 0 && (
@@ -348,10 +378,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   />
                 </th>
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الموظف</th>
-                {!filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">القسم</th>}
-                {filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رقم الهوية / الإقامة</th>}
+                {!initialFilterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">القسم</th>}
+                {initialFilterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رقم الهوية / الإقامة</th>}
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">قيمة المرتب</th>
-                {!filterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>}
+                {!initialFilterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>}
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الإجراءات</th>
               </tr>
             </thead>
@@ -377,40 +407,43 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       </div>
                     </div>
                   </td>
-                  {!filterClassification && (
+                  {!initialFilterClassification && (
                     <td className="px-8 py-5">
                       <span className="px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">
                         {emp.sectorManagement || 'غير محدد'}
                       </span>
                     </td>
                   )}
-                  {filterClassification && (
+                  {initialFilterClassification && (
                     <td className="px-8 py-5 font-bold text-gray-600">
                       {emp.iqamaNumber || 'غير مسجل'}
                     </td>
                   )}
                   <td className="px-8 py-5">
                     <p className="font-black text-gray-900">{formatCurrency(emp.basicSalary)}</p>
-                    {!filterClassification && <p className="text-xs text-gray-400 font-medium">بدلات: {formatCurrency((emp.allowances || []).reduce((sum, a) => sum + a.amount, 0))}</p>}
+                    {!initialFilterClassification && <p className="text-xs text-gray-400 font-medium">بدلات: {formatCurrency((emp.allowances || []).reduce((sum, a) => sum + a.amount, 0))}</p>}
                   </td>
-                  {!filterClassification && (
+                  {!initialFilterClassification && (
                     <td className="px-8 py-5">
                       <div className={cn(
                         "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black",
                         emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" :
                         emp.status === 'End of Service' ? "bg-red-50 text-red-600" :
                         emp.status === 'Leave' ? "bg-blue-50 text-blue-600" :
+                        emp.status === 'Out of Sponsorship' ? "bg-orange-50 text-orange-600" :
                         "bg-gray-50 text-gray-600"
                       )}>
                         <div className={cn("w-1.5 h-1.5 rounded-full", 
                           emp.status === 'Active' ? "bg-emerald-600" :
                           emp.status === 'End of Service' ? "bg-red-600" :
                           emp.status === 'Leave' ? "bg-blue-600" :
+                          emp.status === 'Out of Sponsorship' ? "bg-orange-600" :
                           "bg-gray-600"
                         )} />
                         {emp.status === 'Active' ? 'نشط' : 
                          emp.status === 'End of Service' ? 'إنهاء خدمات' :
-                         emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
+                         emp.status === 'Leave' ? 'إجازة' : 
+                         emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'غير نشط'}
                       </div>
                     </td>
                   )}
@@ -711,14 +744,15 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 mr-2">حالة الموظف</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      id="employee-status-select"
+                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
                       value={formData.status}
                       onChange={(e) => setFormData({...formData, status: e.target.value as any})}
                     >
                       <option value="Active">نشط</option>
-                      <option value="Inactive">غير نشط</option>
-                      <option value="End of Service">إنهاء خدمات</option>
-                      <option value="Leave">إجازة</option>
+                      <option value="Leave">اجازة</option>
+                      <option value="End of Service">انهاء خدمات</option>
+                      <option value="Out of Sponsorship">خارج الكفالة</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -729,17 +763,6 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       value={formData.otherAllowances}
                       onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الحالة</label>
-                    <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as any})}
-                    >
-                      <option value="Active">نشط</option>
-                      <option value="Inactive">غير نشط</option>
-                    </select>
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <div className="flex items-center justify-between mb-2">

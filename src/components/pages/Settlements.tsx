@@ -30,7 +30,8 @@ export const Settlements: React.FC = () => {
     jobTitle: 'all',
     costCenterMain: 'all',
     costCenterDept: 'all',
-    sectors: 'all'
+    sectors: 'all',
+    classification: 'all'
   });
 
   const filterOptions = useMemo(() => {
@@ -60,9 +61,10 @@ export const Settlements: React.FC = () => {
       const matchCCMain = filters.costCenterMain === 'all' || e.costCenterMain === filters.costCenterMain;
       const matchCCDept = filters.costCenterDept === 'all' || e.costCenterDept === filters.costCenterDept;
       const matchSectors = filters.sectors === 'all' || e.sectors === filters.sectors;
+      const matchClassification = filters.classification === 'all' || e.classification === filters.classification;
 
       return matchSearch && matchEmployer && matchNationality && matchLocation && matchSector && 
-             matchStatus && matchMethod && matchJob && matchCCMain && matchCCDept && matchSectors;
+             matchStatus && matchMethod && matchJob && matchCCMain && matchCCDept && matchSectors && matchClassification;
     });
   }, [employees, filters]);
 
@@ -291,6 +293,22 @@ export const Settlements: React.FC = () => {
             </select>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-gray-400 mr-2 flex items-center gap-2">
+              <Users className="w-3 h-3" /> تصنيف الموظف
+            </label>
+            <select 
+              className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-600"
+              value={filters.classification}
+              onChange={(e) => setFilters({...filters, classification: e.target.value})}
+            >
+              <option value="all">الكل</option>
+              <option value="Standard">موظف عادي</option>
+              <option value="Saudi">السعوديين</option>
+              <option value="Accounting">رواتب المحاسبات</option>
+            </select>
+          </div>
+
           <div className="flex items-end">
             <button 
               onClick={() => setFilters({
@@ -304,7 +322,8 @@ export const Settlements: React.FC = () => {
                 jobTitle: 'all',
                 costCenterMain: 'all',
                 costCenterDept: 'all',
-                sectors: 'all'
+                sectors: 'all',
+                classification: 'all'
               })}
               className="text-sm font-black text-blue-600 hover:text-blue-700 p-3 h-12 flex items-center gap-2"
             >

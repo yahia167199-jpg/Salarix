@@ -8,9 +8,10 @@ import {
   Eye,
   ChevronLeft,
   X,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react';
-import { db, collection, setDoc, doc, query, where, getDocs, OperationType, handleFirestoreError } from '../../firebase';
+import { db, collection, setDoc, doc, query, where, getDocs, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
 import { writeBatch } from 'firebase/firestore';
 import { Employee, PayrollRun, PayrollResult, Transaction } from '../../types';
@@ -90,10 +91,12 @@ export const PayrollRuns: React.FC = () => {
         otherEarnings: details.otherEarnings,
         bankExportAmount: details.bankExportAmount,
         cashExportAmount: details.cashExportAmount,
-        netSalary: details.netSalary
+        netSalary: Math.round(details.netSalary),
+        roundingDiff: Number((Math.round(details.netSalary) - details.netSalary).toFixed(2))
       };
 
       batch.set(resultDocRef, result);
+      totalNet += result.netSalary;
       return result;
     });
 
@@ -119,6 +122,33 @@ export const PayrollRuns: React.FC = () => {
 
   const updateStatus = async (run: PayrollRun, newStatus: PayrollRun['status']) => {
     await setDoc(doc(db, 'payrollRuns', run.id), { ...run, status: newStatus }, { merge: true });
+  };
+
+  const deleteRun = async (runId: string, runStatus: string) => {
+    const statusText = runStatus === 'Draft' ? 'مسودة' : 'معتمد';
+    if (!window.confirm(`هل أنت متأكد من حذف هذا المسير (${statusText})؟ سيتم حذف جميع النتائج والتقارير المرتبطة به نهائياً.`)) return;
+    
+    try {
+      // 1. First, get all associated results
+      const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', runId));
+      const snap = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      
+      // 2. Add results deletions to batch
+      snap.forEach(d => {
+        batch.delete(doc(db, 'payrollResults', d.id));
+      });
+      
+      // 3. Add the run deletion to batch
+      batch.delete(doc(db, 'payrollRuns', runId));
+      
+      // 4. Execute atomic operation
+      await batch.commit();
+    } catch (error) {
+      console.error('Error deleting payroll run:', error);
+      handleFirestoreError(error, OperationType.DELETE, `payrollRuns/${runId}`);
+    }
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
@@ -165,9 +195,10 @@ export const PayrollRuns: React.FC = () => {
     const sumHousing = bankEmployees.reduce((sum, e) => sum + e.housingAllowance, 0);
     const sumOtherEarnings = bankEmployees.reduce((sum, e) => sum + e.otherEarnings, 0);
     const sumDeductions = bankEmployees.reduce((sum, e) => sum + e.totalDeductions, 0);
+    const sumRoundingDiff = bankEmployees.reduce((sum, e) => sum + (e.roundingDiff || 0), 0);
     
     const calculatedNet = Number(((sumBasic + sumHousing + sumOtherEarnings) - sumDeductions).toFixed(2));
-    const systemDiff = Number((calculatedNet - sumTotalSalary).toFixed(2));
+    const systemDiff = Number((calculatedNet - (sumTotalSalary - sumRoundingDiff)).toFixed(2));
 
     // 4. Branch Summary
     const branchMap = bankEmployees.reduce((acc: any, curr) => {
@@ -228,6 +259,7 @@ export const PayrollRuns: React.FC = () => {
       [],
       ['3. صافي الرواتب المحسوب', calculatedNet],
       ['4. فرق النظام', systemDiff],
+      ['5. إجمالي فرق جبر الكسور العشرية', sumRoundingDiff],
       [],
       ['🏢 ملخص الفروع (Branch Summary)'],
       ['الفرع', 'مجموع Total Salary'],
@@ -288,12 +320,26 @@ export const PayrollRuns: React.FC = () => {
               <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
                 <Calendar className="w-7 h-7" />
               </div>
-              <div className={cn(
-                "px-4 py-1.5 rounded-full text-xs font-black",
-                run.status === 'Approved' ? "bg-emerald-50 text-emerald-600" :
-                run.status === 'Draft' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
-              )}>
-                {run.status}
+              <div className="flex flex-col items-end gap-2">
+                <div className={cn(
+                  "px-4 py-1.5 rounded-full text-xs font-black",
+                  run.status === 'Approved' ? "bg-emerald-50 text-emerald-600" :
+                  run.status === 'Draft' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
+                )}>
+                  {run.status}
+                </div>
+                <button 
+                  type="button"
+                  onClick={(e) => { 
+                    e.preventDefault();
+                    e.stopPropagation(); 
+                    deleteRun(run.id, run.status); 
+                  }}
+                  className="p-2.5 text-gray-400 hover:text-white hover:bg-red-500 transition-all bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-center group/del active:scale-90"
+                  title="حذف المسير"
+                >
+                  <Trash2 className="w-4 h-4 transition-transform group-hover/del:scale-110" />
+                </button>
               </div>
             </div>
             

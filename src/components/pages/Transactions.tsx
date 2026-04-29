@@ -10,12 +10,14 @@ import {
   Trash2,
   Upload,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Filter,
+  ChevronDown
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
 import { writeBatch } from 'firebase/firestore';
-import { Employee, Transaction } from '../../types';
+import { Employee, Transaction, EmployeeCategory } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { calculatePayrollDetails } from '../../lib/payrollUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +31,7 @@ export const Transactions: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('All');
 
   // Form State
   const [formData, setFormData] = useState<Omit<Transaction, 'id' | 'createdAt'>>({
@@ -190,6 +193,24 @@ export const Transactions: React.FC = () => {
     setDeleteConfirmId(null);
   };
 
+  const deleteDrafts = async () => {
+    const drafts = transactions.filter(t => t.status === 'Draft');
+    if (drafts.length === 0) return alert('لا يوجد حركات مسودة لحذفها');
+    
+    if (!window.confirm(`هل أنت متأكد من حذف جميع الحركات في حالة "مسودة" عدد (${drafts.length})؟`)) return;
+    
+    try {
+      const batch = writeBatch(db);
+      drafts.forEach(d => {
+        batch.delete(doc(db, 'transactions', d.id));
+      });
+      await batch.commit();
+      alert('تم حذف جميع المسودات بنجاح');
+    } catch (error) {
+      console.error('Error deleting drafts:', error);
+    }
+  };
+
   const handleEdit = (t: Transaction) => {
     setFormData({ ...t });
     setIsModalOpen(true);
@@ -282,27 +303,70 @@ export const Transactions: React.FC = () => {
   const sortedTransactions = useMemo(() => {
     return [...transactions]
       .filter(t => {
-        const empName = employees.find(e => e.id === t.employeeId)?.name || '';
-        return (empName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-               (t.month || '').includes(searchTerm || '');
+        const emp = employees.find(e => e.id === t.employeeId);
+        const empName = emp?.name || '';
+        
+        // Search term filter
+        const matchesSearch = (empName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
+                             (t.month || '').includes(searchTerm || '');
+        if (!matchesSearch) return false;
+
+        // Classification filter
+        if (classificationFilter !== 'All') {
+          if (emp?.classification !== classificationFilter) return false;
+        }
+
+        return true;
       })
       .sort((a, b) => b.month.localeCompare(a.month));
-  }, [transactions, employees, searchTerm]);
+  }, [transactions, employees, searchTerm, classificationFilter]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input 
-            type="text" 
-            placeholder="البحث بالموظف أو الشهر (YYYY-MM)..."
-            className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input 
+              type="text" 
+              placeholder="البحث بالموظف أو الشهر (YYYY-MM)..."
+              className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="relative group">
+            <Filter className={cn(
+              "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+              classificationFilter !== 'All' ? "text-blue-600" : "text-gray-400"
+            )} />
+            <select
+              value={classificationFilter}
+              onChange={(e) => setClassificationFilter(e.target.value as any)}
+              className={cn(
+                "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
+                classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
+              )}
+            >
+              <option value="All">كل التصنيفات (التصفية)</option>
+              <option value="Standard">موظف عادي</option>
+              <option value="Saudi">السعوديين</option>
+              <option value="Accounting">رواتب المحاسبات</option>
+            </select>
+            <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
+          </div>
         </div>
         <div className="flex items-center gap-3">
+          {transactions.some(t => t.status === 'Draft') && (
+            <button 
+              onClick={deleteDrafts}
+              className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
+              title="حذف كافة المسودات"
+            >
+              <Trash2 className="w-5 h-5" />
+              <span className="hidden md:inline">حذف المسودات</span>
+            </button>
+          )}
           <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
             <Upload className="w-5 h-5" />
             <span className="hidden md:inline">استيراد</span>

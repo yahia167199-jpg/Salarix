@@ -20,7 +20,7 @@ export interface AppUser {
   createdAt: string;
 }
 
-export type EmployeeStatus = 'Active' | 'Inactive' | 'End of Service' | 'Leave';
+export type EmployeeStatus = 'Active' | 'Leave' | 'End of Service' | 'Out of Sponsorship' | 'Inactive';
 export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
 
 export type EmployeeCategory = 'Standard' | 'Saudi' | 'Accounting';
@@ -133,6 +133,7 @@ export interface PayrollResult {
   bankExportAmount: number;
   cashExportAmount: number;
   netSalary: number;
+  roundingDiff?: number;
   adjustments?: PayrollAdjustment[];
 }
 
