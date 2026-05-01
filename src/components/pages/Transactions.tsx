@@ -308,7 +308,9 @@ export const Transactions: React.FC = () => {
         
         // Search term filter
         const matchesSearch = (empName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-                             (t.month || '').includes(searchTerm || '');
+                             (t.month || '').includes(searchTerm || '') ||
+                             (emp?.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             (emp?.iqamaNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
         if (!matchesSearch) return false;
 
         // Classification filter
@@ -329,7 +331,7 @@ export const Transactions: React.FC = () => {
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input 
               type="text" 
-              placeholder="البحث بالموظف أو الشهر (YYYY-MM)..."
+              placeholder="البحث بالاسم، رقم الموظف، الإقامة أو الشهر..."
               className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -446,7 +448,7 @@ export const Transactions: React.FC = () => {
                       <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                       <input 
                         type="text"
-                        placeholder="ابحث بالاسم هنا..."
+                        placeholder="ابحث بالاسم، رقم الموظف، أو الإقامة..."
                         className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2"
                         value={empSearch || ''}
                         onChange={(e) => setEmpSearch(e.target.value)}
@@ -461,7 +463,11 @@ export const Transactions: React.FC = () => {
                         {employees
                           .filter(e => e.status === 'Active')
                           .filter(e => e.classification === 'Standard' || !e.classification)
-                          .filter(e => (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()))
+                          .filter(e => 
+                            (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
+                            (e.employeeId || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
+                            (e.iqamaNumber || '').toLowerCase().includes((empSearch || '').toLowerCase())
+                          )
                           .map(e => (
                             <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>
                           ))}
