@@ -40,7 +40,7 @@
         "otherAllowances": { "type": "number" },
         "mobileAllowance": { "type": "number" },
         "managementAllowance": { "type": "number" },
-        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "On Leave"] },
         "allowances": {
           "type": "array",
           "items": {
@@ -55,6 +55,22 @@
         "email": { "type": "string" }
       },
       "required": ["name", "status", "basicSalary"]
+    },
+    "Leave": {
+      "title": "Leave",
+      "description": "Employee leave request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "returnDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Completed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["employeeId", "startDate", "endDate", "status"]
     },
     "Transaction": {
       "title": "Monthly Transaction",
@@ -153,6 +169,16 @@
       },
       "required": ["name"]
     },
+    "CostCenterDept": {
+      "title": "CostCenterDept",
+      "description": "Organizational Cost Center or Department",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
     "CompanySettings": {
       "title": "Company Settings",
       "description": "System-wide configurations",
@@ -160,7 +186,8 @@
       "properties": {
         "companyName": { "type": "string" },
         "logoUrl": { "type": "string" },
-        "systemPassword": { "type": "string" }
+        "systemPassword": { "type": "string" },
+        "autoLeaveRenewal": { "type": "boolean" }
       }
     }
   },
@@ -196,6 +223,14 @@
     "/managements/{managementId}": {
       "schema": "Management",
       "description": "Organizational managements"
+    },
+    "/costCenterDepts/{deptId}": {
+      "schema": "CostCenterDept",
+      "description": "Organizational cost centers and departments"
+    },
+    "/leaves/{leaveId}": {
+      "schema": "Leave",
+      "description": "Employee leaves"
     },
     "/companySettings/main": {
       "schema": "CompanySettings",

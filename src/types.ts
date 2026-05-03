@@ -53,6 +53,8 @@ export interface Employee {
   mobileAllowance: number; // بدل جوال
   managementAllowance: number; // بدل ادارة
   dailyWorkHours: number; // عدد ساعات يوم العمل
+  usedLeaveDays?: number; // أيام الإجازة المستهلكة
+  iqamaExpiryDate?: string; // تاريخ انتهاء الإقامة
   status: EmployeeStatus;
   allowances: Allowance[]; // Dynamic allowances from DDL
   role?: UserRole;
@@ -110,31 +112,60 @@ export interface PayrollAdjustment {
 export interface PayrollResult {
   id: string;
   payrollRunId: string;
-  employeeId: string;
+  employeeId: string; // The system ID (can be employeeId string)
   employeeName: string;
   iqamaNumber?: string;
   officialEmployer?: string;
   location?: string;
+  sectors?: string;
+  costCenterMain?: string;
+  costCenterDept?: string;
   paymentMethod?: PaymentMethod;
   bankAccount: string;
   bankCode?: string;
 
-  // Financial fields
+  // Financial fields matching Transaction for reporting
   basicSalary: number;
   housingAllowance: number;
-  grossBase: number;
+  transportAllowance: number;
+  subsistenceAllowance: number;
+  otherAllowances: number;
+  mobileAllowance: number;
+  managementAllowance: number;
+  otherIncome: number; // اضافة الشهر دخل آخر
+  overtimeHours: number;
+  overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number;
-  overtimeValue: number;
+  socialInsurance: number; // تامينات اجتماعية
+  salaryReceived: number; // استلام راتب (كاش)
+  loans: number; // سلف
+  bankReceived: number; // استلام بنك
+  otherDeductions: number;
+  deductionHours: number;
+  delayDeduction: number; // خصم المغادرات والتاخير
+  absenceDays: number;
   absenceDeduction: number;
   totalDeductions: number;
-  salaryReceived: number;
-  bankReceived: number;
-  otherEarnings: number;
-  bankExportAmount: number;
-  cashExportAmount: number;
   netSalary: number;
   roundingDiff?: number;
   adjustments?: PayrollAdjustment[];
+
+  // Legacy fields (keeping for compatibility)
+  grossBase?: number;
+  otherEarnings?: number;
+  bankExportAmount?: number;
+  cashExportAmount?: number;
+}
+
+export interface Leave {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  startDate: string;
+  endDate: string;
+  returnDate: string;
+  status: 'Active' | 'Completed';
+  createdAt: string;
 }
 
 export interface Branch {
@@ -152,8 +183,16 @@ export interface Management {
   name: string;
 }
 
+export interface CostCenterDept {
+  id: string;
+  name: string;
+  sectorName: string;
+}
+
 export interface CompanySettings {
   companyName: string;
   logoUrl?: string;
   systemPassword?: string;
+  iqamaAlertDays?: number; // عدد أيام التنبيه لانتهاء الإقامة
+  autoLeaveRenewal?: boolean; // تجديد تلقائي للأرصدة
 }

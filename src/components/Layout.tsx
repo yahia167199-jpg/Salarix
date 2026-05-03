@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, 
@@ -11,7 +11,8 @@ import {
   X,
   Settings,
   ShieldCheck,
-  FileText
+  FileText,
+  CalendarDays
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { auth, signOut } from '../firebase';
@@ -26,16 +27,32 @@ import { AllowanceTypes } from './pages/AllowanceTypes';
 import { UsersManagement } from './pages/UsersManagement';
 import { Settlements } from './pages/Settlements';
 import { Settings as SettingsPage } from './pages/Settings';
+import { SummaryReport } from './pages/SummaryReport';
+import { Leaves } from './pages/Leaves';
+import { IqamaRenewal } from './pages/IqamaRenewal';
 import { useSecurity } from '../contexts/SecurityContext';
 import { useData } from '../contexts/DataContext';
-import { Lock } from 'lucide-react';
+import { Lock, PieChart } from 'lucide-react';
 
 export const Layout: React.FC = () => {
   const { user, profile, isAdmin, isHR, isFinance } = useAuth();
   const { lock, hasSystemPassword } = useSecurity();
-  const { companySettings } = useData();
+  const { companySettings, leaves, employees } = useData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const iqamaAlertCount = useMemo(() => {
+    const today = new Date();
+    const alertDays = companySettings?.iqamaAlertDays || 3;
+    const alertThreshold = new Date();
+    alertThreshold.setDate(today.getDate() + alertDays);
+
+    return employees.filter(emp => {
+      if (!emp.iqamaExpiryDate) return true;
+      const expiry = new Date(emp.iqamaExpiryDate);
+      return isNaN(expiry.getTime()) || expiry <= alertThreshold;
+    }).length;
+  }, [employees, companySettings]);
 
   const menuItems = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard, show: true },
@@ -48,11 +65,23 @@ export const Layout: React.FC = () => {
         { id: 'employees', label: 'كافة الموظفين', icon: Users },
         { id: 'employees-saudi', label: 'السعوديين', icon: ShieldCheck },
         { id: 'employees-accounting', label: 'رواتب المحاسبات', icon: Receipt },
+        { id: 'iqama-renewal', label: 'تجديد الإقامات', icon: ShieldCheck, badge: iqamaAlertCount },
       ]
     },
+    { id: 'leaves', label: 'الإجازات', icon: CalendarDays, show: isHR, badge: leaves.filter(l => l.status === 'Active' && new Date(l.endDate) <= new Date()).length },
     { id: 'allowance-types', label: 'أنواع البدلات', icon: Settings, show: isHR },
     { id: 'transactions', label: 'الحركات الشهرية', icon: History, show: isHR },
     { id: 'payroll', label: 'مسير الرواتب', icon: Receipt, show: isFinance },
+    { 
+      id: 'reports-module', 
+      label: 'التقارير', 
+      icon: PieChart, 
+      show: isHR || isFinance,
+      children: [
+        { id: 'summary-report', label: 'ملخص الرواتب الشهري', icon: FileText },
+        { id: 'group-detailed-report', label: 'التقرير التفصيلي للمجموعة', icon: FileText },
+      ]
+    },
     { id: 'settlements', label: 'تصفية البيانات', icon: FileText, show: isHR || isFinance },
     { id: 'users', label: 'المستخدمين والصلاحيات', icon: ShieldCheck, show: isAdmin },
     { id: 'settings', label: 'إعدادات النظام', icon: Settings, show: isAdmin },
@@ -68,7 +97,11 @@ export const Layout: React.FC = () => {
       case 'employees-accounting': return <EmployeesList filterClassification="Accounting" />;
       case 'allowance-types': return <AllowanceTypes />;
       case 'transactions': return <Transactions />;
+      case 'leaves': return <Leaves />;
+      case 'iqama-renewal': return <IqamaRenewal />;
       case 'payroll': return <PayrollRuns />;
+      case 'summary-report': return <SummaryReport forcedType="Summary" />;
+      case 'group-detailed-report': return <SummaryReport forcedType="Detailed" />;
       case 'settlements': return <Settlements />;
       case 'users': return <UsersManagement />;
       case 'settings': return <SettingsPage />;
@@ -81,7 +114,7 @@ export const Layout: React.FC = () => {
       {/* Sidebar */}
       <aside 
         className={cn(
-          "fixed inset-y-0 right-0 z-50 bg-white border-l border-gray-100 transition-all duration-300 shadow-xl shadow-blue-900/5",
+          "fixed inset-y-0 right-0 z-50 bg-white border-l border-gray-100 transition-all duration-300 shadow-xl shadow-blue-900/5 print:hidden",
           isSidebarOpen ? "w-72" : "w-20"
         )}
       >
@@ -121,7 +154,19 @@ export const Layout: React.FC = () => {
                     "w-6 h-6 shrink-0 transition-transform duration-200",
                     (activeTab === item.id || item.children?.some(c => c.id === activeTab)) ? "scale-110" : "group-hover:scale-110"
                   )} />
-                  {isSidebarOpen && <span className="text-lg">{item.label}</span>}
+                  {!isSidebarOpen && !!(item as any).badge && (
+                    <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm ring-2 ring-red-100" />
+                  )}
+                  {isSidebarOpen && (
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="text-lg">{item.label}</span>
+                      {!!(item as any).badge && (
+                        <span className="w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full font-black animate-bounce shadow-lg shadow-red-200">
+                          {(item as any).badge}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {(activeTab === item.id || (item.children?.some(c => c.id === activeTab) && !isSidebarOpen)) && (
                     <motion.div 
                       layoutId="active-pill"
@@ -191,10 +236,10 @@ export const Layout: React.FC = () => {
 
       {/* Main Content */}
       <main className={cn(
-        "flex-1 transition-all duration-300 min-h-screen",
+        "flex-1 transition-all duration-300 min-h-screen print:mr-0",
         isSidebarOpen ? "mr-72" : "mr-20"
       )}>
-        <header className="h-24 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between border-b border-gray-100">
+        <header className="h-24 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between border-b border-gray-100 print:hidden">
           <h2 className="text-2xl font-black text-gray-900">
             {menuItems.flatMap(i => [i, ...(i.children || [])]).find(i => i.id === activeTab)?.label}
           </h2>
@@ -215,7 +260,7 @@ export const Layout: React.FC = () => {
           </div>
         </header>
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="py-8 px-4 w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}

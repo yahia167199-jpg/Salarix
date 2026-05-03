@@ -115,6 +115,19 @@ service cloud.firestore {
       allow create, update, delete: if isHR() || isAdmin();
     }
 
+    // Cost Center / Depts
+    match /costCenterDepts/{deptId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isHR() || isAdmin();
+    }
+
+    // Leaves
+    match /leaves/{leaveId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isHR() || isAdmin();
+      allow delete: if isAdmin();
+    }
+
     // Company Settings
     match /companySettings/{settingsId} {
       allow read: if isAuthenticated();

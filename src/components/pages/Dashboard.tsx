@@ -8,11 +8,12 @@ import {
   ArrowDownRight,
   Clock,
   ShieldCheck,
-  Plane
+  Plane,
+  Bell
 } from 'lucide-react';
 import { db, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
-import { Employee, PayrollRun, Transaction, PayrollResult } from '../../types';
+import { Employee, PayrollRun, Transaction, PayrollResult, Leave } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { useMemo } from 'react';
 import { 
@@ -26,10 +27,12 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { getDocs, query, collection, where } from 'firebase/firestore';
+import { getDocs, query, collection, where, writeBatch, doc } from 'firebase/firestore';
+import { motion } from 'framer-motion';
+import { Check } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const { employees, payrollRuns, transactions } = useData();
+  const { employees, payrollRuns, transactions, leaves } = useData();
   const [lastResults, setLastResults] = useState<PayrollResult[]>([]);
   const [isFetchingResults, setIsFetchingResults] = useState(false);
 
@@ -120,8 +123,78 @@ export const Dashboard: React.FC = () => {
     amount: run.totalNet
   })), [payrollRuns]);
 
+  const pendingReturns = useMemo(() => {
+    return leaves.filter(l => {
+      if (l.status !== 'Active') return false;
+      const end = new Date(l.endDate);
+      if (isNaN(end.getTime())) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = end.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Return true if ended, ends today, or ends in next 3 days
+      return diffDays <= 3;
+    });
+  }, [leaves]);
+
   return (
     <div className="space-y-8">
+      {/* Alerts for Pending Returns */}
+      {pendingReturns.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-center justify-between gap-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-200 rounded-2xl flex items-center justify-center text-amber-700 animate-pulse">
+              <Bell className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-amber-900">تنبيه: عودة من الإجازة</h3>
+              <p className="text-amber-700 font-bold">هناك {pendingReturns.length} موظفاً تنتهي إجازاتهم قريباً (خلال 3 أيام) أو انتهت بالفعل. يرجى تأكيد استلام العمل.</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-6">
+            <div className="flex -space-x-3 space-x-reverse overflow-hidden">
+              {pendingReturns.slice(0, 3).map((l, i) => (
+                <div key={i} className="w-10 h-10 rounded-full border-2 border-amber-50 bg-amber-600 flex items-center justify-center text-white text-xs font-black ring-2 ring-amber-50">
+                  {l.employeeName[0]}
+                </div>
+              ))}
+              {pendingReturns.length > 3 && (
+                <div className="w-10 h-10 rounded-full border-2 border-amber-50 bg-amber-100 flex items-center justify-center text-amber-600 text-xs font-black ring-2 ring-amber-50">
+                  +{pendingReturns.length - 3}
+                </div>
+              )}
+            </div>
+            
+            <button 
+              onClick={async () => {
+                if (!confirm('هل تريد تأكيد عودة جميع الموظفين المذكورين وتحديث تاريخ آخر مباشرة؟')) return;
+                try {
+                  const batch = writeBatch(db);
+                  pendingReturns.forEach(l => {
+                    batch.update(doc(db, 'leaves', l.id), { status: 'Completed', returnDate: l.endDate });
+                    batch.update(doc(db, 'employees', l.employeeId), { status: 'Active', lastDirectDate: l.endDate });
+                  });
+                  await batch.commit();
+                } catch (err) {
+                  console.error("Bulk return error:", err);
+                }
+              }}
+              className="px-6 py-3 bg-amber-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-amber-200 flex items-center gap-2 hover:bg-amber-700 transition-all active:scale-95"
+            >
+              <Check className="w-4 h-4" />
+              تأكيد عودة الجميع
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (

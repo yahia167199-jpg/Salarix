@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   X,
   Calendar,
-  Trash2
+  Trash2,
+  Printer
 } from 'lucide-react';
 import { db, collection, setDoc, doc, query, where, getDocs, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -74,6 +75,9 @@ export const PayrollRuns: React.FC = () => {
         iqamaNumber: emp.iqamaNumber,
         officialEmployer: emp.officialEmployer,
         location: emp.location,
+        sectors: emp.sectors,
+        costCenterMain: emp.costCenterMain,
+        costCenterDept: emp.costCenterDept,
         paymentMethod: emp.paymentMethod,
         bankAccount: emp.bankAccount,
         bankCode: emp.bankCode,
@@ -81,18 +85,33 @@ export const PayrollRuns: React.FC = () => {
         // Map calculated details to result object
         basicSalary: details.basicSalary,
         housingAllowance: details.housingAllowance,
-        grossBase: details.grossBase,
-        totalIncome: details.totalIncome,
+        transportAllowance: details.transportAllowance,
+        subsistenceAllowance: details.subsistenceAllowance,
+        otherAllowances: details.otherAllowances,
+        mobileAllowance: details.mobileAllowance,
+        managementAllowance: details.managementAllowance,
+        otherIncome: details.otherIncome,
+        overtimeHours: details.overtimeHours,
         overtimeValue: details.overtimeValue,
+        totalIncome: details.totalIncome,
+        socialInsurance: details.socialInsurance,
+        salaryReceived: details.salaryReceived,
+        loans: details.loans,
+        bankReceived: details.bankReceived,
+        otherDeductions: details.otherDeductions,
+        deductionHours: details.deductionHours,
+        delayDeduction: details.delayDeduction,
+        absenceDays: details.absenceDays,
         absenceDeduction: details.absenceDeduction,
         totalDeductions: details.totalDeductions,
-        salaryReceived: details.salaryReceived,
-        bankReceived: details.bankReceived,
+        netSalary: Math.round(details.netSalary),
+        roundingDiff: Number((Math.round(details.netSalary) - details.netSalary).toFixed(2)),
+        
+        // Legacy/Computed
+        grossBase: details.grossBase,
         otherEarnings: details.otherEarnings,
         bankExportAmount: details.bankExportAmount,
-        cashExportAmount: details.cashExportAmount,
-        netSalary: Math.round(details.netSalary),
-        roundingDiff: Number((Math.round(details.netSalary) - details.netSalary).toFixed(2))
+        cashExportAmount: details.cashExportAmount
       };
 
       batch.set(resultDocRef, result);
@@ -125,28 +144,39 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const deleteRun = async (runId: string, runStatus: string) => {
-    const statusText = runStatus === 'Draft' ? 'مسودة' : 'معتمد';
-    if (!window.confirm(`هل أنت متأكد من حذف هذا المسير (${statusText})؟ سيتم حذف جميع النتائج والتقارير المرتبطة به نهائياً.`)) return;
+    const isApproved = runStatus === 'Approved' || runStatus === 'Confirmed' || runStatus === 'معتمد';
+    const warningHeader = isApproved ? "⚠️ تنبيه: حذف مسير معتمد" : "حذف مسير رواتب";
+    const warningBody = isApproved 
+      ? "هذا المسير معتمد حالياً. حذفه سيؤدي إلى مسح كافة النتائج والتقارير المالية المرتبطة به نهائياً وبشكل لا يمكن التراجع عنه."
+      : "سيتم حذف جميع نتائج هذا المسير والتقارير المرتبطة به نهائياً.";
+
+    if (!window.confirm(`${warningHeader}\n\n${warningBody}\n\nهل أنت متأكد من رغبتك في الحذف النهائي والتمكن من إعادة الاحتساب؟`)) return;
     
     try {
-      // 1. First, get all associated results
+      // 1. Get all associated results for this run
       const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', runId));
       const snap = await getDocs(q);
       
       const batch = writeBatch(db);
       
-      // 2. Add results deletions to batch
+      // 2. Add all related result deletions to the batch
       snap.forEach(d => {
         batch.delete(doc(db, 'payrollResults', d.id));
       });
       
-      // 3. Add the run deletion to batch
+      // 3. Add the main payroll run document deletion to the batch
       batch.delete(doc(db, 'payrollRuns', runId));
       
-      // 4. Execute atomic operation
+      // 4. Commit all deletions atomically
       await batch.commit();
+
+      // 5. Clear local state to refresh UI
+      if (selectedRun?.id === runId) {
+        setSelectedRun(null);
+        setResults([]);
+      }
     } catch (error) {
-      console.error('Error deleting payroll run:', error);
+      console.error('Error during permanent deletion:', error);
       handleFirestoreError(error, OperationType.DELETE, `payrollRuns/${runId}`);
     }
   };
@@ -386,11 +416,26 @@ export const PayrollRuns: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <button 
+                    onClick={() => deleteRun(selectedRun.id, selectedRun.status)}
+                    className="flex items-center gap-2 px-4 py-3 text-red-600 hover:bg-red-50 font-bold rounded-2xl transition-all"
+                    title="حذف المسير نهائياً"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>حذف المسير</span>
+                  </button>
+                  <button 
                     onClick={() => exportToExcel(selectedRun, results)}
                     className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
                   >
                     <FileSpreadsheet className="w-5 h-5" />
                     <span>تصدير ملف البنك</span>
+                  </button>
+                  <button 
+                    onClick={() => window.print()}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                  >
+                    <Printer className="w-5 h-5" />
+                    <span>طباعة</span>
                   </button>
                   <button onClick={() => setSelectedRun(null)} className="p-2 hover:bg-white rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
                 </div>

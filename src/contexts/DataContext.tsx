@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db, collection, onSnapshot, OperationType, auth, FirestoreErrorInfo, doc } from '../firebase';
-import { Employee, Transaction, PayrollRun, AllowanceType, AppUser, Branch, Sector, Management, CompanySettings } from '../types';
+import { Employee, Transaction, PayrollRun, AllowanceType, AppUser, Branch, Sector, Management, CompanySettings, Leave, CostCenterDept } from '../types';
 import { useAuth } from '../AuthContext';
 
 interface DataContextType {
@@ -12,6 +12,8 @@ interface DataContextType {
   branches: Branch[];
   sectors: Sector[];
   managements: Management[];
+  costCenterDepts: CostCenterDept[];
+  leaves: Leave[];
   companySettings: CompanySettings | null;
   loading: boolean;
   error: FirestoreErrorInfo | null;
@@ -26,6 +28,8 @@ const DataContext = createContext<DataContextType>({
   branches: [],
   sectors: [],
   managements: [],
+  costCenterDepts: [],
+  leaves: [],
   companySettings: null,
   loading: true,
   error: null,
@@ -41,6 +45,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [branches, setBranches] = useState<Branch[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [managements, setManagements] = useState<Management[]>([]);
+  const [costCenterDepts, setCostCenterDepts] = useState<CostCenterDept[]>([]);
+  const [leaves, setLeaves] = useState<Leave[]>([]);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreErrorInfo | null>(null);
@@ -117,6 +123,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setManagements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Management)));
     }, (err) => handleLocalError(err, OperationType.LIST, 'managements'));
 
+    const unsubCostCenterDepts = onSnapshot(collection(db, 'costCenterDepts'), (snap) => {
+      setCostCenterDepts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CostCenterDept)));
+    }, (err) => handleLocalError(err, OperationType.LIST, 'costCenterDepts'));
+
+    const unsubLeaves = onSnapshot(collection(db, 'leaves'), (snap) => {
+      setLeaves(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Leave)));
+    }, (err) => handleLocalError(err, OperationType.LIST, 'leaves'));
+
     const unsubSettings = onSnapshot(doc(db, 'companySettings', 'main'), (snap) => {
       if (snap.exists()) {
         setCompanySettings(snap.data() as CompanySettings);
@@ -136,6 +150,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubBranches();
       unsubSectors();
       unsubManagements();
+      unsubCostCenterDepts();
+      unsubLeaves();
       unsubSettings();
       clearTimeout(timer);
     };
@@ -146,7 +162,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   return (
-    <DataContext.Provider value={{ employees, transactions, payrollRuns, allowanceTypes, appUsers, branches, sectors, managements, companySettings, loading, error }}>
+    <DataContext.Provider value={{ employees, transactions, payrollRuns, allowanceTypes, appUsers, branches, sectors, managements, costCenterDepts, leaves, companySettings, loading, error }}>
       {children}
     </DataContext.Provider>
   );
