@@ -304,7 +304,7 @@ export const Leaves: React.FC = () => {
   }, [leaves, searchTerm, filterStatus, employees]);
 
   const stats = useMemo(() => {
-    const active = leaves.filter(l => l.status === 'Active').length;
+    const active = employees.filter(e => e.status === 'Leave').length;
     const endingSoon = leaves.filter(l => {
       if (l.status !== 'Active' || !l.endDate) return false;
       const end = new Date(l.endDate);
@@ -324,7 +324,7 @@ export const Leaves: React.FC = () => {
     }).length;
 
     return { active, endingSoon, overdue };
-  }, [leaves]);
+  }, [leaves, employees]);
 
   const handleAddLeave = async (e: React.FormEvent) => {
     e.preventDefault();
