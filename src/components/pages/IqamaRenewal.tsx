@@ -34,8 +34,13 @@ export const IqamaRenewal: React.FC = () => {
     const today = new Date();
     const alertThreshold = addDays(today, alertDays);
 
-    return employees.map(emp => {
-      const expiryDate = emp.iqamaExpiryDate ? new Date(emp.iqamaExpiryDate) : null;
+    return employees
+      .filter(emp => {
+        const nat = emp.nationality?.toLowerCase() || '';
+        return !(nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية'));
+      })
+      .map(emp => {
+        const expiryDate = emp.iqamaExpiryDate ? new Date(emp.iqamaExpiryDate) : null;
       
       let status: 'Active' | 'Expiring' | 'Expired' = 'Active';
       if (!expiryDate || isNaN(expiryDate.getTime())) {
@@ -66,20 +71,21 @@ export const IqamaRenewal: React.FC = () => {
   });
 
   const stats = {
-    total: employees.length,
+    total: employeesWithIqamaStatus.length,
     active: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Active').length,
     expiring: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Expiring').length,
     expired: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Expired').length,
   };
 
   const handleExport = () => {
-    const data = employees.map(emp => ({
+    const data = employeesWithIqamaStatus.map(emp => ({
       'رقم الموظف': emp.employeeId,
       'اسم الموظف': emp.name,
+      'الجنسية': emp.nationality || 'غير محدد',
       'رقم الإقامة': emp.iqamaNumber,
       'تاريخ انتهاء الإقامة': emp.iqamaExpiryDate || 'غير محدد',
-      'الحالة': employeesWithIqamaStatus.find(e => e.id === emp.id)?.iqamaStatus === 'Active' ? 'نشطة' : 
-                employeesWithIqamaStatus.find(e => e.id === emp.id)?.iqamaStatus === 'Expiring' ? 'تنتهي قريباً' : 'منتهية'
+      'الحالة': emp.iqamaStatus === 'Active' ? 'نشطة' : 
+                emp.iqamaStatus === 'Expiring' ? 'تنتهي قريباً' : 'منتهية'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -237,11 +243,12 @@ export const IqamaRenewal: React.FC = () => {
           <table className="w-full text-right border-collapse">
             <thead>
               <tr className="bg-gray-50/50">
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الموظف</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رقم الإقامة</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">تاريخ الانتهاء</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">المتبقي</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">الموظف</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">رقم الإقامة</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">الجنسية</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">تاريخ الانتهاء</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">المتبقي</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الحالة</th>
                 <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
               </tr>
             </thead>
@@ -277,7 +284,7 @@ export const IqamaRenewal: React.FC = () => {
                           type="text"
                           value={editForm.iqamaNumber}
                           onChange={(e) => setEditForm({ ...editForm, iqamaNumber: e.target.value })}
-                          className="w-full bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
+                          className="w-full bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm text-right"
                           placeholder="رقم الإقامة"
                         />
                       ) : (
@@ -285,6 +292,9 @@ export const IqamaRenewal: React.FC = () => {
                           {emp.iqamaNumber}
                         </span>
                       )}
+                    </td>
+                    <td className="px-8 py-5 font-bold text-gray-600">
+                      {emp.nationality || 'غير محدد'}
                     </td>
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-2">

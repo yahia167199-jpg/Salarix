@@ -186,8 +186,7 @@
       "properties": {
         "companyName": { "type": "string" },
         "logoUrl": { "type": "string" },
-        "systemPassword": { "type": "string" },
-        "autoLeaveRenewal": { "type": "boolean" }
+        "systemPassword": { "type": "string" }
       }
     }
   },

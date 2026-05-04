@@ -194,5 +194,4 @@ export interface CompanySettings {
   logoUrl?: string;
   systemPassword?: string;
   iqamaAlertDays?: number; // عدد أيام التنبيه لانتهاء الإقامة
-  autoLeaveRenewal?: boolean; // تجديد تلقائي للأرصدة
 }

@@ -216,27 +216,113 @@ export const Transactions: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleExportExcel = () => {
-    const data = sortedTransactions.map((t) => {
+  const handleExportDataEntryTemplate = () => {
+    const targetEmployees = employees.filter(emp => 
+      (emp.status === 'Active' || emp.status === 'Leave') && 
+      (emp.classification === 'Standard' || !emp.classification)
+    );
+
+    const data = targetEmployees.map((emp, index) => ({
+      'ت عام': index + 1,
+      'ت': index + 1,
+      'الإسم': emp.name,
+      'الجنسية': emp.nationality || '',
+      'الوظيفة': emp.jobTitle || '',
+      'الرقم الوظيفي': emp.employeeId || '',
+      'ادارة القطاع': emp.sectorManagement || '',
+      'القطاعات': emp.sectors || '',
+      'مركز التكلفة / رئيسي': emp.costCenterMain || '',
+      'مركز التكلفة / قسم': emp.costCenterDept || '',
+      'الراتب الاساسي': emp.basicSalary,
+      'بدل سكن': emp.housingAllowance || 0,
+      'بدل نقل': emp.transportAllowance || 0,
+      'بدل إعاشه': emp.subsistenceAllowance || 0,
+      'بدلات اخرى': emp.otherAllowances || 0,
+      'بدل جوال': emp.mobileAllowance || 0,
+      'بدل ادارة': emp.managementAllowance || 0,
+      'المجموع الراتب بالبدلات الاساسية': emp.basicSalary + (emp.housingAllowance || 0) + 
+                                         (emp.transportAllowance || 0) + (emp.subsistenceAllowance || 0) + 
+                                         (emp.otherAllowances || 0) + (emp.mobileAllowance || 0) + 
+                                         (emp.managementAllowance || 0),
+      'عدد الايام العمل الفعلي': 30,
+      'بدل سكن (حركة)': emp.housingAllowance || 0,
+      'بدل نقل (حركة)': emp.transportAllowance || 0,
+      'بدل إعاشه (حركة)': emp.subsistenceAllowance || 0,
+      'بدلات اخرى (حركة)': emp.otherAllowances || 0,
+      'بدل جوال (حركة)': emp.mobileAllowance || 0,
+      'بدل ادارة (حركة)': emp.managementAllowance || 0,
+      'دخل آخر': 0,
+      'عدد ساعات العمل الاضافي': 0,
+      'تامينات اجتماعية': 0,
+      'سلف': 0,
+      'اقتطاعات اخرى': 0,
+      'خصم المغادرات والتاخير': 0,
+      'عدد الساعات': 0,
+      'عدد ايام الغياب': 0
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Input_Template");
+    XLSX.writeFile(wb, `Payroll_Input_Template_${new Date().toISOString().slice(0, 7)}.xlsx`);
+  };
+
+  const handleExportFinalReport = () => {
+    const data = sortedTransactions.map((t, index) => {
       const emp = employees.find(e => e.id === t.employeeId);
       return {
-        'اسم الموظف': emp?.name || 'موظف محذوف',
-        'الشهر': t.month,
-        'أيام العمل': t.actualWorkDays,
-        'الأساسي': t.basicSalary,
-        'بدل سكن': t.housingAllowance,
-        'إضافي': t.overtimeValue,
-        'كافة الإيرادات': t.totalIncome,
-        'الخصومات': t.totalDeductions,
-        'الصافي': t.netSalary,
-        'ملاحظات': t.notes || ''
+        'ت عام': index + 1,
+        'ت': index + 1,
+        'الإسم': emp?.name || 'موظف محذوف',
+        'الجنسية': emp?.nationality || '',
+        'الوظيفة': emp?.jobTitle || '',
+        'الرقم الوظيفي': emp?.employeeId || '',
+        'بداية العمل': emp?.joinDate || '',
+        'آخر مباشرة': emp?.lastDirectDate || '',
+        'رقم الأقامة': emp?.iqamaNumber || '',
+        'ادارة القطاع': emp?.sectorManagement || '',
+        'القطاعات': emp?.sectors || '',
+        'مركز التكلفة / رئيسي': emp?.costCenterMain || '',
+        'مركز التكلفة / قسم': emp?.costCenterDept || '',
+        'الراتب الاساسي': emp?.basicSalary || 0,
+        'بدل سكن': emp?.housingAllowance || 0,
+        'بدل نقل': emp?.transportAllowance || 0,
+        'بدل إعاشه': emp?.subsistenceAllowance || 0,
+        'بدلات اخرى': emp?.otherAllowances || 0,
+        'بدل جوال': emp?.mobileAllowance || 0,
+        'بدل ادارة': emp?.managementAllowance || 0,
+        'المجموع': (emp?.basicSalary || 0) + (emp?.housingAllowance || 0) + (emp?.transportAllowance || 0) + (emp?.subsistenceAllowance || 0) + (emp?.otherAllowances || 0) + (emp?.mobileAllowance || 0) + (emp?.managementAllowance || 0),
+        'عدد الايام العمل الفعلي': t.actualWorkDays,
+        'بدل سكن (ح حركة)': t.housingAllowance,
+        'بدل نقل (ح حركة)': t.transportAllowance,
+        'بدل إعاشه (ح حركة)': t.subsistenceAllowance,
+        'بدلات اخرى (ح حركة)': t.otherAllowances,
+        'بدل جوال (ح حركة)': t.mobileAllowance,
+        'بدل ادارة (ح حركة)': t.managementAllowance,
+        'دخل آخر': t.otherIncome,
+        'عدد ساعات العمل الاضافي': t.overtimeHours,
+        'قيمة عمل اضافي': t.overtimeValue,
+        'مجموع الدخل': t.totalIncome,
+        'تامينات اجتماعية': t.socialInsurance,
+        'استلام راتب': t.salaryReceived,
+        'سلف': t.loans,
+        'استلام بنك': t.bankReceived,
+        'اقتطاعات اخرى': t.otherDeductions,
+        'عدد الساعات': t.deductionHours,
+        'خصم المغادرات والتاخير': t.departureDelayDeduction,
+        'عدد ايام الغياب': t.absenceDays,
+        'خصم الغياب': t.absenceDeduction,
+        'مجموع الاقتطاعات': t.totalDeductions,
+        'صافي الراتب': t.netSalary,
+        'الحالة': t.status === 'Draft' ? 'مسودة' : 'معتمد',
+        'زيادة راتب': t.salaryIncrease || 0
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Transactions");
-    XLSX.writeFile(wb, `Salarix_Monthly_Transactions_${new Date().toISOString().slice(0, 7)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Final_Payroll");
+    XLSX.writeFile(wb, `Final_Approved_Payroll_${new Date().toISOString().slice(0, 7)}.xlsx`);
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,36 +338,37 @@ export const Transactions: React.FC = () => {
       const data = XLSX.utils.sheet_to_json(ws) as any[];
 
       const batch = writeBatch(db);
-      data.forEach((row) => {
-        const emp = employees.find(e => e.name === row['اسم الموظف'] || e.employeeId === row['رقم الموظف']);
+      for (const row of data) {
+        const emp = employees.find(e => 
+          String(e.name).trim() === String(row['الإسم'] || row['اسم الموظف'] || '').trim() || 
+          String(e.employeeId).trim() === String(row['الرقم الوظيفي'] || row['رقم الموظف'] || '').trim()
+        );
+
         if (emp) {
           const docRef = doc(collection(db, 'transactions'));
-          const basic = Number(row['الأساسي'] || row['الراتب الأساسي']) || emp.basicSalary;
-          const housing = Number(row['بدل سكن']) || emp.housingAllowance;
-          const transport = Number(row['بدل نقل']) || emp.transportAllowance;
           
           const rawData = {
             employeeId: emp.id,
             month: row['الشهر'] || new Date().toISOString().slice(0, 7),
-            actualWorkDays: Number(row['أيام العمل']) || 30,
-            basicSalary: basic,
-            housingAllowance: housing,
-            transportAllowance: transport,
-            subsistenceAllowance: Number(row['بدل إعاشه']) || emp.subsistenceAllowance,
-            otherAllowances: Number(row['بدلات اخرى']) || emp.otherAllowances,
-            mobileAllowance: Number(row['بدل جوال']) || emp.mobileAllowance,
-            managementAllowance: Number(row['بدل ادارة']) || emp.managementAllowance,
+            actualWorkDays: Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) || 30,
+            basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
+            housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
+            transportAllowance: Number(row['بدل نقل (حركة)'] || row['بدل نقل (ح حركة)'] || row['بدل نقل']) ?? emp.transportAllowance,
+            subsistenceAllowance: Number(row['بدل إعاشه (حركة)'] || row['بدل إعاشه (ح حركة)'] || row['بدل إعاشه']) ?? emp.subsistenceAllowance,
+            otherAllowances: Number(row['بدلات اخرى (حركة)'] || row['بدلات اخرى (ح حركة)'] || row['بدلات اخرى']) ?? emp.otherAllowances,
+            mobileAllowance: Number(row['بدل جوال (حركة)'] || row['بدل جوال (ح حركة)'] || row['بدل جوال']) ?? emp.mobileAllowance,
+            managementAllowance: Number(row['بدل ادارة (حركة)'] || row['بدل ادارة (ح حركة)'] || row['بدل ادارة']) ?? emp.managementAllowance,
             otherIncome: Number(row['دخل آخر']) || 0,
-            overtimeHours: Number(row['ساعات الإضافي']) || 0,
-            overtimeValue: Number(row['قيمة الإضافي']) || 0,
-            socialInsurance: Number(row['تأمين اجتماعي']) || 0,
+            overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
+            overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
+            socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
             salaryReceived: Number(row['استلام راتب']) || 0,
             loans: Number(row['سلف']) || 0,
             bankReceived: Number(row['استلام بنك']) || 0,
-            otherDeductions: Number(row['خصومات أخرى']) || 0,
-            deductionHours: Number(row['ساعات الخصم']) || 0,
-            departureDelayDeduction: 0,
-            absenceDays: Number(row['أيام الغياب']) || 0,
+            otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
+            deductionHours: Number(row['عدد الساعات'] || row['ساعات الخصم']) || 0,
+            departureDelayDeduction: Number(row['خصم المغادرات والتاخير']) || 0,
+            absenceDays: Number(row['عدد ايام الغياب'] || row['أيام الغياب']) || 0,
             absenceDeduction: Number(row['خصم الغياب']) || 0,
             salaryIncrease: Number(row['زيادة راتب']) || 0,
             dailyWorkHours: Number(row['ساعات العمل اليومية'] || emp.dailyWorkHours) || 8,
@@ -292,10 +379,11 @@ export const Transactions: React.FC = () => {
           const totals = calculateTotals(rawData as any);
           batch.set(docRef, { ...rawData, ...totals, createdAt: new Date().toISOString() });
         }
-      });
+      }
 
       await batch.commit();
       alert('تم استيراد الحركات بنجاح');
+      if (e.target) e.target.value = '';
     };
     reader.readAsBinaryString(file);
   };
@@ -369,17 +457,26 @@ export const Transactions: React.FC = () => {
               <span className="hidden md:inline">حذف المسودات</span>
             </button>
           )}
-          <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
+          <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2 font-bold" title="استيراد الحركات من اكسيل">
             <Upload className="w-5 h-5" />
-            <span className="hidden md:inline">استيراد</span>
+            <span className="hidden md:inline">استيراد الحركات</span>
             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
           </label>
           <button 
-            onClick={handleExportExcel}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            onClick={handleExportDataEntryTemplate}
+            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            title="تصدير نموذج إدخال البيانات"
           >
-            <Download className="w-5 h-5" />
-            <span className="hidden md:inline">تصدير</span>
+            <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+            <span className="hidden md:inline">نموذج الإدخال</span>
+          </button>
+          <button 
+            onClick={handleExportFinalReport}
+            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            title="تصدير الشيت النهائي المعتمد"
+          >
+            <Download className="w-5 h-5 text-blue-600" />
+            <span className="hidden md:inline">تصدير النهائي المعتمد</span>
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}

@@ -43,7 +43,6 @@ export const Settings: React.FC = () => {
     logoUrl: companySettings?.logoUrl || '',
     systemPassword: companySettings?.systemPassword || '',
     iqamaAlertDays: companySettings?.iqamaAlertDays || 3,
-    autoLeaveRenewal: companySettings?.autoLeaveRenewal ?? true
   });
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -438,29 +437,6 @@ export const Settings: React.FC = () => {
                   placeholder="مثال: 3"
                 />
                 <p className="text-xs text-gray-400 font-medium mr-1">هذا الرقم يحدد متى يبدأ النظام بتنبيهك بانتهاء إقامة الموظف</p>
-              </div>
-
-              <div className="pt-4 border-t border-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-blue-600">
-                  <Save className="w-5 h-5" />
-                  <div>
-                    <h4 className="font-black">التجديد التلقائي للأرصدة</h4>
-                    <p className="text-xs text-gray-400 font-medium">تجديد أرصدة الإجازات تلقائياً بنهاية السنة</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, autoLeaveRenewal: !formData.autoLeaveRenewal })}
-                  className={cn(
-                    "w-14 h-8 rounded-full relative transition-all duration-300",
-                    formData.autoLeaveRenewal ? "bg-blue-600 shadow-lg shadow-blue-600/20" : "bg-gray-200"
-                  )}
-                >
-                  <div className={cn(
-                    "absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 shadow-sm",
-                    formData.autoLeaveRenewal ? "right-7" : "right-1"
-                  )} />
-                </button>
               </div>
             </div>
 

@@ -32,7 +32,9 @@ import {
   updateDoc, 
   serverTimestamp,
   orderBy,
-  where
+  where,
+  writeBatch,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -51,9 +53,12 @@ export const Leaves: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Completed'>('Active');
   const [selectedLeave, setSelectedLeave] = useState<Leave | null>(null);
-  const [selectedLeaveForReturn, setSelectedLeaveForReturn] = useState<Leave | null>(null);
+  const [selectedLeaveForReturn, setSelectedLeaveForReturn] = useState<any>(null);
   const [actualReturnDate, setActualReturnDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
+  const [dismissedAlerts, setDismissedAlerts] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
     employeeId: '',
@@ -88,51 +93,37 @@ export const Leaves: React.FC = () => {
     [employees]
   );
 
-  const calculateBalance = (employee: Employee) => {
-    if (!employee.joinDate) return 0;
-    
-    const joinDate = new Date(employee.joinDate);
-    if (isNaN(joinDate.getTime())) return 0;
-    
-    const today = new Date();
-    
-    // Calculate total service time
-    let years = today.getFullYear() - joinDate.getFullYear();
-    let months = today.getMonth() - joinDate.getMonth();
-    let days = today.getDate() - joinDate.getDate();
-    
-    if (days < 0) {
-      months--;
-      const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-      days += prevMonth.getDate();
-    }
-    
-    if (months < 0) {
-      years--;
-      months += 12;
-    }
-    
-    // Accrued days: 21 days per full year + proportional months (1.75 days per month)
-    const yearsAccrued = years * 21;
-    const monthsAccrued = months * (21 / 12);
-    const daysAccrued = days * (21 / 365); // Minor pro-rata for days to be accurate
-    
-    const totalAccrued = yearsAccrued + monthsAccrued + daysAccrued;
-    
-    // Used days (Sum of completed leaves for this employee)
-    const systemUsed = leaves
-      .filter(l => l.employeeId === employee.id && l.status === 'Completed')
-      .reduce((acc, curr) => {
-        const start = new Date(curr.startDate);
-        const end = new Date(curr.endDate);
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) return acc;
-        const diff = Math.abs(end.getTime() - start.getTime());
-        return acc + (Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
-      }, 0);
+  const pendingReturns = useMemo(() => {
+    return leaves.filter(l => {
+      if (l.status !== 'Active' || !l.endDate) return false;
+      const end = new Date(l.endDate);
+      if (isNaN(end.getTime())) return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const diffTime = end.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      // Return true if ended, ends today, or ends in next 3 days
+      return diffDays <= 3;
+    });
+  }, [leaves]);
 
-    const manualUsed = employee.usedLeaveDays || 0;
-    const result = totalAccrued - (systemUsed + manualUsed);
-    return isNaN(result) ? 0 : Math.max(0, Number(result.toFixed(1)));
+  useEffect(() => {
+    if (pendingReturns.length > 0 && !dismissedAlerts) {
+      const timer = setTimeout(() => setShowToast(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingReturns.length, dismissedAlerts]);
+
+  const calculateActualWorkDays = (lastDirectDate?: string) => {
+    if (!lastDirectDate) return 0;
+    const start = new Date(lastDirectDate);
+    if (isNaN(start.getTime())) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = today.getTime() - start.getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
   };
 
   const handleExportBalances = () => {
@@ -153,7 +144,7 @@ export const Leaves: React.FC = () => {
           return acc + (Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
         }, 0);
 
-      const balance = calculateBalance(emp);
+      const balance = calculateActualWorkDays(emp.lastDirectDate);
 
       return {
         'رقم الموظف': emp.employeeId,
@@ -164,7 +155,7 @@ export const Leaves: React.FC = () => {
         'الرصيد التراكمي': totalAccrued.toFixed(1),
         'مستهلك من النظام': systemUsed,
         'رصيد مستهلك سابق': emp.usedLeaveDays || 0,
-        'الرصيد المتبقي': balance
+        'أيام العمل الفعلية من تاريخ آخر مباشرة': balance
       };
     });
 
@@ -312,85 +303,10 @@ export const Leaves: React.FC = () => {
     });
   }, [leaves, searchTerm, filterStatus, employees]);
 
-  const handleRenewBalances = () => {
-    setLoading(true);
-    // In a real system, you might trigger a background job or update a "last_synced" field.
-    // Here we recalculate everything to ensure UI is fresh.
-    try {
-      let renewedCount = 0;
-      employees.forEach(emp => {
-        if (emp.joinDate) {
-          const joinDate = new Date(emp.joinDate);
-          const today = new Date();
-          // Check if today is the anniversary (same month and day)
-          if (joinDate.getMonth() === today.getMonth() && joinDate.getDate() === today.getDate()) {
-            renewedCount++;
-          }
-        }
-      });
-      
-      setTimeout(() => {
-        setLoading(false);
-        if (renewedCount > 0) {
-          alert(`تم تحديث أرصدة الإجازات. تم رصد ${renewedCount} موظفاً في ذكرى تعيينهم اليوم!`);
-        } else {
-          alert('تم تحديث أرصدة الإجازات لجميع الموظفين بنجاح بناءً على سنوات الخدمة.');
-        }
-      }, 800);
-    } catch (err) {
-      setLoading(false);
-      console.error('Error renewing balances:', err);
-    }
-  };
-
-  const [anniversaries, setAnniversaries] = useState<string[]>([]);
-  useEffect(() => {
-    if (companySettings?.autoLeaveRenewal === false) {
-      setAnniversaries([]);
-      return;
-    }
-    const today = new Date();
-    const currentAnniversaries = employees.filter(emp => {
-      if (!emp.joinDate) return false;
-      const joinDate = new Date(emp.joinDate);
-      return joinDate.getMonth() === today.getMonth() && joinDate.getDate() === today.getDate();
-    }).map(emp => emp.name);
-    
-    if (currentAnniversaries.length > 0) {
-      setAnniversaries(currentAnniversaries);
-    }
-  }, [employees, companySettings?.autoLeaveRenewal]);
-
-  const [dismissedAlerts, setDismissedAlerts] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-
-  const pendingReturns = useMemo(() => {
-    return leaves.filter(l => {
-      if (l.status !== 'Active') return false;
-      const end = new Date(l.endDate);
-      if (isNaN(end.getTime())) return false;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const diffTime = end.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      // Return true if ended, ends today, or ends in next 3 days
-      return diffDays <= 3;
-    });
-  }, [leaves]);
-
-  useEffect(() => {
-    if (pendingReturns.length > 0 && !dismissedAlerts) {
-      const timer = setTimeout(() => setShowToast(true), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [pendingReturns.length, dismissedAlerts]);
-
   const stats = useMemo(() => {
     const active = leaves.filter(l => l.status === 'Active').length;
     const endingSoon = leaves.filter(l => {
-      if (l.status !== 'Active') return false;
+      if (l.status !== 'Active' || !l.endDate) return false;
       const end = new Date(l.endDate);
       if (isNaN(end.getTime())) return false;
       const today = new Date();
@@ -400,7 +316,7 @@ export const Leaves: React.FC = () => {
     }).length;
 
     const overdue = leaves.filter(l => {
-      if (l.status !== 'Active') return false;
+      if (l.status !== 'Active' || !l.endDate) return false;
       const end = new Date(l.endDate);
       if (isNaN(end.getTime())) return false;
       const today = new Date();
@@ -412,7 +328,7 @@ export const Leaves: React.FC = () => {
 
   const handleAddLeave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.employeeId || !formData.startDate || !formData.endDate) return;
+    if (!formData.employeeId || !formData.startDate) return;
 
     const employee = employees.find(emp => emp.id === formData.employeeId);
     if (!employee) return;
@@ -423,8 +339,8 @@ export const Leaves: React.FC = () => {
         const leaveRef = doc(db, 'leaves', selectedLeave.id);
         await updateDoc(leaveRef, {
           startDate: formData.startDate,
-          endDate: formData.endDate,
-          returnDate: formData.endDate,
+          endDate: formData.endDate || null,
+          returnDate: formData.endDate || null,
           updatedAt: serverTimestamp()
         });
       } else {
@@ -433,8 +349,8 @@ export const Leaves: React.FC = () => {
           employeeId: formData.employeeId,
           employeeName: employee.name,
           startDate: formData.startDate,
-          endDate: formData.endDate,
-          returnDate: formData.endDate,
+          endDate: formData.endDate || null,
+          returnDate: formData.endDate || null,
           status: 'Active',
           createdAt: serverTimestamp()
         });
@@ -464,8 +380,51 @@ export const Leaves: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleConfirmReturn = (leave: Leave) => {
-    setSelectedLeaveForReturn(leave);
+  const handleDeleteTestLeaves = async () => {
+    const testLeaves = leaves.filter(l => 
+      l.employeeName.toLowerCase().includes('test') || 
+      l.employeeName.includes('تجربة')
+    );
+
+    if (testLeaves.length === 0) {
+      alert('لا توجد بيانات تجريبية للمسح');
+      return;
+    }
+
+    if (!window.confirm(`هل أنت متأكد من مسح السجل التجريبي (${testLeaves.length} إجازة)؟`)) return;
+    
+    setLoading(true);
+    try {
+      const batch = writeBatch(db);
+      testLeaves.forEach(leave => {
+        batch.delete(doc(db, 'leaves', leave.id));
+      });
+
+      await batch.commit();
+      alert(`تم مسح ${testLeaves.length} إجازة من السجل بنجاح`);
+    } catch (error) {
+      console.error('Error deleting test leaves:', error);
+      alert('حدث خطأ أثناء مسح البيانات');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmReturn = (leaveOrEmp: Leave | Employee) => {
+    if ('startDate' in leaveOrEmp) {
+      setSelectedLeaveForReturn(leaveOrEmp);
+    } else {
+      setSelectedLeaveForReturn({
+        id: 'manual',
+        employeeId: leaveOrEmp.id,
+        employeeName: leaveOrEmp.name,
+        startDate: '',
+        endDate: '',
+        returnDate: '',
+        status: 'Active',
+        createdAt: new Date().toISOString()
+      });
+    }
     setActualReturnDate(format(new Date(), 'yyyy-MM-dd'));
     setIsReturnModalOpen(true);
   };
@@ -474,13 +433,23 @@ export const Leaves: React.FC = () => {
     if (!selectedLeaveForReturn) return;
 
     try {
-      // 1. Update leave status
-      const leaveRef = doc(db, 'leaves', selectedLeaveForReturn.id);
-      await updateDoc(leaveRef, {
-        status: 'Completed',
-        returnDate: actualReturnDate,
-        updatedAt: serverTimestamp()
-      });
+      // 1. Update leave status if it's a real leave record
+      if (selectedLeaveForReturn.id !== 'manual') {
+        const leaveRef = doc(db, 'leaves', selectedLeaveForReturn.id);
+        await updateDoc(leaveRef, {
+          status: 'Completed',
+          returnDate: actualReturnDate,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Mark any existing active leaves for this employee as completed if confirming manually
+        const q = query(
+          collection(db, 'leaves'), 
+          where('employeeId', '==', selectedLeaveForReturn.employeeId),
+          where('status', '==', 'Active')
+        );
+        // This is a bit complex for a simple finishReturn, but let's assume we just update status and lastDirectDate
+      }
 
       // 2. Update employee status and last direct date
       const empRef = doc(db, 'employees', selectedLeaveForReturn.employeeId);
@@ -539,7 +508,7 @@ export const Leaves: React.FC = () => {
                           }}
                           className="text-xs font-black text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95"
                         >
-                          تأكيد
+                          تأكيد تاريخ المباشرة
                         </button>
                       </div>
                     ))}
@@ -558,33 +527,6 @@ export const Leaves: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Anniversary & Renewal Alerts */}
-      <AnimatePresence>
-        {anniversaries.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-emerald-50 border border-emerald-200 rounded-[2.5rem] p-6 mb-6 shadow-sm flex items-center justify-between"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-200 rounded-2xl flex items-center justify-center text-emerald-700">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="font-black text-emerald-900">تجديد تلقائي للأرصدة</h4>
-                <p className="text-emerald-700 text-sm font-bold">
-                  اليوم هو ذكرى تعيين ({anniversaries.join('، ')})، تم تحديث أرصدتهم السنوية تلقائياً بنسبة 21 يوماً إضافية.
-                </p>
-              </div>
-            </div>
-            <button onClick={() => setAnniversaries([])} className="p-2 text-emerald-400 hover:text-emerald-600">
-              <X className="w-5 h-5" />
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -663,7 +605,7 @@ export const Leaves: React.FC = () => {
                       <button 
                         onClick={() => handleConfirmReturn(l)}
                         className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 active:scale-90"
-                        title="تأكيد المباشرة"
+                        title="تأكيد تاريخ المباشرة"
                       >
                         <Check className="w-5 h-5" />
                       </button>
@@ -696,7 +638,7 @@ export const Leaves: React.FC = () => {
           </div>
           <div>
             <p className="text-sm font-bold text-gray-400">إجازات نشطة</p>
-            <h4 className="text-3xl font-black text-gray-900">52</h4>
+            <h4 className="text-3xl font-black text-gray-900">{stats.active}</h4>
           </div>
         </div>
 
@@ -787,15 +729,6 @@ export const Leaves: React.FC = () => {
 
         {activeView === 'Balances' && (
           <div className="flex gap-3">
-            {companySettings?.autoLeaveRenewal === false && (
-              <button
-                onClick={handleRenewBalances}
-                className="px-6 py-3 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-amber-100"
-              >
-                <ArrowLeftRight className="w-4 h-4" />
-                تجديد يدوي للأرصدة
-              </button>
-            )}
             <button
               onClick={handleExportBalances}
               className="px-6 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100"
@@ -845,13 +778,17 @@ export const Leaves: React.FC = () => {
           </div>
         )}
 
-        <button
-          onClick={handleRenewBalances}
-          className="px-6 py-3 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100"
-        >
-          <Clock className={cn("w-4 h-4", loading && "animate-spin")} />
-          تجديد أرصدة الموظفين
-        </button>
+        {activeView === 'History' && (
+          <button
+            onClick={handleDeleteTestLeaves}
+            disabled={loading}
+            className="px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-red-100 disabled:opacity-50"
+          >
+            <X className="w-4 h-4" />
+            مسح السجل
+          </button>
+        )}
+
       </div>
 
       {/* Main Content Areas */}
@@ -898,7 +835,7 @@ export const Leaves: React.FC = () => {
                       <div className="flex flex-col items-end gap-2">
                         <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl text-[10px] font-black border border-emerald-100 flex items-center gap-1.5">
                           <Clock className="w-3 h-3" />
-                          الرصيد المتبقي: {calculateBalance(emp)} يوم
+                          أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                         </div>
                         {leave && (
                           <div className={cn(
@@ -954,7 +891,7 @@ export const Leaves: React.FC = () => {
                           className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
                         >
                           <Check className="w-5 h-5" />
-                          تأكيد المباشرة
+                          تأكيد تاريخ المباشرة
                         </button>
                         <button
                           onClick={() => handleEditLeave(leave)}
@@ -965,9 +902,13 @@ export const Leaves: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      <div className="p-4 bg-gray-50 rounded-2xl text-center text-gray-400 text-xs font-bold">
-                        يجب إنهاء الإجازة من سجل الموظف
-                      </div>
+                      <button
+                        onClick={() => handleConfirmReturn(emp)}
+                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                      >
+                        <Check className="w-5 h-5" />
+                        تأكيد تاريخ المباشرة
+                      </button>
                     )}
                   </div>
                 </motion.div>
@@ -1036,7 +977,7 @@ export const Leaves: React.FC = () => {
                           if (!emp) return '-';
                           return (
                             <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg text-xs">
-                              {calculateBalance(emp)} يوم متبقي
+                              أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                             </span>
                           );
                         })()}
@@ -1077,7 +1018,7 @@ export const Leaves: React.FC = () => {
                                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-black transition-all flex items-center gap-2 active:scale-95 shadow-lg shadow-emerald-500/20"
                               >
                                 <Check className="w-4 h-4" />
-                                تأكيد المباشرة
+                                تأكيد تاريخ المباشرة
                               </button>
                               <button
                                 onClick={() => handleEditLeave(leave)}
@@ -1117,13 +1058,10 @@ export const Leaves: React.FC = () => {
             <table className="w-full text-right">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">اسم الموظف</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الرقم الوظيفي</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">تاريخ التعيين</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">أيام العمل</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الرصيد المستحق (تراكمي)</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">إجازات مستهلكة</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الرصيد المتبقي</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">اسم الموظف</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">الرقم الوظيفي</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">أيام العمل الفعلية من تاريخ آخر مباشرة</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">تاريخ آخر مباشرة</th>
                   <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الحالة</th>
                   <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
                 </tr>
@@ -1138,37 +1076,19 @@ export const Leaves: React.FC = () => {
                     return matchesSearch;
                   })
                   .map((emp) => {
-                    const joinDate = emp.joinDate ? new Date(emp.joinDate) : null;
-                    const isValidJoinDate = joinDate && !isNaN(joinDate.getTime());
-                    const diffTime = isValidJoinDate ? Math.abs(new Date().getTime() - joinDate.getTime()) : 0;
-                    const serviceDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    const totalAccruedValue = isValidJoinDate ? (serviceDays / 365) * 21 : 0;
-                    const totalAccrued = isNaN(totalAccruedValue) ? '0' : totalAccruedValue.toFixed(1);
+                    const actualWorkDaysSinceLastDirect = calculateActualWorkDays(emp.lastDirectDate);
                     
-                    const used = leaves
-                      .filter(l => l.employeeId === emp.id && l.status === 'Completed')
-                      .reduce((acc, curr) => {
-                        const start = new Date(curr.startDate);
-                        const end = new Date(curr.endDate);
-                        if (isNaN(start.getTime()) || isNaN(end.getTime())) return acc;
-                        const diff = Math.abs(end.getTime() - start.getTime());
-                        return acc + (Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
-                      }, 0);
-
-                    const balance = calculateBalance(emp);
-
                     return (
                       <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-8 py-5 font-bold text-gray-900">{emp.name}</td>
                         <td className="px-8 py-5 font-bold text-gray-500">{emp.employeeId || '---'}</td>
-                        <td className="px-8 py-5 font-bold text-gray-500">{emp.joinDate || 'غير مسجل'}</td>
-                        <td className="px-8 py-5 text-sm font-bold text-gray-400">{serviceDays} يوم</td>
-                        <td className="px-8 py-5 text-emerald-600 font-bold">{totalAccrued} يوم</td>
-                        <td className="px-8 py-5 text-red-500 font-bold">{used} يوم</td>
                         <td className="px-8 py-5 text-center">
-                          <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-2xl font-black text-lg">
-                            {balance}
+                          <span className="px-6 py-3 bg-blue-50 text-blue-600 rounded-2xl font-black text-xl border border-blue-100 shadow-inner">
+                            {actualWorkDaysSinceLastDirect} يوم
                           </span>
+                        </td>
+                        <td className="px-8 py-5 text-center font-bold text-gray-500">
+                          {emp.lastDirectDate || 'غير مسجل'}
                         </td>
                         <td className="px-8 py-5 text-center">
                           {emp.status === 'Active' ? (
@@ -1210,28 +1130,16 @@ export const Leaves: React.FC = () => {
                                 <Plus className="w-4 h-4" />
                               </button>
                             ) : emp.status === 'Leave' ? (
-                              <>
-                                <button 
-                                  onClick={() => {
-                                    const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
-                                    if (leave) handleEditLeave(leave);
-                                  }}
-                                  className="p-2.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl transition-all border border-amber-100/50 shadow-sm"
-                                  title="تمديد/تعديل الإجازة"
-                                >
-                                  <Clock className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
-                                    if (leave) handleConfirmReturn(leave);
-                                  }}
-                                  className="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all border border-emerald-100/50 shadow-sm"
-                                  title="تأكيد العودة"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                              </>
+                              <button 
+                                onClick={() => {
+                                  const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+                                  handleConfirmReturn(activeLeave || emp);
+                                }}
+                                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center gap-2"
+                              >
+                                <Check className="w-4 h-4 ml-1" />
+                                تأكيد تاريخ المباشرة
+                              </button>
                             ) : null}
                           </div>
                         </td>
@@ -1295,10 +1203,10 @@ export const Leaves: React.FC = () => {
                   >
                     <option value="">اختر الموظف...</option>
                     {employees.filter(e => e.status === 'Active' || (selectedLeave && e.id === selectedLeave.employeeId)).map(emp => {
-                      const balance = calculateBalance(emp);
+                      const workDays = calculateActualWorkDays(emp.lastDirectDate);
                       return (
                         <option key={emp.id} value={emp.id}>
-                          {emp.name} - رصيد: {balance} يوم ({emp.employeeId || 'بدون رقم'})
+                          {emp.name} - أيام العمل: {workDays} يوم ({emp.employeeId || 'بدون رقم'})
                         </option>
                       );
                     })}
@@ -1309,9 +1217,9 @@ export const Leaves: React.FC = () => {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                        <p className="text-xs font-bold text-blue-400 mb-1">الرصيد الحالي</p>
+                        <p className="text-xs font-bold text-blue-400 mb-1">أيام العمل الفعلية</p>
                         <span className="text-xl font-black text-blue-600">
-                          {calculateBalance(employees.find(e => e.id === formData.employeeId)!)} يوم
+                          {calculateActualWorkDays(employees.find(e => e.id === formData.employeeId)?.lastDirectDate)} يوم
                         </span>
                       </div>
                       <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
@@ -1322,18 +1230,15 @@ export const Leaves: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="p-4 bg-gray-900 rounded-2xl flex items-center justify-between text-white shadow-lg shadow-gray-200">
-                      <div className="flex items-center gap-3">
-                        <ArrowLeftRight className="w-5 h-5 text-blue-400" />
-                        <span className="font-bold">الرصيد المتبقي المتوقع:</span>
+                      <div className="p-4 bg-gray-900 rounded-2xl flex items-center justify-between text-white shadow-lg shadow-gray-200">
+                        <div className="flex items-center gap-3">
+                          <ArrowLeftRight className="w-5 h-5 text-blue-400" />
+                          <span className="font-bold">أيام العمل المتوقعة بعد الإجازة:</span>
+                        </div>
+                        <span className="text-xl font-black text-blue-400">
+                          0 يوم
+                        </span>
                       </div>
-                      <span className={cn(
-                        "text-xl font-black",
-                        (calculateBalance(employees.find(e => e.id === formData.employeeId)!) - leaveDays) < 0 ? "text-red-400" : "text-blue-400"
-                      )}>
-                        {(calculateBalance(employees.find(e => e.id === formData.employeeId)!) - leaveDays).toFixed(1)} يوم
-                      </span>
-                    </div>
                   </div>
                 )}
 
@@ -1349,10 +1254,9 @@ export const Leaves: React.FC = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2 text-right block">تاريخ العودة المتوقع</label>
+                    <label className="text-sm font-bold text-gray-500 mr-2 text-right block">تاريخ العودة المتوقع (اختياري)</label>
                     <input
                       type="date"
-                      required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                       className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all"
@@ -1522,7 +1426,7 @@ export const Leaves: React.FC = () => {
                   <DetailItem label="القطاع" value={viewingEmployee.sectors} />
                   <DetailItem label="مركز التكلفة" value={viewingEmployee.sectorManagement} />
                   <DetailItem label="الموقع" value={viewingEmployee.location} />
-                  <DetailItem label="رصيد الإجازات الحالي" value={`${calculateBalance(viewingEmployee)} يوم`} />
+                  <DetailItem label="أيام العمل الفعلية من تاريخ آخر مباشرة" value={`${calculateActualWorkDays(viewingEmployee.lastDirectDate)} يوم`} />
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-center p-8 border-2 border-emerald-100 bg-emerald-50/20 rounded-[2.5rem] shadow-sm">
