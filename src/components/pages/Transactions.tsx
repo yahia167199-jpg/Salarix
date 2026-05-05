@@ -19,7 +19,8 @@ import {
   UserMinus,
   LayoutGrid,
   ClipboardList,
-  AlertCircle
+  AlertCircle,
+  RotateCcw
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -504,6 +505,28 @@ export const Transactions: React.FC = () => {
       .sort((a, b) => b.month.localeCompare(a.month));
   }, [transactions, employees, searchTerm, classificationFilter]);
 
+  const handleResetMonth = async () => {
+    const monthTransactions = transactions.filter(t => t.month === selectedMonth);
+    if (monthTransactions.length === 0) return alert('لا توجد حركات لهذا الشهر لحذفها');
+    
+    if (!window.confirm(`هل أنت متأكد من حذف جميع حركات شهر ${selectedMonth} (عدد الحركات: ${monthTransactions.length})؟ لا يمكن التراجع عن هذه العملية.`)) return;
+    
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      monthTransactions.forEach(t => {
+        batch.delete(doc(db, 'transactions', t.id));
+      });
+      await batch.commit();
+      alert('تمت إعادة تعيين حركات الشهر بنجاح');
+    } catch (error) {
+      console.error('Error resetting month:', error);
+      alert('حدث خطأ أثناء إعادة التعيين');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReturnFromLeave = (emp: Employee) => {
     setSelectedEmpForReturn(emp);
     setActualReturnDate(new Date().toISOString().slice(0, 10));
@@ -794,6 +817,13 @@ export const Transactions: React.FC = () => {
                 <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
               <button
+                onClick={handleResetMonth}
+                className="px-6 py-3 bg-red-50 text-red-600 rounded-2xl font-black text-sm hover:bg-red-100 transition-all border border-red-100 shadow-sm flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>إعادة تعيين الشهر بالكامل</span>
+              </button>
+              <button
                 onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
                 className={cn(
                   "px-6 py-3 rounded-2xl font-black text-sm transition-all border shadow-sm",
@@ -858,7 +888,7 @@ export const Transactions: React.FC = () => {
                             <span className="text-[10px] md:text-xs font-black">برجاء تأكيد تاريخ المباشرة أولاً ثم أعد إدخال الكارت الشهري</span>
                           </div>
                         ) : isDone ? (
-                          <div className="flex items-center gap-1.5 text-emerald-600">
+                          <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-xl">
                             <CheckCircle2 className="w-4 h-4" />
                             <span className="text-xs font-black">تـــــــم</span>
                           </div>
@@ -911,7 +941,7 @@ export const Transactions: React.FC = () => {
                       disabled={emp.status === 'Leave' && !isDone}
                     >
                       <Plus className="w-4 h-4" />
-                      <span>{isDone ? 'تعديل الكارت' : 'إضافة كارت'}</span>
+                      <span>إضافة كارت</span>
                     </button>
                   </div>
                 </motion.div>
