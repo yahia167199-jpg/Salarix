@@ -309,6 +309,50 @@ export const Transactions: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const deleteAllFiltered = async () => {
+    if (sortedTransactions.length === 0) return alert('لا توجد سجلات لحذفها');
+    
+    if (!window.confirm(`هل أنت متأكد من حذف جميع السجلات الظاهرة؟ (عدد: ${sortedTransactions.length})`)) return;
+    
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      sortedTransactions.forEach(t => {
+        batch.delete(doc(db, 'transactions', t.id));
+      });
+      await batch.commit();
+      alert('تم حذف السجلات بنجاح');
+    } catch (error) {
+      console.error('Error deleting records:', error);
+      alert('حدث خطأ أثناء الحذف');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetMonth = async () => {
+    // Filter transactions by the selected month
+    const monthTransactions = transactions.filter(t => t.month === selectedMonth);
+    if (monthTransactions.length === 0) return alert('لا توجد حركات لهذا الشهر لحذفها');
+    
+    if (!window.confirm(`هل أنت متأكد من إعادة تعيين (حذف) جميع حركات شهر ${selectedMonth}؟ سيتم إرجاع جميع الموظفين لحالة "انتظار الإدخال".`)) return;
+    
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      monthTransactions.forEach(t => {
+        batch.delete(doc(db, 'transactions', t.id));
+      });
+      await batch.commit();
+      alert('تمت إعادة تعيين الشهر بالكامل بنجاح');
+    } catch (error) {
+      console.error('Error resetting month:', error);
+      alert('حدث خطأ أثناء إعادة التعيين');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExportDataEntryTemplate = () => {
     const targetEmployees = employees.filter(emp => 
       (emp.status === 'Active' || emp.status === 'Leave') && 
@@ -505,28 +549,6 @@ export const Transactions: React.FC = () => {
       .sort((a, b) => b.month.localeCompare(a.month));
   }, [transactions, employees, searchTerm, classificationFilter]);
 
-  const handleResetMonth = async () => {
-    const monthTransactions = transactions.filter(t => t.month === selectedMonth);
-    if (monthTransactions.length === 0) return alert('لا توجد حركات لهذا الشهر لحذفها');
-    
-    if (!window.confirm(`هل أنت متأكد من حذف جميع حركات شهر ${selectedMonth} (عدد الحركات: ${monthTransactions.length})؟ لا يمكن التراجع عن هذه العملية.`)) return;
-    
-    try {
-      setLoading(true);
-      const batch = writeBatch(db);
-      monthTransactions.forEach(t => {
-        batch.delete(doc(db, 'transactions', t.id));
-      });
-      await batch.commit();
-      alert('تمت إعادة تعيين حركات الشهر بنجاح');
-    } catch (error) {
-      console.error('Error resetting month:', error);
-      alert('حدث خطأ أثناء إعادة التعيين');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleReturnFromLeave = (emp: Employee) => {
     setSelectedEmpForReturn(emp);
     setActualReturnDate(new Date().toISOString().slice(0, 10));
@@ -667,12 +689,21 @@ export const Transactions: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              {transactions.some(t => t.status === 'Draft') && (
+              {sortedTransactions.length > 0 && (
                 <button 
-                  onClick={deleteDrafts}
+                  onClick={deleteAllFiltered}
                   className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
                 >
                   <Trash2 className="w-5 h-5" />
+                  <span className="hidden md:inline">حذف الكل المصفى</span>
+                </button>
+              )}
+              {transactions.some(t => t.status === 'Draft') && (
+                <button 
+                  onClick={deleteDrafts}
+                  className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-600 hover:bg-amber-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                >
+                  <AlertCircle className="w-5 h-5" />
                   <span className="hidden md:inline">حذف المسودات</span>
                 </button>
               )}
@@ -733,8 +764,8 @@ export const Transactions: React.FC = () => {
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => handleEdit(t)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Plus className="w-4 h-4" /></button>
-                          <button onClick={() => setDeleteConfirmId(t.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          <button onClick={() => handleEdit(t)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="إضافة كارت"><ClipboardList className="w-4 h-4" /></button>
+                          <button onClick={() => setDeleteConfirmId(t.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="حذف"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </tr>
