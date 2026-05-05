@@ -90,45 +90,55 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    // Helper to ensure unique documents by ID (defensive against potential Firestore cache issues or race conditions)
+    const uniqueDocs = <T extends { id: string }>(items: T[]): T[] => {
+      const seen = new Set();
+      return items.filter(item => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    };
+
     // Single listeners for the entire application to reduce read quotas
     const unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
-      setEmployees(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee)));
+      setEmployees(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Employee))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'employees'));
 
     const unsubTransactions = onSnapshot(collection(db, 'transactions'), (snap) => {
-      setTransactions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+      setTransactions(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'transactions'));
 
     const unsubPayrollRuns = onSnapshot(collection(db, 'payrollRuns'), (snap) => {
-      setPayrollRuns(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun)));
+      setPayrollRuns(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollRun))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'payrollRuns'));
 
     const unsubAllowanceTypes = onSnapshot(collection(db, 'allowanceTypes'), (snap) => {
-      setAllowanceTypes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllowanceType)));
+      setAllowanceTypes(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllowanceType))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'allowanceTypes'));
 
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
-      setAppUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser)));
+      setAppUsers(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'users'));
 
     const unsubBranches = onSnapshot(collection(db, 'branches'), (snap) => {
-      setBranches(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Branch)));
+      setBranches(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Branch))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'branches'));
 
     const unsubSectors = onSnapshot(collection(db, 'sectors'), (snap) => {
-      setSectors(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sector)));
+      setSectors(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sector))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'sectors'));
 
     const unsubManagements = onSnapshot(collection(db, 'managements'), (snap) => {
-      setManagements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Management)));
+      setManagements(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Management))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'managements'));
 
     const unsubCostCenterDepts = onSnapshot(collection(db, 'costCenterDepts'), (snap) => {
-      setCostCenterDepts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CostCenterDept)));
+      setCostCenterDepts(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CostCenterDept))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'costCenterDepts'));
 
     const unsubLeaves = onSnapshot(collection(db, 'leaves'), (snap) => {
-      setLeaves(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Leave)));
+      setLeaves(uniqueDocs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Leave))));
     }, (err) => handleLocalError(err, OperationType.LIST, 'leaves'));
 
     const unsubSettings = onSnapshot(doc(db, 'companySettings', 'main'), (snap) => {

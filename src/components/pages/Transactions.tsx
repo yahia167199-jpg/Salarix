@@ -12,11 +12,18 @@ import {
   Download,
   FileSpreadsheet,
   Filter,
-  ChevronDown
+  ChevronDown,
+  CheckCircle2,
+  FastForward,
+  UserCheck,
+  UserMinus,
+  LayoutGrid,
+  ClipboardList,
+  AlertCircle
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
-import { writeBatch } from 'firebase/firestore';
+import { writeBatch, query, where, getDocs } from 'firebase/firestore';
 import { Employee, Transaction, EmployeeCategory } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { calculatePayrollDetails } from '../../lib/payrollUtils';
@@ -27,14 +34,25 @@ import { useMemo } from 'react';
 
 export const Transactions: React.FC = () => {
   const { transactions, employees } = useData();
+  const [activeTab, setActiveTab] = useState<'History' | 'MonthlyCard'>('History');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('All');
+  const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All'>('All');
+  const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave'>('All');
+  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Return from leave modal state
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [selectedEmpForReturn, setSelectedEmpForReturn] = useState<Employee | null>(null);
+  const [actualReturnDate, setActualReturnDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Form State
-  const [formData, setFormData] = useState<Omit<Transaction, 'id' | 'createdAt'>>({
+  const [formData, setFormData] = useState<(Omit<Transaction, 'id' | 'createdAt'> & { id?: string })>({
     employeeId: '',
     month: new Date().toISOString().slice(0, 7),
     actualWorkDays: 30,
@@ -141,23 +159,10 @@ export const Transactions: React.FC = () => {
     };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const totals = calculateTotals(formData);
-    const docRef = doc(collection(db, 'transactions'));
-    await setDoc(docRef, {
-      ...formData,
-      ...totals,
-      createdAt: new Date().toISOString()
-    });
-    setIsModalOpen(false);
-    resetForm();
-  };
-
   const resetForm = () => {
     setFormData({
       employeeId: '',
-      month: new Date().toISOString().slice(0, 7),
+      month: selectedMonth,
       actualWorkDays: 30,
       basicSalary: 0,
       housingAllowance: 0,
@@ -186,7 +191,92 @@ export const Transactions: React.FC = () => {
       dailyWorkHours: 8,
       notes: ''
     });
+    setEmpSearch('');
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const totals = calculateTotals(formData);
+    const docRef = doc(collection(db, 'transactions'));
+    await setDoc(docRef, {
+      ...formData,
+      ...totals,
+      createdAt: new Date().toISOString()
+    });
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  // Update form month when selectedMonth changes
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, month: selectedMonth }));
+  }, [selectedMonth]);
+
+  const handleSkip = async (employeeId: string) => {
+    try {
+      setLoading(true);
+      const existing = transactions.find(t => t.employeeId === employeeId && t.month === selectedMonth);
+      if (existing) {
+        await setDoc(doc(db, 'transactions', existing.id), {
+          ...existing,
+          status: 'Skipped',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        const docRef = doc(collection(db, 'transactions'));
+        await setDoc(docRef, {
+          employeeId,
+          month: selectedMonth,
+          status: 'Skipped',
+          actualWorkDays: 0,
+          totalIncome: 0,
+          totalDeductions: 0,
+          netSalary: 0,
+          createdAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error('Error skipping transaction:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredEmployeesForGrid = useMemo(() => {
+    return employees
+      .filter(e => {
+        if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave');
+        return e.status === gridStatusFilter;
+      })
+      .filter(e => {
+        if (monthlyCardFilter === 'All') return true;
+        if (monthlyCardFilter === 'Standard') {
+          return e.classification !== 'Saudi' && e.classification !== 'Accounting';
+        }
+        return e.classification === monthlyCardFilter;
+      })
+      .filter(e => {
+        const matchesSearch = (e.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             (e.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if (showIncompleteOnly) {
+          const hasAction = transactions.find(t => t.employeeId === e.id && t.month === selectedMonth);
+          return !hasAction;
+        }
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  }, [employees, transactions, selectedMonth, monthlyCardFilter, gridStatusFilter, searchTerm, showIncompleteOnly]);
+
+  const gridStats = useMemo(() => {
+    const total = employees.filter(e => {
+      if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave');
+      return e.status === gridStatusFilter;
+    }).length;
+    const finished = transactions.filter(t => t.month === selectedMonth).length;
+    return { total, finished, remaining: total - finished };
+  }, [employees, transactions, selectedMonth, gridStatusFilter]);
 
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, 'transactions', id));
@@ -212,7 +302,9 @@ export const Transactions: React.FC = () => {
   };
 
   const handleEdit = (t: Transaction) => {
-    setFormData({ ...t });
+    // Correctly handle pro-rating and calculations when editing
+    const emp = employees.find(e => e.id === t.employeeId);
+    setFormData({ ...t, dailyWorkHours: t.dailyWorkHours || emp?.dailyWorkHours || 8 });
     setIsModalOpen(true);
   };
 
@@ -258,7 +350,8 @@ export const Transactions: React.FC = () => {
       'اقتطاعات اخرى': 0,
       'خصم المغادرات والتاخير': 0,
       'عدد الساعات': 0,
-      'عدد ايام الغياب': 0
+      'عدد ايام الغياب': 0,
+      'ملاحظات': ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -411,121 +504,491 @@ export const Transactions: React.FC = () => {
       .sort((a, b) => b.month.localeCompare(a.month));
   }, [transactions, employees, searchTerm, classificationFilter]);
 
+  const handleReturnFromLeave = (emp: Employee) => {
+    setSelectedEmpForReturn(emp);
+    setActualReturnDate(new Date().toISOString().slice(0, 10));
+    setIsReturnModalOpen(true);
+  };
+
+  const confirmReturn = async () => {
+    if (!selectedEmpForReturn) return;
+
+    try {
+      setLoading(true);
+      
+      // Update employee status and direct date
+      await setDoc(doc(db, 'employees', selectedEmpForReturn.id), {
+        ...selectedEmpForReturn,
+        status: 'Active',
+        lastDirectDate: actualReturnDate,
+        updatedAt: serverTimestamp()
+      });
+
+      // Also update any active leave records to 'Completed'
+      const q = query(
+        collection(db, 'leaves'),
+        where('employeeId', '==', selectedEmpForReturn.id),
+        where('status', '==', 'Active')
+      );
+      const leaveSnap = await getDocs(q);
+      const batch = writeBatch(db);
+      leaveSnap.forEach(l => {
+        batch.update(doc(db, 'leaves', l.id), {
+          status: 'Completed',
+          returnDate: actualReturnDate,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+
+      alert(`تم تنشيط الموظف ${selectedEmpForReturn.name} بنجاح تحديث تاريخ المباشرة إلى ${actualReturnDate}`);
+      setIsReturnModalOpen(false);
+      setSelectedEmpForReturn(null);
+    } catch (error) {
+      console.error('Error returning from leave:', error);
+      alert('حدث خطأ أثناء تنشيط الموظف');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMonthlyCardSelection = (emp: Employee) => {
+    if (emp.status === 'Leave') {
+      alert('برجاء تأكيد تاريخ المباشرة أولاً ثم أعد إدخال الكارت الشهري');
+      return;
+    }
+    const existing = transactions.find(t => t.employeeId === emp.id && t.month === selectedMonth);
+    if (existing) {
+      handleEdit(existing);
+    } else {
+      handleEmployeeChange(emp.id);
+      setIsModalOpen(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Tab Headers and Month Selector */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="البحث بالاسم، رقم الموظف، الإقامة أو الشهر..."
-              className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="relative group">
-            <Filter className={cn(
-              "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
-              classificationFilter !== 'All' ? "text-blue-600" : "text-gray-400"
-            )} />
-            <select
-              value={classificationFilter}
-              onChange={(e) => setClassificationFilter(e.target.value as any)}
-              className={cn(
-                "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
-                classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
-              )}
-            >
-              <option value="All">كل التصنيفات (التصفية)</option>
-              <option value="Standard">موظف عادي</option>
-              <option value="Saudi">السعوديين</option>
-              <option value="Accounting">رواتب المحاسبات</option>
-            </select>
-            <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
-          </div>
+        <div className="flex items-center gap-2 p-1.5 bg-gray-100/50 rounded-2xl w-fit">
+          <button
+            onClick={() => setActiveTab('History')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
+              activeTab === 'History' 
+                ? "bg-white text-blue-600 shadow-sm" 
+                : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
+            )}
+          >
+            <History className="w-4 h-4" />
+            سجل الحركات
+          </button>
+          <button
+            onClick={() => setActiveTab('MonthlyCard')}
+            className={cn(
+              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
+              activeTab === 'MonthlyCard' 
+                ? "bg-white text-blue-600 shadow-sm" 
+                : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
+            )}
+          >
+            <ClipboardList className="w-4 h-4" />
+            كارت العمل الشهري
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          {transactions.some(t => t.status === 'Draft') && (
-            <button 
-              onClick={deleteDrafts}
-              className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
-              title="حذف كافة المسودات"
-            >
-              <Trash2 className="w-5 h-5" />
-              <span className="hidden md:inline">حذف المسودات</span>
-            </button>
-          )}
-          <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2 font-bold" title="استيراد الحركات من اكسيل">
-            <Upload className="w-5 h-5" />
-            <span className="hidden md:inline">استيراد الحركات</span>
-            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
-          </label>
-          <button 
-            onClick={handleExportDataEntryTemplate}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
-            title="تصدير نموذج إدخال البيانات"
-          >
-            <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-            <span className="hidden md:inline">نموذج الإدخال</span>
-          </button>
-          <button 
-            onClick={handleExportFinalReport}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
-            title="تصدير الشيت النهائي المعتمد"
-          >
-            <Download className="w-5 h-5 text-blue-600" />
-            <span className="hidden md:inline">تصدير النهائي المعتمد</span>
-          </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
-          >
-            <Plus className="w-5 h-5" />
-            <span>إضافة حركة</span>
-          </button>
+
+        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+          <Calendar className="w-5 h-5 text-gray-400 mr-2" />
+          <input 
+            type="month" 
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-transparent border-none outline-none font-black text-gray-900 cursor-pointer"
+          />
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الموظف</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الشهر</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">إجمالي الدخل</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">إجمالي الخصومات</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">صافي الراتب</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {sortedTransactions.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="px-8 py-5">
-                    <p className="font-black text-gray-900">{employees.find(e => e.id === t.employeeId)?.name || 'موظف محذوف'}</p>
-                    <p className="text-xs text-gray-400 font-medium">{t.notes}</p>
-                  </td>
-                  <td className="px-8 py-5 font-bold text-gray-600">{t.month}</td>
-                  <td className="px-8 py-5 font-black text-emerald-600">{formatCurrency(t.totalIncome)}</td>
-                  <td className="px-8 py-5 font-black text-red-600">{formatCurrency(t.totalDeductions)}</td>
-                  <td className="px-8 py-5 font-black text-blue-600">{formatCurrency(t.netSalary)}</td>
-                  <td className="px-8 py-5">
-                    <button 
-                      onClick={() => setDeleteConfirmId(t.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+      {activeTab === 'History' ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input 
+                  type="text" 
+                  placeholder="البحث بالاسم، رقم الموظف، أو الإقامة..."
+                  className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="relative group">
+                <Filter className={cn(
+                  "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+                  classificationFilter !== 'All' ? "text-blue-600" : "text-gray-400"
+                )} />
+                <select
+                  value={classificationFilter}
+                  onChange={(e) => setClassificationFilter(e.target.value as any)}
+                  className={cn(
+                    "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
+                    classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
+                  )}
+                >
+                  <option value="All">كل التصنيفات</option>
+                  <option value="Standard">موظف عادي</option>
+                  <option value="Saudi">السعوديين</option>
+                  <option value="Accounting">رواتب المحاسبات</option>
+                </select>
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {transactions.some(t => t.status === 'Draft') && (
+                <button 
+                  onClick={deleteDrafts}
+                  className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span className="hidden md:inline">حذف المسودات</span>
+                </button>
+              )}
+              <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
+                <Upload className="w-5 h-5" />
+                <span className="hidden md:inline">استيراد</span>
+                <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
+              </label>
+              <button 
+                onClick={handleExportDataEntryTemplate}
+                className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+              >
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <span className="hidden md:inline">نموذج الإدخال</span>
+              </button>
+              <button 
+                onClick={handleExportFinalReport}
+                className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+              >
+                <Download className="w-5 h-5 text-blue-600" />
+                <span className="hidden md:inline">تقرير نهائي</span>
+              </button>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
+              >
+                <Plus className="w-5 h-5" />
+                <span>إضافة حركة</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الموظف</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الشهر</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">صافي الراتب</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">الحالة</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {sortedTransactions.map((t) => (
+                    <tr key={t.id} className="hover:bg-gray-50/50 transition-colors group">
+                      <td className="px-8 py-5">
+                        <p className="font-black text-gray-900">{employees.find(e => e.id === t.employeeId)?.name || 'موظف محذوف'}</p>
+                        <p className="text-xs text-gray-400 font-medium">{t.notes}</p>
+                      </td>
+                      <td className="px-8 py-5 font-bold text-gray-600">{t.month}</td>
+                      <td className="px-8 py-5 font-black text-blue-600 text-center">{formatCurrency(t.netSalary)}</td>
+                      <td className="px-8 py-5 text-center">
+                        <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-600">
+                          تـــــــم
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button onClick={() => handleEdit(t)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Plus className="w-4 h-4" /></button>
+                          <button onClick={() => setDeleteConfirmId(t.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          {/* Progress Indicators */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                <LayoutGrid className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400">إجمالي الموظفين</p>
+                <h4 className="text-xl font-black text-gray-900">{gridStats.total}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400">تـــــــــم</p>
+                <h4 className="text-xl font-black text-emerald-600">{gridStats.finished}</h4>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-2xl flex items-center justify-center">
+                <UserMinus className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400">المتبقي</p>
+                <h4 className="text-xl font-black text-gray-900">{gridStats.remaining}</h4>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input 
+                  type="text" 
+                  placeholder="ابحث بالاسم أو الرقم الوظيفي..."
+                  className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="relative group">
+                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={monthlyCardFilter}
+                  onChange={(e) => setMonthlyCardFilter(e.target.value as any)}
+                  className="pr-10 pl-10 py-3 bg-white border border-gray-100 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[220px] text-sm cursor-pointer"
+                >
+                  <option value="All">تصنيف الموظف (الكل)</option>
+                  <option value="Standard">موظف عادي</option>
+                  <option value="Saudi">السعوديين</option>
+                  <option value="Accounting">رواتب المحاسبات</option>
+                </select>
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+              <div className="relative group">
+                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <select
+                  value={gridStatusFilter}
+                  onChange={(e) => setGridStatusFilter(e.target.value as any)}
+                  className="pr-10 pl-10 py-3 bg-white border border-gray-100 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[150px] text-sm cursor-pointer"
+                >
+                  <option value="All">حالة الموظف (الكل)</option>
+                  <option value="Active">نشط</option>
+                  <option value="Leave">إجازة</option>
+                </select>
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+              <button
+                onClick={() => setShowIncompleteOnly(!showIncompleteOnly)}
+                className={cn(
+                  "px-6 py-3 rounded-2xl font-black text-sm transition-all border shadow-sm",
+                  showIncompleteOnly 
+                    ? "bg-amber-600 text-white border-amber-500" 
+                    : "bg-white text-gray-600 border-gray-100 hover:bg-gray-50"
+                )}
+              >
+                {showIncompleteOnly ? "عرض الكل" : "عرض غير المكتمل فقط"}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            {filteredEmployeesForGrid.map((emp) => {
+              const transaction = transactions.find(t => t.employeeId === emp.id && t.month === selectedMonth);
+              const isDone = !!transaction;
+
+              return (
+                <motion.div
+                  layout
+                  key={emp.id}
+                  onClick={() => handleMonthlyCardSelection(emp)}
+                  className={cn(
+                    "relative p-4 md:p-6 rounded-3xl border-2 transition-all cursor-pointer hover:shadow-lg active:scale-[0.99] group flex flex-col md:flex-row md:items-center justify-between gap-4",
+                    isDone ? "bg-emerald-50/50 border-emerald-100" : 
+                    "bg-white border-gray-100 hover:border-blue-200 shadow-sm"
+                  )}
+                >
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 shadow-sm",
+                      isDone ? "bg-white text-emerald-600" :
+                      "bg-blue-50 text-blue-600"
+                    )}>
+                      {emp.name.charAt(0)}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 flex-1">
+                      <div>
+                        <h5 className="font-black text-gray-900 group-hover:text-blue-600 transition-colors">{emp.name}</h5>
+                        <p className="text-[10px] font-bold text-gray-400">الرقم الوظيفي: {emp.employeeId || '---'}</p>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        <span className={cn(
+                          "text-[10px] font-black px-3 py-1 rounded-xl shadow-sm",
+                          emp.classification === 'Saudi' ? "bg-emerald-100 text-emerald-700" :
+                          emp.classification === 'Accounting' ? "bg-purple-100 text-purple-700" :
+                          "bg-blue-100 text-blue-700"
+                        )}>
+                          {emp.classification === 'Standard' ? 'موظف عادي' : 
+                           emp.classification === 'Saudi' ? 'سعودي' : 
+                           emp.classification === 'Accounting' ? 'محاسبة' : 'موظف عادي'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {emp.status === 'Leave' ? (
+                          <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-3 py-1 rounded-xl">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="text-[10px] md:text-xs font-black">برجاء تأكيد تاريخ المباشرة أولاً ثم أعد إدخال الكارت الشهري</span>
+                          </div>
+                        ) : isDone ? (
+                          <div className="flex items-center gap-1.5 text-emerald-600">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span className="text-xs font-black">تـــــــم</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-blue-500">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                            <span className="text-xs font-black">انتظار الإدخال</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pr-4 md:border-r border-gray-100">
+                    {emp.status === 'Leave' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReturnFromLeave(emp);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-2xl font-black text-xs hover:bg-emerald-700 transition-all shadow-sm"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        <span>تأكيد المباشرة</span>
+                      </button>
+                    )}
+                    {!isDone && emp.status !== 'Leave' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSkip(emp.id);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-2xl transition-all font-bold text-xs"
+                      >
+                        <FastForward className="w-4 h-4" />
+                        <span>تخطي</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMonthlyCardSelection(emp);
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 px-6 py-2 rounded-2xl font-black text-xs transition-all shadow-sm",
+                        isDone ? "bg-emerald-500 text-white hover:bg-emerald-600" :
+                        emp.status === 'Leave' ? "bg-gray-100 text-gray-400 cursor-not-allowed opacity-60" :
+                        "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-100"
+                      )}
+                      disabled={emp.status === 'Leave' && !isDone}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Plus className="w-4 h-4" />
+                      <span>{isDone ? 'تعديل الكارت' : 'إضافة كارت'}</span>
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {filteredEmployeesForGrid.length === 0 && (
+            <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
+              <Search className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+              <p className="text-gray-400 font-bold">لا يوجد موظفين يطابقون الفلتر المختار</p>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Return from Leave Modal */}
+      <AnimatePresence>
+        {isReturnModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setIsReturnModalOpen(false)} 
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8"
+            >
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2rem] flex items-center justify-center mx-auto mb-4">
+                  <UserCheck className="w-10 h-10" />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900">تأكيد تاريخ المباشرة</h3>
+                <p className="text-gray-500 font-bold mt-2">تنشيط الموظف: {selectedEmpForReturn?.name}</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-black text-gray-700 mb-2">تاريخ العودة الفعلي</label>
+                  <input 
+                    type="date" 
+                    value={actualReturnDate}
+                    onChange={(e) => setActualReturnDate(e.target.value)}
+                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  onClick={() => setIsReturnModalOpen(false)}
+                  className="px-6 py-4 bg-gray-100 text-gray-400 font-black rounded-2xl hover:bg-gray-200 transition-all"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmReturn}
+                  disabled={loading}
+                  className="px-6 py-4 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                >
+                  {loading ? 'جاري الحفظ...' : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>تأكيد المباشرة</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal */}
       <AnimatePresence>
@@ -534,7 +997,15 @@ export const Transactions: React.FC = () => {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden">
               <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h3 className="text-2xl font-black text-gray-900">إضافة حركة شهرية تفصيلية</h3>
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center">
+                    <ClipboardList className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-black text-gray-900">كارت العمل الشهري</h3>
+                    <p className="text-sm font-bold text-gray-400">إدخال حركات الموظف لشهر {selectedMonth}</p>
+                  </div>
+                </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
               </div>
               <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
@@ -558,8 +1029,12 @@ export const Transactions: React.FC = () => {
                       >
                         <option value="">اختر الموظف من القائمة...</option>
                         {employees
-                          .filter(e => e.status === 'Active')
-                          .filter(e => e.classification === 'Standard' || !e.classification)
+                          .filter(e => e.status === 'Active' || e.status === 'Leave')
+                          .filter(e => {
+                            if (formData.id) return true; // Don't filter if editing existing
+                            const isStandard = e.classification !== 'Saudi' && e.classification !== 'Accounting';
+                            return isStandard;
+                          })
                           .filter(e => 
                             (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
                             (e.employeeId || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
