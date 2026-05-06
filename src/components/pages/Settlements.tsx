@@ -395,35 +395,80 @@ export const Settlements: React.FC = () => {
               const totalAllowances = e.housingAllowance + e.transportAllowance + e.subsistenceAllowance + 
                                      e.otherAllowances + e.mobileAllowance + e.managementAllowance + otherAllowances;
               return (
-                <tr key={e.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                <tr 
+                  key={e.id} 
+                  className={cn(
+                    "transition-colors group",
+                    e.status === 'Leave' 
+                      ? "bg-gradient-to-br from-blue-900 to-blue-950 text-white hover:from-blue-800 hover:to-blue-900" 
+                      : e.status === 'End of Service'
+                      ? "bg-gradient-to-br from-red-900 to-red-950 text-white hover:from-red-800 hover:to-red-900"
+                      : "hover:bg-gray-50/50 dark:hover:bg-gray-800/50 border-b border-gray-50 dark:border-gray-800"
+                  )}
+                >
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center font-bold text-blue-600 dark:text-blue-400">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold",
+                        (e.status === 'Leave' || e.status === 'End of Service')
+                          ? "bg-white/10 text-white border border-white/20"
+                          : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                      )}>
                         {e.name[0]}
                       </div>
                       <div>
-                        <p className="font-bold text-gray-900 dark:text-white">{e.name}</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">#{e.employeeId}</p>
+                        <p className={cn(
+                          "font-bold",
+                          (e.status === 'Leave' || e.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
+                        )}>{e.name}</p>
+                        <p className={cn(
+                          "text-xs font-bold",
+                          e.status === 'Leave' ? "text-blue-300" : 
+                          e.status === 'End of Service' ? "text-red-300" : 
+                          "text-gray-400 dark:text-gray-500"
+                        )}>#{e.employeeId}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-5">
-                    <span className="text-sm font-bold text-gray-600 dark:text-gray-400">{e.officialEmployer}</span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="text-sm font-bold text-gray-600 dark:text-gray-400">{e.location}</span>
+                    <span className={cn(
+                      "text-sm font-bold",
+                      (e.status === 'Leave' || e.status === 'End of Service') ? "text-blue-50" : "text-gray-600 dark:text-gray-400"
+                    )}>{e.officialEmployer}</span>
                   </td>
                   <td className="px-8 py-5">
                     <span className={cn(
-                      "px-3 py-1 rounded-lg text-xs font-black",
-                      e.status === 'Active' ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                      "text-sm font-bold",
+                      (e.status === 'Leave' || e.status === 'End of Service') ? "text-blue-50" : "text-gray-600 dark:text-gray-400"
+                    )}>{e.location}</span>
+                  </td>
+                  <td className="px-8 py-5">
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg text-[10px] font-black border",
+                      e.status === 'Active' ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100" : 
+                      (e.status === 'Leave' || e.status === 'End of Service') ? "bg-white/10 text-white border-white/30" :
+                      "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200"
                     )}>
-                      {e.status === 'Active' ? 'نشط' : 'غير نشط'}
+                      {e.status === 'Active' ? 'نشط' : 
+                       e.status === 'Leave' ? 'إجازة' : 
+                       e.status === 'End of Service' ? 'إنهاء خدمات' : 
+                       e.status === 'Inactive' ? 'غير نشط' : e.status}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(e.basicSalary)}</td>
-                  <td className="px-8 py-5 text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(totalAllowances)}</td>
-                  <td className="px-8 py-5 text-sm font-black text-blue-600 dark:text-blue-400 text-left">{formatCurrency(e.basicSalary + totalAllowances)}</td>
+                  <td className={cn(
+                    "px-8 py-5 text-sm font-bold",
+                    (e.status === 'Leave' || e.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
+                  )}>{formatCurrency(e.basicSalary)}</td>
+                  <td className={cn(
+                    "px-8 py-5 text-sm font-bold",
+                    (e.status === 'Leave' || e.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
+                  )}>{formatCurrency(totalAllowances)}</td>
+                  <td className={cn(
+                    "px-8 py-5 text-sm font-black text-left",
+                    e.status === 'Leave' ? "text-blue-200" : 
+                    e.status === 'End of Service' ? "text-red-200" : 
+                    "text-blue-600 dark:text-blue-400"
+                  )}>{formatCurrency(e.basicSalary + totalAllowances)}</td>
                 </tr>
               );
             })}
