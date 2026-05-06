@@ -26,7 +26,8 @@ import * as XLSX from 'xlsx';
 export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification: initialFilterClassification }) => {
   const { employees, allowanceTypes, branches, sectors, managements, costCenterDepts } = useData();
   const [searchTerm, setSearchTerm] = useState('');
-  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>(initialFilterClassification || 'All');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>(initialFilterClassification || 'Standard');
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'All'>('Active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -335,26 +336,37 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
   const filteredEmployees = useMemo(() => {
     let result = employees;
     if (classificationFilter !== 'All') {
-      result = result.filter(e => e.classification === classificationFilter);
+      if (classificationFilter === 'Standard') {
+        result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting');
+      } else {
+        result = result.filter(e => e.classification === classificationFilter);
+      }
     }
-    return result.filter(e => 
+    if (statusFilter !== 'All') {
+      result = result.filter(e => e.status === statusFilter);
+    }
+    const sortedResult = [...result].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+
+    return sortedResult.filter(e => 
       (e.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (e.employeeId?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (e.iqamaNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.jobTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
-  }, [employees, searchTerm, classificationFilter]);
+  }, [employees, searchTerm, classificationFilter, statusFilter]);
 
   return (
     <div className="space-y-6">
       {/* Header Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 max-w-sm">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input 
               type="text" 
-              placeholder="البحث عن موظف أو قسم..."
-              className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+              placeholder="ابحث بالاسم، الرقم الوظيفي، أو الإقامة..."
+              className="w-full pr-12 pl-4 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm text-gray-900 dark:text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -368,14 +380,40 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
               value={classificationFilter}
               onChange={(e) => setClassificationFilter(e.target.value as any)}
               className={cn(
-                "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[180px] text-sm cursor-pointer",
-                classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
+                "pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[220px] text-xs cursor-pointer",
+                classificationFilter !== 'All' 
+                  ? "border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400 bg-blue-50/10 dark:bg-blue-900/20" 
+                  : "border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-white"
               )}
             >
-              <option value="All">كل التصنيفات</option>
+              <option value="All">تصنيف الموظف (الكل)</option>
               <option value="Standard">موظف عادي</option>
               <option value="Saudi">السعوديين</option>
               <option value="Accounting">رواتب المحاسبات</option>
+            </select>
+            <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
+          </div>
+          <div className="relative group">
+            <User className={cn(
+              "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+              statusFilter !== 'All' ? "text-blue-600" : "text-gray-400"
+            )} />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className={cn(
+                "pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[140px] text-xs cursor-pointer",
+                statusFilter !== 'All' 
+                  ? "border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400 bg-blue-50/10 dark:bg-blue-900/20" 
+                  : "border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              <option value="All">كل الحالات</option>
+              <option value="Active">نشط</option>
+              <option value="Leave">إجازة</option>
+              <option value="Inactive">غير نشط</option>
+              <option value="End of Service">إنهاء خدمات</option>
+              <option value="Out of Sponsorship">خارج الكفالة</option>
             </select>
             <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
           </div>
@@ -384,34 +422,34 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           {selectedIds.length > 0 && (
             <button 
               onClick={() => setDeleteConfirm({ id: 'bulk', show: true })}
-              className="flex items-center gap-2 px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all"
+              className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 transition-all shadow-sm shadow-red-200/20 dark:shadow-none"
             >
               <Trash2 className="w-5 h-5" />
               <span>حذف المحدد ({selectedIds.length})</span>
             </button>
           )}
-          <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
+          <label className="cursor-pointer p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold">
             <Upload className="w-5 h-5" />
             <span className="hidden md:inline">استيراد</span>
             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
           </label>
           <button 
             onClick={handleExportExcel}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
           >
             <Download className="w-5 h-5" />
             <span className="hidden md:inline">تصدير</span>
           </button>
           <button 
             onClick={() => window.print()}
-            className="p-3 bg-white border border-gray-100 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
           >
             <Printer className="w-5 h-5" />
             <span className="hidden md:inline">طباعة</span>
           </button>
           <button 
             onClick={() => { setEditingEmployee(null); setIsModalOpen(true); }}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/20"
           >
             <UserPlus className="w-5 h-5" />
             <span>إضافة موظف</span>
@@ -420,134 +458,197 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right">
             <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-8 py-5 text-right">
+              <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
+                <th className="px-6 py-5 text-right w-12">
                   <input 
                     type="checkbox" 
-                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600 focus:ring-blue-500"
                     checked={selectedIds.length === filteredEmployees.length && filteredEmployees.length > 0}
                     onChange={toggleSelectAll}
                   />
                 </th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الموظف</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">القطاع</th>
-                {!initialFilterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">مركز التكلفة / رئيسي</th>}
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رقم الهوية / الإقامة</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">آخر مباشرة</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">رصيد الإجازات</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">قيمة المرتب</th>
-                {!initialFilterClassification && <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الحالة</th>}
-                <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider">الإجراءات</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">اسم الموظف</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">الجنسية</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">القطاع</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">رقم الإقامة</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">تاريخ آخر مباشرة</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">المرتب الأساسي</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">إجمالي المرتب</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">حالة الموظف</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredEmployees.map((emp) => (
-                <tr key={emp.id} className={cn("hover:bg-gray-50/50 transition-colors group", selectedIds.includes(emp.id) && "bg-blue-50/30")}>
-                  <td className="px-8 py-5">
-                    <input 
-                      type="checkbox" 
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      checked={selectedIds.includes(emp.id)}
-                      onChange={() => toggleSelect(emp.id)}
-                    />
-                  </td>
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 font-black text-lg">
-                        {emp.name[0]}
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+              {filteredEmployees.map((emp) => {
+                const totalSalary = (emp.basicSalary || 0) + 
+                                   (emp.housingAllowance || 0) + 
+                                   (emp.transportAllowance || 0) + 
+                                   (emp.subsistenceAllowance || 0) + 
+                                   (emp.otherAllowances || 0) + 
+                                   (emp.mobileAllowance || 0) + 
+                                   (emp.managementAllowance || 0) +
+                                   (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+
+                return (
+                    <tr 
+                    key={emp.id} 
+                    className={cn(
+                      "transition-colors group text-right border-b border-gray-50 dark:border-gray-800",
+                      emp.status === 'Leave' 
+                        ? "bg-gradient-to-br from-blue-900 to-blue-950 text-white hover:from-blue-800 hover:to-blue-900" 
+                        : emp.status === 'End of Service'
+                        ? "bg-gradient-to-br from-red-900 to-red-950 text-white hover:from-red-800 hover:to-red-900"
+                        : "hover:bg-gray-50/50 dark:hover:bg-gray-800/50",
+                      selectedIds.includes(emp.id) && (
+                        emp.status === 'Leave' ? "ring-2 ring-white/30" : 
+                        emp.status === 'End of Service' ? "ring-2 ring-white/30" : 
+                        "bg-blue-50/30 dark:bg-blue-900/20"
+                      )
+                    )}
+                  >
+                    <td className="px-6 py-5">
+                      <input 
+                        type="checkbox" 
+                        className={cn(
+                          "w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600 focus:ring-blue-500",
+                          emp.status === 'Leave' && "border-white/30 bg-blue-800/50"
+                        )}
+                        checked={selectedIds.includes(emp.id)}
+                        onChange={() => toggleSelect(emp.id)}
+                      />
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-3 text-right">
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0",
+                          (emp.status === 'Leave' || emp.status === 'End of Service')
+                            ? "bg-white/10 text-white border border-white/20" 
+                            : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
+                        )}>
+                          {emp.name[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={cn(
+                            "font-black truncate max-w-[180px]",
+                            (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
+                          )}>{emp.name}</p>
+                          <p className={cn(
+                            "text-[10px] font-bold tracking-wider",
+                            emp.status === 'Leave' ? "text-blue-300" : 
+                            emp.status === 'End of Service' ? "text-red-300" : 
+                            "text-gray-400 dark:text-gray-500"
+                          )}>#{emp.employeeId || '---'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-black text-gray-900">{emp.name}</p>
-                        <p className="text-xs text-gray-400 font-medium">{emp.employeeId}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold block whitespace-nowrap">
-                      {emp.sectors || 'غير محدد'}
-                    </span>
-                  </td>
-                  {!initialFilterClassification && (
-                    <td className="px-8 py-5 text-center">
-                      <span className="px-4 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold block whitespace-nowrap">
-                        {emp.sectorManagement || 'غير محدد'}
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-bold text-sm",
+                        emp.status === 'Leave' ? "text-blue-100" : 
+                        emp.status === 'End of Service' ? "text-red-100" : 
+                        "text-gray-600 dark:text-gray-400"
+                      )}>{emp.nationality || '---'}</span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "px-3 py-1 rounded-lg text-xs font-black border inline-block",
+                        (emp.status === 'Leave' || emp.status === 'End of Service')
+                          ? "bg-white/10 text-white border-white/20" 
+                          : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-100/50 dark:border-blue-900/20"
+                      )}>
+                        {emp.sectors || 'غير محدد'}
                       </span>
                     </td>
-                  )}
-                  {initialFilterClassification && (
-                    <td className="px-8 py-5 font-bold text-gray-600">
-                      {emp.iqamaNumber || 'غير مسجل'}
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-bold text-sm font-mono",
+                        emp.status === 'Leave' ? "text-blue-200" : 
+                        emp.status === 'End of Service' ? "text-red-200" : 
+                        "text-gray-600 dark:text-gray-400"
+                      )}>{emp.iqamaNumber || '---'}</span>
                     </td>
-                  )}
-                  <td className="px-8 py-5">
-                    <span className="font-bold text-gray-600 block text-sm">
-                      {emp.lastDirectDate || '---'}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-sm font-black">
-                      {calculateBalance(emp)} يوم
-                    </span>
-                  </td>
-                  <td className="px-8 py-5">
-                    <p className="font-black text-gray-900">{formatCurrency(emp.basicSalary)}</p>
-                    {!initialFilterClassification && <p className="text-xs text-gray-400 font-medium">بدلات: {formatCurrency((emp.allowances || []).reduce((sum, a) => sum + a.amount, 0))}</p>}
-                  </td>
-                  {!initialFilterClassification && (
-                    <td className="px-8 py-5">
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-bold text-sm whitespace-nowrap",
+                        emp.status === 'Leave' ? "text-blue-200" : 
+                        emp.status === 'End of Service' ? "text-red-200" : 
+                        "text-gray-600 dark:text-gray-400"
+                      )}>{emp.lastDirectDate || '---'}</span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-black text-sm",
+                        (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
+                      )}>{formatCurrency(emp.basicSalary)}</span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-black text-sm",
+                        emp.status === 'Leave' ? "text-blue-200" : 
+                        emp.status === 'End of Service' ? "text-red-200" : 
+                        "text-blue-600 dark:text-blue-400"
+                      )}>{formatCurrency(totalSalary)}</span>
+                    </td>
+                    <td className="px-6 py-5 text-center">
                       <div className={cn(
-                        "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black",
-                        emp.status === 'Active' ? "bg-emerald-50 text-emerald-600" :
-                        emp.status === 'End of Service' ? "bg-red-50 text-red-600" :
-                        emp.status === 'Leave' ? "bg-blue-50 text-blue-600" :
-                        emp.status === 'Out of Sponsorship' ? "bg-orange-50 text-orange-600" :
-                        "bg-gray-50 text-gray-600"
+                        "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black whitespace-nowrap border",
+                        emp.status === 'Active' ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100" :
+                        (emp.status === 'Leave' || emp.status === 'End of Service') ? "bg-white/10 text-white border-white/30" :
+                        "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-100"
                       )}>
                         <div className={cn("w-1.5 h-1.5 rounded-full", 
                           emp.status === 'Active' ? "bg-emerald-600" :
-                          emp.status === 'End of Service' ? "bg-red-600" :
-                          emp.status === 'Leave' ? "bg-blue-600" :
-                          emp.status === 'Out of Sponsorship' ? "bg-orange-600" :
+                          emp.status === 'End of Service' ? "bg-red-400" :
+                          emp.status === 'Leave' ? "bg-blue-300" :
                           "bg-gray-600"
                         )} />
                         {emp.status === 'Active' ? 'نشط' : 
                          emp.status === 'End of Service' ? 'إنهاء خدمات' :
-                         emp.status === 'Leave' ? 'إجازة' : 
-                         emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'غير نشط'}
+                         emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
                       </div>
                     </td>
-                  )}
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-2 transition-opacity">
-                      <button 
-                        onClick={() => setViewingEmployee(emp)}
-                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="عرض الملف"
-                      >
-                        <User className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleEdit(emp)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="تعديل"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => setDeleteConfirm({ id: emp.id, show: true })}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="حذف"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-6 py-5">
+                      <div className="flex items-center justify-center gap-1">
+                        <button 
+                          onClick={() => setViewingEmployee(emp)}
+                          className={cn(
+                            "p-2 rounded-xl transition-all hover:scale-110",
+                            (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white hover:bg-white/10" : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                          )}
+                          title="عرض"
+                        >
+                          <User className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleEdit(emp)}
+                          className={cn(
+                            "p-2 rounded-xl transition-all hover:scale-110",
+                            (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white hover:bg-white/10" : "text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          )}
+                          title="تعديل"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setDeleteConfirm({ id: emp.id, show: true })}
+                          className={cn(
+                            "p-2 rounded-xl transition-all hover:scale-110",
+                            (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white hover:bg-white/10" : "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          )}
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+
+              })}
             </tbody>
           </table>
         </div>
@@ -568,22 +669,22 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="relative bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden"
             >
-              <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <h3 className="text-2xl font-black text-gray-900">
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+                <h3 className="text-2xl font-black text-gray-900 dark:text-white">
                   {editingEmployee ? 'تعديل بيانات الموظف' : 'إضافة موظف جديد'}
                 </h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors">
-                  <X className="w-6 h-6 text-gray-400" />
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors">
+                  <CloseIcon className="w-6 h-6 text-gray-400 dark:text-gray-500" />
                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">تصنيف الموظف</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تصنيف الموظف</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.classification || 'Standard'}
                       onChange={(e) => setFormData({...formData, classification: e.target.value as any})}
                     >
@@ -593,44 +694,44 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الرقم الوظيفي</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الرقم الوظيفي</label>
                     <input 
                       required
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.employeeId || ''}
                       onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الإسم</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الإسم</label>
                     <input 
                       required
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.name || ''}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">رقم الإقامة</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">رقم الإقامة</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.iqamaNumber || ''}
                       onChange={(e) => setFormData({...formData, iqamaNumber: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">تاريخ انتهاء الإقامة</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تاريخ انتهاء الإقامة</label>
                     <input 
                       type="date"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.iqamaExpiryDate || ''}
                       onChange={(e) => setFormData({...formData, iqamaExpiryDate: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">صاحب العمل الرسمي</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">صاحب العمل الرسمي</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.officialEmployer || ''}
                       onChange={(e) => setFormData({...formData, officialEmployer: e.target.value})}
                     >
@@ -644,51 +745,51 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الجنسية</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الجنسية</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.nationality || ''}
                       onChange={(e) => setFormData({...formData, nationality: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الوظيفة</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الوظيفة</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.jobTitle || ''}
                       onChange={(e) => setFormData({...formData, jobTitle: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">المهنة حسب الاقامة</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">المهنة حسب الاقامة</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.professionAsPerIqama || ''}
                       onChange={(e) => setFormData({...formData, professionAsPerIqama: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بداية العمل</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بداية العمل</label>
                     <input 
                       type="date"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.joinDate || ''}
                       onChange={(e) => setFormData({...formData, joinDate: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">آخر مباشرة</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">آخر مباشرة</label>
                     <input 
                       type="date"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.lastDirectDate || ''}
                       onChange={(e) => setFormData({...formData, lastDirectDate: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">القطاعات</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">القطاعات</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.sectors || ''}
                       onChange={(e) => setFormData({...formData, sectors: e.target.value})}
                     >
@@ -702,9 +803,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">مركز التكلفة / رئيسي</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">مركز التكلفة / رئيسي</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.sectorManagement || ''}
                       onChange={(e) => setFormData({...formData, sectorManagement: e.target.value})}
                     >
@@ -718,9 +819,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">مركز التكلفة / قسم</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">مركز التكلفة / قسم</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.costCenterDept || ''}
                       onChange={(e) => setFormData({...formData, costCenterDept: e.target.value})}
                     >
@@ -734,17 +835,17 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الموقع</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الموقع</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.location || ''}
                       onChange={(e) => setFormData({...formData, location: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">نوع استلام الراتب</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">نوع استلام الراتب</label>
                     <select 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData({...formData, paymentMethod: e.target.value as any})}
                     >
@@ -753,46 +854,47 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات العمل اليومية</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات العمل اليومية</label>
                     <input 
                       type="number"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.dailyWorkHours ?? 8}
                       onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">كود البنك</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">كود البنك</label>
                     <input 
                       placeholder="مثال: NCBK, RJHI"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
                       value={formData.bankCode || ''}
                       onChange={(e) => setFormData({...formData, bankCode: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الايبــــــــــان</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الايبــــــــــان</label>
                     <input 
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white text-left"
                       value={formData.bankAccount || ''}
                       onChange={(e) => setFormData({...formData, bankAccount: e.target.value})}
+                      dir="ltr"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الراتب الاساسي</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الراتب الاساسي</label>
                     <input 
                       type="number"
                       required
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.basicSalary ?? 0}
                       onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل سكن</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل سكن</label>
                     <input 
                       type="number"
-                      className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
                       value={formData.housingAllowance}
                       onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})}
                     />

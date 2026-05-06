@@ -41,9 +41,9 @@ export const Transactions: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('All');
-  const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All'>('All');
-  const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave'>('All');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('Standard');
+  const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All'>('Standard');
+  const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave'>('Active');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -85,16 +85,46 @@ export const Transactions: React.FC = () => {
     notes: ''
   });
 
+  // Helper to calculate remaining days in month from a specific date
+  const calculateRemainingDaysInMonth = (inputDate: string, targetMonth: string) => {
+    if (!inputDate || !targetMonth || !inputDate.startsWith(targetMonth)) return 30;
+    
+    try {
+      const date = new Date(inputDate);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      
+      // Get last day of the month to know total days (30, 31, 28, 29)
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      
+      // Remaining days: Total - Current + 1 (to include the start day)
+      // Example: 31st is last day, joined on 15th -> (31 - 15) + 1 = 17 days
+      return Math.max(1, lastDay - day + 1);
+    } catch (e) {
+      return 30;
+    }
+  };
+
   const handleEmployeeChange = (empId: string) => {
     const emp = employees.find(e => e.id === empId);
     if (emp) {
-      const days = formData.actualWorkDays || 30;
-      // Pro-rate based on actual work days: (Monthly / 30) * actualWorkDays
+      // Logic: Calculate suggested work days if joined/returned this month
+      const directDate = emp.lastDirectDate || emp.joinDate;
+      let suggestedDays = 30;
+      
+      if (directDate && directDate.startsWith(formData.month)) {
+        suggestedDays = calculateRemainingDaysInMonth(directDate, formData.month);
+      }
+
+      const days = suggestedDays;
+      // Pro-rate based on suggested/actual work days: (Monthly / 30) * actualWorkDays
       const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
 
       setFormData({
         ...formData,
         employeeId: empId,
+        actualWorkDays: suggestedDays,
         basicSalary: proRate(emp.basicSalary || 0),
         housingAllowance: proRate(emp.housingAllowance || 0),
         transportAllowance: proRate(emp.transportAllowance || 0),
@@ -615,14 +645,14 @@ export const Transactions: React.FC = () => {
     <div className="space-y-6">
       {/* Tab Headers and Month Selector */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 p-1.5 bg-gray-100/50 rounded-2xl w-fit">
+        <div className="flex items-center gap-2 p-1.5 bg-gray-100/50 dark:bg-gray-800/50 rounded-2xl w-fit">
           <button
             onClick={() => setActiveTab('History')}
             className={cn(
               "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
               activeTab === 'History' 
-                ? "bg-white text-blue-600 shadow-sm" 
-                : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
+                ? "bg-white dark:bg-gray-900 text-blue-600 shadow-sm" 
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-800/50"
             )}
           >
             <History className="w-4 h-4" />
@@ -633,8 +663,8 @@ export const Transactions: React.FC = () => {
             className={cn(
               "flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all",
               activeTab === 'MonthlyCard' 
-                ? "bg-white text-blue-600 shadow-sm" 
-                : "text-gray-500 hover:text-gray-700 hover:bg-white/50"
+                ? "bg-white dark:bg-gray-900 text-blue-600 shadow-sm" 
+                : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-800/50"
             )}
           >
             <ClipboardList className="w-4 h-4" />
@@ -642,13 +672,13 @@ export const Transactions: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-3 bg-white dark:bg-gray-900 p-2 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
           <Calendar className="w-5 h-5 text-gray-400 mr-2" />
           <input 
             type="month" 
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-transparent border-none outline-none font-black text-gray-900 cursor-pointer"
+            className="bg-transparent border-none outline-none font-black text-gray-900 dark:text-white cursor-pointer"
           />
         </div>
       </div>
@@ -662,7 +692,7 @@ export const Transactions: React.FC = () => {
                 <input 
                   type="text" 
                   placeholder="البحث بالاسم، رقم الموظف، أو الإقامة..."
-                  className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+                  className="w-full pr-12 pl-4 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm text-gray-900 dark:text-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -676,8 +706,10 @@ export const Transactions: React.FC = () => {
                   value={classificationFilter}
                   onChange={(e) => setClassificationFilter(e.target.value as any)}
                   className={cn(
-                    "pr-10 pl-10 py-3 bg-white border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
-                    classificationFilter !== 'All' ? "border-blue-200 text-blue-700 bg-blue-50/10" : "border-gray-100 text-gray-500 hover:border-gray-200"
+                    "pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
+                    classificationFilter !== 'All' 
+                      ? "border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400 bg-blue-50/10 dark:bg-blue-900/20" 
+                      : "border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-white"
                   )}
                 >
                   <option value="All">كل التصنيفات</option>
@@ -692,7 +724,7 @@ export const Transactions: React.FC = () => {
               {sortedTransactions.length > 0 && (
                 <button 
                   onClick={deleteAllFiltered}
-                  className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                  className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors shadow-sm flex items-center gap-2 font-bold"
                 >
                   <Trash2 className="w-5 h-5" />
                   <span className="hidden md:inline">حذف الكل المصفى</span>
@@ -701,34 +733,34 @@ export const Transactions: React.FC = () => {
               {transactions.some(t => t.status === 'Draft') && (
                 <button 
                   onClick={deleteDrafts}
-                  className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-amber-600 hover:bg-amber-100 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                  className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors shadow-sm flex items-center gap-2 font-bold"
                 >
                   <AlertCircle className="w-5 h-5" />
                   <span className="hidden md:inline">حذف المسودات</span>
                 </button>
               )}
-              <label className="cursor-pointer p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors shadow-sm flex items-center gap-2 font-bold">
+              <label className="cursor-pointer p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors shadow-sm flex items-center gap-2 font-bold">
                 <Upload className="w-5 h-5" />
                 <span className="hidden md:inline">استيراد</span>
                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
               </label>
               <button 
                 onClick={handleExportDataEntryTemplate}
-                className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
               >
                 <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                 <span className="hidden md:inline">نموذج الإدخال</span>
               </button>
               <button 
                 onClick={handleExportFinalReport}
-                className="p-3 bg-white border border-gray-100 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 font-bold"
+                className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
               >
                 <Download className="w-5 h-5 text-blue-600" />
                 <span className="hidden md:inline">تقرير نهائي</span>
               </button>
               <button 
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/20"
               >
                 <Plus className="w-5 h-5" />
                 <span>إضافة حركة</span>
@@ -736,40 +768,71 @@ export const Transactions: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-right">
                 <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الموظف</th>
-                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase">الشهر</th>
-                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">صافي الراتب</th>
-                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">الحالة</th>
-                    <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase text-center">الإجراءات</th>
+                  <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الموظف</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الشهر</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">صافي الراتب</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">الحالة</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">الإجراءات</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {sortedTransactions.map((t) => (
-                    <tr key={t.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-8 py-5">
-                        <p className="font-black text-gray-900">{employees.find(e => e.id === t.employeeId)?.name || 'موظف محذوف'}</p>
-                        <p className="text-xs text-gray-400 font-medium">{t.notes}</p>
-                      </td>
-                      <td className="px-8 py-5 font-bold text-gray-600">{t.month}</td>
-                      <td className="px-8 py-5 font-black text-blue-600 text-center">{formatCurrency(t.netSalary)}</td>
-                      <td className="px-8 py-5 text-center">
-                        <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-600">
-                          تـــــــم
-                        </span>
-                      </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => handleEdit(t)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="إضافة كارت"><ClipboardList className="w-4 h-4" /></button>
-                          <button onClick={() => setDeleteConfirmId(t.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="حذف"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {sortedTransactions.map((t) => {
+                    const emp = employees.find(e => e.id === t.employeeId);
+                    const isJoiningThisMonth = (emp?.lastDirectDate && emp.lastDirectDate.startsWith(t.month)) || 
+                                                (emp?.joinDate && emp.joinDate.startsWith(t.month));
+                    return (
+                      <tr key={t.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors group">
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/40 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                              {emp?.name?.[0] || '?'}
+                            </div>
+                            <div>
+                              <p className="font-black text-gray-900 dark:text-white">{emp?.name || 'موظف محذوف'}</p>
+                              {isJoiningThisMonth && (
+                                <span className="inline-flex items-center gap-1 text-[8px] font-black bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-lg mt-0.5">
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  مباشرة: {emp?.lastDirectDate || emp?.joinDate}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5 font-bold text-gray-600 dark:text-gray-400">{t.month}</td>
+                        <td className="px-8 py-5 font-black text-blue-600 dark:text-blue-400 text-center">{formatCurrency(t.netSalary)}</td>
+                        <td className="px-8 py-5 text-center">
+                          <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
+                            تـــــــم
+                          </span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button 
+                              onClick={() => handleEdit(t)} 
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-xl transition-all"
+                              title="تعديل الكارت"
+                            >
+                              <ClipboardList className="w-4 h-4" />
+                              <span className="text-[10px] font-black">تعديل</span>
+                            </button>
+                            <button 
+                              onClick={() => setDeleteConfirmId(t.id)} 
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-xl transition-all"
+                              title="إعادة تعيين"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                              <span className="text-[10px] font-black">إعادة تعيين</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -779,33 +842,33 @@ export const Transactions: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Progress Indicators */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                <LayoutGrid className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-400">إجمالي الموظفين</p>
-                <h4 className="text-xl font-black text-gray-900">{gridStats.total}</h4>
-              </div>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center">
+              <LayoutGrid className="w-6 h-6" />
             </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-400">تـــــــــم</p>
-                <h4 className="text-xl font-black text-emerald-600">{gridStats.finished}</h4>
-              </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">إجمالي الموظفين</p>
+              <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.total}</h4>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-50 text-gray-400 rounded-2xl flex items-center justify-center">
-                <UserMinus className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-400">المتبقي</p>
-                <h4 className="text-xl font-black text-gray-900">{gridStats.remaining}</h4>
-              </div>
+          </div>
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6" />
             </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">تـــــــــم</p>
+              <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400">{gridStats.finished}</h4>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-2xl flex items-center justify-center">
+              <UserMinus className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">المتبقي</p>
+              <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.remaining}</h4>
+            </div>
+          </div>
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -815,41 +878,41 @@ export const Transactions: React.FC = () => {
                 <input 
                   type="text" 
                   placeholder="ابحث بالاسم أو الرقم الوظيفي..."
-                  className="w-full pr-12 pl-4 py-3 bg-white border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm"
+                  className="w-full pr-12 pl-4 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm text-gray-900 dark:text-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="relative group">
-                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <select
                   value={monthlyCardFilter}
                   onChange={(e) => setMonthlyCardFilter(e.target.value as any)}
-                  className="pr-10 pl-10 py-3 bg-white border border-gray-100 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[220px] text-sm cursor-pointer"
+                  className="pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[220px] text-sm cursor-pointer text-gray-900 dark:text-white"
                 >
                   <option value="All">تصنيف الموظف (الكل)</option>
                   <option value="Standard">موظف عادي</option>
                   <option value="Saudi">السعوديين</option>
                   <option value="Accounting">رواتب المحاسبات</option>
                 </select>
-                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               </div>
               <div className="relative group">
-                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <select
                   value={gridStatusFilter}
                   onChange={(e) => setGridStatusFilter(e.target.value as any)}
-                  className="pr-10 pl-10 py-3 bg-white border border-gray-100 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[150px] text-sm cursor-pointer"
+                  className="pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[150px] text-sm cursor-pointer text-gray-900 dark:text-white"
                 >
                   <option value="All">حالة الموظف (الكل)</option>
                   <option value="Active">نشط</option>
                   <option value="Leave">إجازة</option>
                 </select>
-                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               </div>
               <button
                 onClick={handleResetMonth}
-                className="px-6 py-3 bg-red-50 text-red-600 rounded-2xl font-black text-sm hover:bg-red-100 transition-all border border-red-100 shadow-sm flex items-center gap-2"
+                className="px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl font-black text-sm hover:bg-red-100 dark:hover:bg-red-900/30 transition-all border border-red-100 dark:border-red-900/30 shadow-sm flex items-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>إعادة تعيين الشهر بالكامل</span>
@@ -860,7 +923,7 @@ export const Transactions: React.FC = () => {
                   "px-6 py-3 rounded-2xl font-black text-sm transition-all border shadow-sm",
                   showIncompleteOnly 
                     ? "bg-amber-600 text-white border-amber-500" 
-                    : "bg-white text-gray-600 border-gray-100 hover:bg-gray-50"
+                    : "bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
                 )}
               >
                 {showIncompleteOnly ? "عرض الكل" : "عرض غير المكتمل فقط"}
@@ -872,6 +935,8 @@ export const Transactions: React.FC = () => {
             {filteredEmployeesForGrid.map((emp) => {
               const transaction = transactions.find(t => t.employeeId === emp.id && t.month === selectedMonth);
               const isDone = !!transaction;
+              const isJoiningThisMonth = (emp.lastDirectDate && emp.lastDirectDate.startsWith(selectedMonth)) || 
+                                          (emp.joinDate && emp.joinDate.startsWith(selectedMonth));
 
               return (
                 <motion.div
@@ -879,61 +944,115 @@ export const Transactions: React.FC = () => {
                   key={emp.id}
                   onClick={() => handleMonthlyCardSelection(emp)}
                   className={cn(
-                    "relative p-4 md:p-6 rounded-3xl border-2 transition-all cursor-pointer hover:shadow-lg active:scale-[0.99] group flex flex-col md:flex-row md:items-center justify-between gap-4",
-                    isDone ? "bg-emerald-50/50 border-emerald-100" : 
-                    "bg-white border-gray-100 hover:border-blue-200 shadow-sm"
+                    "relative p-4 md:p-6 rounded-3xl border-2 transition-all cursor-pointer hover:shadow-xl active:scale-[0.98] group flex flex-col md:flex-row md:items-center justify-between gap-4 overflow-hidden",
+                    emp.status === 'Leave' 
+                      ? "bg-gradient-to-br from-blue-900 to-blue-950 border-blue-800 text-white shadow-lg shadow-blue-900/40" 
+                      : isDone 
+                        ? "bg-emerald-50/40 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20" 
+                        : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-blue-400 dark:hover:border-blue-700 shadow-sm"
                   )}
                 >
                   <div className="flex items-center gap-4 flex-1">
                     <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 shadow-sm",
-                      isDone ? "bg-white text-emerald-600" :
-                      "bg-blue-50 text-blue-600"
+                      "w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 shadow-sm relative",
+                      emp.status === 'Leave'
+                        ? "bg-blue-800 text-white border border-blue-700"
+                        : isDone 
+                          ? "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400" 
+                          : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
                     )}>
                       {emp.name.charAt(0)}
+                      <div className={cn(
+                        "absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-950 bg-emerald-500",
+                        emp.status === 'Leave' && "bg-blue-400",
+                        emp.status === 'End of Service' && "bg-red-500",
+                        emp.status === 'Inactive' && "bg-gray-500"
+                      )} />
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 flex-1">
                       <div>
-                        <h5 className="font-black text-gray-900 group-hover:text-blue-600 transition-colors">{emp.name}</h5>
-                        <p className="text-[10px] font-bold text-gray-400">الرقم الوظيفي: {emp.employeeId || '---'}</p>
+                        <h5 className={cn(
+                          "font-black transition-colors text-lg",
+                          emp.status === 'Leave' ? "text-white" : "text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                        )}>{emp.name}</h5>
+                          <div className="flex flex-wrap items-center gap-3 mt-1">
+                            <p className={cn(
+                              "text-[10px] font-bold",
+                              emp.status === 'Leave' ? "text-blue-200" : "text-gray-400 dark:text-gray-500"
+                            )}>الرقم الوظيفي: {emp.employeeId || '---'}</p>
+                            
+                            {isJoiningThisMonth && (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className={cn(
+                                  "flex items-center gap-2 px-3 py-1 rounded-xl border-2 animate-pulse transition-all shadow-sm",
+                                  emp.status === 'Leave' 
+                                    ? "bg-amber-500/20 border-amber-400 text-amber-200" 
+                                    : "bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+                                )}
+                              >
+                                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span className="text-[11px] font-black">
+                                  تنبيه مباشرة: {emp.lastDirectDate || emp.joinDate}
+                                  {" "}
+                                  ({calculateRemainingDaysInMonth(emp.lastDirectDate || emp.joinDate || '', selectedMonth)} يوم عمل)
+                                </span>
+                              </motion.div>
+                            )}
+                          </div>
                       </div>
                       
                       <div className="flex items-center">
                         <span className={cn(
-                          "text-[10px] font-black px-3 py-1 rounded-xl shadow-sm",
-                          emp.classification === 'Saudi' ? "bg-emerald-100 text-emerald-700" :
-                          emp.classification === 'Accounting' ? "bg-purple-100 text-purple-700" :
-                          "bg-blue-100 text-blue-700"
+                          "text-[10px] font-black px-3 py-1.5 rounded-xl shadow-sm border",
+                          emp.status === 'Leave' ? "bg-white/10 text-white border-white/20" :
+                          emp.classification === 'Saudi' ? "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-100" :
+                          emp.classification === 'Accounting' ? "bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 border-purple-100" :
+                          "bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-100"
                         )}>
-                          {emp.classification === 'Standard' ? 'موظف عادي' : 
-                           emp.classification === 'Saudi' ? 'سعودي' : 
-                           emp.classification === 'Accounting' ? 'محاسبة' : 'موظف عادي'}
+                          {emp.sectors || (emp.classification === 'Standard' ? 'موظف عادي' : 
+                                         emp.classification === 'Saudi' ? 'سعودي' : 
+                                         emp.classification === 'Accounting' ? 'محاسبة' : 'موظف عادي')}
                         </span>
                       </div>
-
+ 
                       <div className="flex items-center gap-2">
                         {emp.status === 'Leave' ? (
-                          <div className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-3 py-1 rounded-xl">
+                          <div className="flex items-center gap-1.5 text-blue-100 bg-white/10 px-3 py-1 rounded-xl border border-white/20">
                             <AlertCircle className="w-4 h-4" />
-                            <span className="text-[10px] md:text-xs font-black">برجاء تأكيد تاريخ المباشرة أولاً ثم أعد إدخال الكارت الشهري</span>
+                            <span className="text-[10px] md:text-xs font-black">حالة: إجـــــازة (تأكيد المباشرة مطلوب)</span>
                           </div>
                         ) : isDone ? (
-                          <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-xl">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span className="text-xs font-black">تـــــــم</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-xl group/reset">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span className="text-xs font-black">تـــــــم</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (transaction?.id) setDeleteConfirmId(transaction.id);
+                                }}
+                                className="mr-2 p-1 text-emerald-400 hover:text-red-500 transition-colors"
+                                title="إعادة تعيين (حذف الحركة)"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 text-blue-500">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                          <div className="flex items-center gap-1.5 text-blue-500 dark:text-blue-400">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 dark:bg-blue-400 animate-pulse" />
                             <span className="text-xs font-black">انتظار الإدخال</span>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 pr-4 md:border-r border-gray-100">
+ 
+                  <div className="flex items-center gap-2 pr-4 md:border-r border-gray-100 dark:border-gray-800">
                     {emp.status === 'Leave' && (
                       <button
                         onClick={(e) => {
@@ -981,9 +1100,9 @@ export const Transactions: React.FC = () => {
           </div>
 
           {filteredEmployeesForGrid.length === 0 && (
-            <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
-              <Search className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-              <p className="text-gray-400 font-bold">لا يوجد موظفين يطابقون الفلتر المختار</p>
+            <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-[3rem] border border-dashed border-gray-200 dark:border-gray-700">
+              <Search className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
+              <p className="text-gray-400 dark:text-gray-500 font-bold">لا يوجد موظفين يطابقون الفلتر المختار</p>
             </div>
           )}
         </motion.div>
@@ -998,30 +1117,30 @@ export const Transactions: React.FC = () => {
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }} 
               onClick={() => setIsReturnModalOpen(false)} 
-              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" 
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" 
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8"
+              className="relative bg-white dark:bg-gray-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-gray-100 dark:border-gray-800"
             >
               <div className="text-center mb-6">
-                <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-[2rem] flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-[2rem] flex items-center justify-center mx-auto mb-4">
                   <UserCheck className="w-10 h-10" />
                 </div>
-                <h3 className="text-2xl font-black text-gray-900">تأكيد تاريخ المباشرة</h3>
-                <p className="text-gray-500 font-bold mt-2">تنشيط الموظف: {selectedEmpForReturn?.name}</p>
+                <h3 className="text-2xl font-black text-gray-900 dark:text-white">تأكيد تاريخ المباشرة</h3>
+                <p className="text-gray-500 dark:text-gray-400 font-bold mt-2">تنشيط الموظف: {selectedEmpForReturn?.name}</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-black text-gray-700 mb-2">تاريخ العودة الفعلي</label>
+                  <label className="block text-sm font-black text-gray-700 dark:text-gray-300 mb-2">تاريخ العودة الفعلي</label>
                   <input 
                     type="date" 
                     value={actualReturnDate}
                     onChange={(e) => setActualReturnDate(e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
+                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -1029,14 +1148,14 @@ export const Transactions: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 mt-8">
                 <button
                   onClick={() => setIsReturnModalOpen(false)}
-                  className="px-6 py-4 bg-gray-100 text-gray-400 font-black rounded-2xl hover:bg-gray-200 transition-all"
+                  className="px-6 py-4 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 font-black rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
                 >
                   إلغاء
                 </button>
                 <button
                   onClick={confirmReturn}
                   disabled={loading}
-                  className="px-6 py-4 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
+                  className="px-6 py-4 bg-emerald-600 text-white font-black rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-none flex items-center justify-center gap-2"
                 >
                   {loading ? 'جاري الحفظ...' : (
                     <>
@@ -1055,40 +1174,40 @@ export const Transactions: React.FC = () => {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden">
-              <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center">
+                   <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none">
                     <ClipboardList className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900">كارت العمل الشهري</h3>
-                    <p className="text-sm font-bold text-gray-400">إدخال حركات الموظف لشهر {selectedMonth}</p>
+                    <h3 className="text-2xl font-black text-gray-900 dark:text-white">كارت العمل الشهري</h3>
+                    <p className="text-sm font-bold text-gray-400 dark:text-gray-500">إدخال حركات الموظف لشهر {selectedMonth}</p>
                   </div>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400 dark:text-gray-500" /></button>
               </div>
-              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الموظف (ابحث واختر)</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الموظف (ابحث واختر)</label>
                     <div className="relative">
-                      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
                       <input 
                         type="text"
                         placeholder="ابحث بالاسم، رقم الموظف، أو الإقامة..."
-                        className="w-full pr-10 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2"
+                        className="w-full pr-10 pl-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2 text-gray-900 dark:text-white"
                         value={empSearch || ''}
                         onChange={(e) => setEmpSearch(e.target.value)}
                       />
                       <select 
                         required 
-                        className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" 
+                        className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" 
                         value={formData.employeeId || ''} 
                         onChange={(e) => handleEmployeeChange(e.target.value)}
                       >
-                        <option value="">اختر الموظف من القائمة...</option>
+                        <option value="" className="dark:bg-gray-900">اختر الموظف من القائمة...</option>
                         {employees
                           .filter(e => e.status === 'Active' || e.status === 'Leave')
                           .filter(e => {
@@ -1102,125 +1221,125 @@ export const Transactions: React.FC = () => {
                             (e.iqamaNumber || '').toLowerCase().includes((empSearch || '').toLowerCase())
                           )
                           .map(e => (
-                            <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>
+                            <option key={e.id} value={e.id} className="dark:bg-gray-900">{e.name} ({e.employeeId})</option>
                           ))}
                       </select>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الشهر</label>
-                    <input type="month" required className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.month || ''} onChange={(e) => setFormData({...formData, month: e.target.value})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الشهر</label>
+                    <input type="month" required className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.month || ''} onChange={(e) => setFormData({...formData, month: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">أيام العمل الفعلية</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.actualWorkDays ?? 0} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">أيام العمل الفعلية</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.actualWorkDays ?? 0} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات العمل في اليوم</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.dailyWorkHours ?? 0} onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات العمل في اليوم</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.dailyWorkHours ?? 0} onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})} />
                   </div>
 
-                  <div className="md:col-span-3 border-b border-gray-100 pb-2">
-                    <h4 className="font-black text-emerald-600">الدخل (الإضافات)</h4>
+                  <div className="md:col-span-3 border-b border-gray-100 dark:border-gray-800 pb-2">
+                    <h4 className="font-black text-emerald-600 dark:text-emerald-400">الدخل (الإضافات)</h4>
                   </div>
                   
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">الراتب الأساسي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.basicSalary ?? 0} onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الراتب الأساسي</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.basicSalary ?? 0} onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل سكن</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.housingAllowance ?? 0} onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل سكن</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.housingAllowance ?? 0} onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل نقل</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.transportAllowance ?? 0} onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل نقل</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.transportAllowance ?? 0} onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل إعاشة</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.subsistenceAllowance ?? 0} onChange={(e) => setFormData({...formData, subsistenceAllowance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل إعاشة</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.subsistenceAllowance ?? 0} onChange={(e) => setFormData({...formData, subsistenceAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل جوال</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.mobileAllowance ?? 0} onChange={(e) => setFormData({...formData, mobileAllowance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل جوال</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.mobileAllowance ?? 0} onChange={(e) => setFormData({...formData, mobileAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدل إدارة</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.managementAllowance ?? 0} onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل إدارة</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.managementAllowance ?? 0} onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">بدلات أخرى</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherAllowances ?? 0} onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدلات أخرى</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherAllowances ?? 0} onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.overtimeHours ?? 0} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات الإضافي</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.overtimeHours ?? 0} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">قيمة الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-emerald-600 bg-emerald-50/50" value={formData.overtimeValue ?? 0} onChange={(e) => setFormData({...formData, overtimeValue: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">قيمة الإضافي</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10" value={formData.overtimeValue ?? 0} onChange={(e) => setFormData({...formData, overtimeValue: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">زيادة راتب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.salaryIncrease ?? 0} onChange={(e) => setFormData({...formData, salaryIncrease: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">زيادة راتب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryIncrease ?? 0} onChange={(e) => setFormData({...formData, salaryIncrease: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">دخل آخر</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherIncome ?? 0} onChange={(e) => setFormData({...formData, otherIncome: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">دخل آخر</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherIncome ?? 0} onChange={(e) => setFormData({...formData, otherIncome: Number(e.target.value)})} />
                   </div>
 
-                  <div className="md:col-span-3 border-b border-gray-100 pb-2">
-                    <h4 className="font-black text-red-600">الخصومات</h4>
+                  <div className="md:col-span-3 border-b border-gray-100 dark:border-gray-800 pb-2">
+                    <h4 className="font-black text-red-600 dark:text-red-400">الخصومات</h4>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">تأمين اجتماعي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تأمين اجتماعي</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">استلام راتب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام راتب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">استلام بنك</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.bankReceived ?? 0} onChange={(e) => setFormData({...formData, bankReceived: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام بنك</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.bankReceived ?? 0} onChange={(e) => setFormData({...formData, bankReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">سلف</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.loans ?? 0} onChange={(e) => setFormData({...formData, loans: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">سلف</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.loans ?? 0} onChange={(e) => setFormData({...formData, loans: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">أيام الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.absenceDays ?? 0} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">أيام الغياب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.absenceDays ?? 0} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">خصم الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-red-600 bg-red-50/50" value={formData.absenceDeduction ?? 0} onChange={(e) => setFormData({...formData, absenceDeduction: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">خصم الغياب</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10" value={formData.absenceDeduction ?? 0} onChange={(e) => setFormData({...formData, absenceDeduction: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">ساعات الخصم</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.deductionHours ?? 0} onChange={(e) => setFormData({...formData, deductionHours: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات الخصم</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.deductionHours ?? 0} onChange={(e) => setFormData({...formData, deductionHours: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">تأخير ومغادرات</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.departureDelayDeduction ?? 0} onChange={(e) => setFormData({...formData, departureDelayDeduction: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تأخيرومغادرات</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.departureDelayDeduction ?? 0} onChange={(e) => setFormData({...formData, departureDelayDeduction: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">خصومات أخرى</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={formData.otherDeductions ?? 0} onChange={(e) => setFormData({...formData, otherDeductions: Number(e.target.value)})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">خصومات أخرى</label>
+                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherDeductions ?? 0} onChange={(e) => setFormData({...formData, otherDeductions: Number(e.target.value)})} />
                   </div>
 
                   <div className="md:col-span-3 space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2">ملاحظات</label>
-                    <textarea className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium h-24" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} />
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ملاحظات</label>
+                    <textarea className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium h-24 text-gray-900 dark:text-white" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} />
                   </div>
                 </div>
-                <div className="bg-blue-50 p-6 rounded-3xl flex justify-between items-center">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-3xl flex justify-between items-center border border-blue-100 dark:border-blue-900/30">
                   <div>
-                    <p className="text-sm font-bold text-blue-600">صافي الراتب المتوقع</p>
-                    <p className="text-3xl font-black text-blue-900">{formatCurrency(calculateTotals(formData).netSalary)}</p>
+                    <p className="text-sm font-bold text-blue-600 dark:text-blue-400">صافي الراتب المتوقع</p>
+                    <p className="text-3xl font-black text-blue-900 dark:text-blue-100">{formatCurrency(calculateTotals(formData).netSalary)}</p>
                   </div>
-                  <button type="submit" className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-200">حفظ الحركة</button>
+                  <button type="submit" className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-none">حفظ الحركة</button>
                 </div>
               </form>
             </motion.div>
@@ -1233,15 +1352,15 @@ export const Transactions: React.FC = () => {
         {deleteConfirmId && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirmId(null)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center">
-              <div className="w-20 h-20 bg-red-50 text-red-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center border border-gray-100 dark:border-gray-800">
+              <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-3xl flex items-center justify-center mx-auto mb-6">
                 <Trash2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-black text-gray-900 mb-2">تأكيد الحذف</h3>
-              <p className="text-gray-500 font-medium mb-8">هل أنت متأكد من حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">تأكيد الحذف</h3>
+              <p className="text-gray-500 dark:text-gray-400 font-medium mb-8">هل أنت متأكد من حذف هذه الحركة؟ لا يمكن التراجع عن هذا الإجراء.</p>
               <div className="flex gap-3">
-                <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200">نعم، احذف</button>
-                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-black rounded-2xl transition-all">إلغاء</button>
+                <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none">نعم، احذف</button>
+                <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-white font-black rounded-2xl transition-all">إلغاء</button>
               </div>
             </motion.div>
           </div>

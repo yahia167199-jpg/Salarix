@@ -333,10 +333,10 @@ export const PayrollRuns: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-black text-gray-900">مسير الرواتب الشهري</h3>
+        <h3 className="text-xl font-black text-gray-900 dark:text-white">مسير الرواتب الشهري</h3>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200"
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-none"
         >
           <Play className="w-5 h-5" />
           <span>احتساب رواتب شهر جديد</span>
@@ -345,16 +345,16 @@ export const PayrollRuns: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sortedRuns.map((run) => (
-          <div key={run.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+          <div key={run.id} className="bg-white dark:bg-gray-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all group">
             <div className="flex justify-between items-start mb-6">
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+              <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
                 <Calendar className="w-7 h-7" />
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className={cn(
                   "px-4 py-1.5 rounded-full text-xs font-black",
-                  run.status === 'Approved' ? "bg-emerald-50 text-emerald-600" :
-                  run.status === 'Draft' ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"
+                  run.status === 'Approved' ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" :
+                  run.status === 'Draft' ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
                 )}>
                   {run.status}
                 </div>
@@ -365,7 +365,7 @@ export const PayrollRuns: React.FC = () => {
                     e.stopPropagation(); 
                     deleteRun(run.id, run.status); 
                   }}
-                  className="p-2.5 text-gray-400 hover:text-white hover:bg-red-500 transition-all bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-center group/del active:scale-90"
+                  className="p-2.5 text-gray-400 dark:text-gray-500 hover:text-white hover:bg-red-500 transition-all bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center justify-center group/del active:scale-90"
                   title="حذف المسير"
                 >
                   <Trash2 className="w-4 h-4 transition-transform group-hover/del:scale-110" />
@@ -373,18 +373,18 @@ export const PayrollRuns: React.FC = () => {
               </div>
             </div>
             
-            <h4 className="text-2xl font-black text-gray-900 mb-1">{run.month}</h4>
-            <p className="text-sm text-gray-400 font-medium mb-6">{run.employeeCount} موظف تم احتسابهم</p>
+            <h4 className="text-2xl font-black text-gray-900 dark:text-white mb-1">{run.month}</h4>
+            <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-6">{run.employeeCount} موظف تم احتسابهم</p>
             
-            <div className="p-4 bg-gray-50 rounded-2xl mb-6">
-              <p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">إجمالي الصافي</p>
-              <p className="text-xl font-black text-gray-900">{formatCurrency(run.totalNet)}</p>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl mb-6">
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-bold mb-1 uppercase tracking-wider">إجمالي الصافي</p>
+              <p className="text-xl font-black text-gray-900 dark:text-white">{formatCurrency(run.totalNet)}</p>
             </div>
 
             <div className="flex gap-2">
               <button 
                 onClick={() => { setSelectedRun(run); fetchResults(run.id); }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-gray-100 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-400 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <Eye className="w-4 h-4" />
                 <span>عرض</span>
@@ -407,17 +407,17 @@ export const PayrollRuns: React.FC = () => {
       <AnimatePresence>
         {selectedRun && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRun(null)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col">
-              <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRun(null)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white dark:bg-gray-900 w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800">
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
                 <div>
-                  <h3 className="text-2xl font-black text-gray-900">تفاصيل مسير {selectedRun.month}</h3>
-                  <p className="text-sm text-gray-400 font-medium">الحالة: {selectedRun.status}</p>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white">تفاصيل مسير {selectedRun.month}</h3>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">الحالة: {selectedRun.status}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button 
                     onClick={() => deleteRun(selectedRun.id, selectedRun.status)}
-                    className="flex items-center gap-2 px-4 py-3 text-red-600 hover:bg-red-50 font-bold rounded-2xl transition-all"
+                    className="flex items-center gap-2 px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold rounded-2xl transition-all"
                     title="حذف المسير نهائياً"
                   >
                     <Trash2 className="w-5 h-5" />
@@ -425,40 +425,40 @@ export const PayrollRuns: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => exportToExcel(selectedRun, results)}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200"
+                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-none"
                   >
                     <FileSpreadsheet className="w-5 h-5" />
                     <span>تصدير ملف البنك</span>
                   </button>
                   <button 
                     onClick={() => window.print()}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none"
                   >
                     <Printer className="w-5 h-5" />
                     <span>طباعة</span>
                   </button>
-                  <button onClick={() => setSelectedRun(null)} className="p-2 hover:bg-white rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400" /></button>
+                  <button onClick={() => setSelectedRun(null)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400 dark:text-gray-500" /></button>
                 </div>
               </div>
               <div className="flex-1 overflow-auto p-8">
                 <table className="w-full text-right">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="border-b border-gray-100">
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">الموظف</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">الأساسي</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">إجمالي الاستحقاقات</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">إجمالي الاستقطاعات</th>
-                      <th className="pb-4 text-sm font-black text-gray-400 uppercase">الصافي</th>
+                  <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
+                    <tr className="border-b border-gray-100 dark:border-gray-800">
+                      <th className="pb-4 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الموظف</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الأساسي</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">إجمالي الاستحقاقات</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">إجمالي الاستقطاعات</th>
+                      <th className="pb-4 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الصافي</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                     {results.map((r) => (
-                      <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="py-4 font-bold text-gray-900">{r.employeeName}</td>
-                        <td className="py-4 text-gray-600">{formatCurrency(r.basicSalary)}</td>
-                        <td className="py-4 text-emerald-600 font-bold">+{formatCurrency(r.totalIncome)}</td>
-                        <td className="py-4 text-red-600 font-bold">-{formatCurrency(r.totalDeductions)}</td>
-                        <td className="py-4 font-black text-gray-900">{formatCurrency(r.netSalary)}</td>
+                      <tr key={r.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <td className="py-4 font-bold text-gray-900 dark:text-white">{r.employeeName}</td>
+                        <td className="py-4 text-gray-600 dark:text-gray-400">{formatCurrency(r.basicSalary)}</td>
+                        <td className="py-4 text-emerald-600 dark:text-emerald-400 font-bold">+{formatCurrency(r.totalIncome)}</td>
+                        <td className="py-4 text-red-600 dark:text-red-400 font-bold">-{formatCurrency(r.totalDeductions)}</td>
+                        <td className="py-4 font-black text-gray-900 dark:text-white">{formatCurrency(r.netSalary)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -473,20 +473,20 @@ export const PayrollRuns: React.FC = () => {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8">
-              <h3 className="text-2xl font-black text-gray-900 mb-6 text-center">احتساب رواتب شهر جديد</h3>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-gray-100 dark:border-gray-800">
+              <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-6 text-center">احتساب رواتب شهر جديد</h3>
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-500 mr-2">اختر الشهر</label>
-                  <input type="month" className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium" value={month} onChange={(e) => setMonth(e.target.value)} />
+                  <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">اختر الشهر</label>
+                  <input type="month" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={month} onChange={(e) => setMonth(e.target.value)} />
                 </div>
-                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                  <p className="text-sm text-blue-700 font-medium leading-relaxed">سيقوم النظام بسحب جميع الموظفين النشطين واحتساب رواتبهم بناءً على الحركات المسجلة لهذا الشهر.</p>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                  <p className="text-sm text-blue-700 dark:text-blue-400 font-medium leading-relaxed">سيقوم النظام بسحب جميع الموظفين النشطين واحتساب رواتبهم بناءً على الحركات المسجلة لهذا الشهر.</p>
                 </div>
                 <button 
                   onClick={calculatePayroll}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-200"
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-none"
                 >
                   بدء الاحتساب الآن
                 </button>
@@ -498,3 +498,5 @@ export const PayrollRuns: React.FC = () => {
     </div>
   );
 };
+
+export default PayrollRuns;

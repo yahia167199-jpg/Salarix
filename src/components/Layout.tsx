@@ -12,7 +12,9 @@ import {
   Settings,
   ShieldCheck,
   FileText,
-  CalendarDays
+  CalendarDays,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { auth, signOut } from '../firebase';
@@ -32,11 +34,13 @@ import { Leaves } from './pages/Leaves';
 import { IqamaRenewal } from './pages/IqamaRenewal';
 import { useSecurity } from '../contexts/SecurityContext';
 import { useData } from '../contexts/DataContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Lock, PieChart } from 'lucide-react';
 
 export const Layout: React.FC = () => {
   const { user, profile, isAdmin, isHR, isFinance } = useAuth();
   const { lock, hasSystemPassword } = useSecurity();
+  const { theme, toggleTheme } = useTheme();
   const { companySettings, leaves, employees } = useData();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -110,17 +114,17 @@ export const Layout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex" dir="rtl">
+    <div className={cn("min-h-screen bg-slate-50 dark:bg-gray-950 flex transition-colors duration-300", theme === 'dark' && 'dark')} dir="rtl">
       {/* Sidebar */}
       <aside 
         className={cn(
-          "fixed inset-y-0 right-0 z-50 bg-white border-l border-gray-100 transition-all duration-300 shadow-xl shadow-blue-900/5 print:hidden",
+          "fixed inset-y-0 right-0 z-50 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-800 transition-all duration-300 shadow-xl shadow-blue-900/5 print:hidden",
           isSidebarOpen ? "w-72" : "w-20"
         )}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="h-24 flex items-center px-6 border-b border-gray-50">
+          <div className="h-24 flex items-center px-6 border-b border-gray-50 dark:border-gray-800">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 shrink-0 overflow-hidden">
                 {companySettings?.logoUrl ? (
@@ -130,7 +134,7 @@ export const Layout: React.FC = () => {
                 )}
               </div>
               {isSidebarOpen && (
-                <span className="text-xl font-black text-gray-900 tracking-tight truncate">
+                <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight truncate">
                   {companySettings?.companyName || 'Salarix'}
                 </span>
               )}
@@ -146,8 +150,8 @@ export const Layout: React.FC = () => {
                   className={cn(
                     "w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 group relative",
                     (activeTab === item.id || item.children?.some(c => c.id === activeTab))
-                      ? "bg-blue-50 text-blue-600 font-bold" 
-                      : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                      ? "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold" 
+                      : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
                   )}
                 >
                   <item.icon className={cn(
@@ -177,7 +181,7 @@ export const Layout: React.FC = () => {
 
                 {/* Sub-menu items */}
                 {isSidebarOpen && item.children && item.children.length > 0 && (
-                  <div className="mr-6 pr-4 border-r-2 border-gray-50 space-y-1 mt-1 mb-4">
+                  <div className="mr-6 pr-4 border-r-2 border-gray-50 dark:border-gray-800 space-y-1 mt-1 mb-4">
                     {item.children.map((child) => (
                       <button
                         key={child.id}
@@ -185,8 +189,8 @@ export const Layout: React.FC = () => {
                         className={cn(
                           "w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right text-sm font-bold",
                           activeTab === child.id
-                            ? "text-blue-600 bg-blue-50/50"
-                            : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
+                            ? "text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20"
+                            : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                         )}
                       >
                         <child.icon className="w-4 h-4" />
@@ -200,22 +204,22 @@ export const Layout: React.FC = () => {
           </nav>
 
           {/* User Profile & Logout */}
-          <div className="p-4 border-t border-gray-50">
+          <div className="p-4 border-t border-gray-50 dark:border-gray-800">
             {isSidebarOpen && (
-              <div className="mb-4 p-4 bg-gray-50 rounded-2xl flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
                   {user?.displayName?.[0] || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900 truncate">{user?.displayName}</p>
-                  <p className="text-xs text-gray-500 font-medium">{profile?.role || 'User'}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.displayName}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{profile?.role || 'User'}</p>
                 </div>
               </div>
             )}
             <button
               onClick={handleLogout}
               className={cn(
-                "w-full flex items-center gap-4 p-4 text-red-500 hover:bg-red-50 rounded-2xl transition-colors font-bold",
+                "w-full flex items-center gap-4 p-4 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors font-bold",
                 !isSidebarOpen && "justify-center"
               )}
             >
@@ -228,7 +232,7 @@ export const Layout: React.FC = () => {
         {/* Toggle Button */}
         <button 
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="absolute -left-4 top-10 w-8 h-8 bg-white border border-gray-100 rounded-full flex items-center justify-center shadow-md hover:bg-gray-50 transition-colors z-[60]"
+          className="absolute -left-4 top-10 w-8 h-8 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-full flex items-center justify-center shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors z-[60]"
         >
           <ChevronRight className={cn("w-4 h-4 text-gray-400 transition-transform", isSidebarOpen ? "rotate-0" : "rotate-180")} />
         </button>
@@ -239,23 +243,30 @@ export const Layout: React.FC = () => {
         "flex-1 transition-all duration-300 min-h-screen print:mr-0",
         isSidebarOpen ? "mr-72" : "mr-20"
       )}>
-        <header className="h-24 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between border-b border-gray-100 print:hidden">
-          <h2 className="text-2xl font-black text-gray-900">
-            {menuItems.flatMap(i => [i, ...(i.children || [])]).find(i => i.id === activeTab)?.label}
-          </h2>
-          <div className="flex items-center gap-4">
-            {hasSystemPassword && (
+          <header className="h-24 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-40 px-8 flex items-center justify-between border-b border-gray-100 dark:border-gray-800 print:hidden">
+            <h2 className="text-2xl font-black text-gray-900 dark:text-white">
+              {menuItems.flatMap(i => [i, ...(i.children || [])]).find(i => i.id === activeTab)?.label}
+            </h2>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={toggleTheme}
+                className="w-10 h-10 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm"
+                title={theme === 'light' ? 'الوضع الداكن' : 'الوضع الفاتح'}
+              >
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </button>
+              {hasSystemPassword && (
               <button 
                 onClick={lock}
-                className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all shadow-sm"
+                className="w-10 h-10 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all shadow-sm"
                 title="قفل النظام"
               >
                 <Lock className="w-5 h-5" />
               </button>
             )}
             <div className="hidden md:flex flex-col items-end">
-              <span className="text-sm font-bold text-gray-900">{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-              <span className="text-xs text-gray-400 font-medium">مرحباً بك في نظام {companySettings?.companyName || 'Salarix'}</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">{new Date().toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">مرحباً بك في نظام {companySettings?.companyName || 'Salarix'}</span>
             </div>
           </div>
         </header>

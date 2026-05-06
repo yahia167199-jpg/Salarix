@@ -326,6 +326,21 @@ export const Leaves: React.FC = () => {
     return { active, endingSoon, overdue };
   }, [leaves, employees]);
 
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+
+  const filteredEmployeesForSelection = useMemo(() => {
+    if (!employeeSearchTerm) return [];
+    return employees.filter(e => 
+      (e.status === 'Active' || (selectedLeave && e.id === selectedLeave.employeeId)) &&
+      (
+        e.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+        (e.employeeId || '').toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
+        (e.iqamaNumber || '').toLowerCase().includes(employeeSearchTerm.toLowerCase())
+      )
+    );
+  }, [employees, employeeSearchTerm, selectedLeave]);
+
   const handleAddLeave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.employeeId || !formData.startDate) return;
@@ -477,30 +492,30 @@ export const Leaves: React.FC = () => {
             className="fixed bottom-8 left-8 z-[200] max-w-sm w-full pointer-events-auto"
             dir="rtl"
           >
-            <div className="bg-white/90 backdrop-blur-xl border-2 border-amber-100 rounded-[2.5rem] p-6 shadow-2xl shadow-amber-200/40 relative overflow-hidden group">
+            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-2 border-amber-100 dark:border-amber-900/30 rounded-[2.5rem] p-6 shadow-2xl shadow-amber-200/40 dark:shadow-none relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-1 bg-amber-500 h-full" />
               <button 
                 onClick={() => setShowToast(false)}
-                className="absolute top-6 left-6 p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition-colors"
+                className="absolute top-6 left-6 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500 transition-colors"
                 title="إغلاق التنبيه"
               >
                 <X className="w-4 h-4" />
               </button>
               
               <div className="flex gap-5">
-                <div className="w-16 h-16 bg-amber-100 rounded-[1.5rem] flex items-center justify-center text-amber-600 shrink-0 shadow-inner group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/40 rounded-[1.5rem] flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-inner group-hover:scale-110 transition-transform">
                   <Bell className="w-8 h-8" />
                 </div>
                 <div className="pl-6">
-                  <h4 className="font-black text-gray-900 text-lg leading-tight mb-1">تنبيه المراجعة</h4>
-                  <p className="text-sm font-bold text-gray-500">
+                  <h4 className="font-black text-gray-900 dark:text-white text-lg leading-tight mb-1">تنبيه المراجعة</h4>
+                  <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
                     هناك {pendingReturns.length} موظفين يقترب موعد عودتهم
                   </p>
                   
                   <div className="mt-5 space-y-2">
                     {pendingReturns.slice(0, 2).map(l => (
-                      <div key={l.id} className="flex items-center justify-between bg-gray-50/50 p-2.5 rounded-2xl border border-gray-100/50">
-                        <span className="text-sm font-black text-gray-700">{l.employeeName}</span>
+                      <div key={l.id} className="flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50 p-2.5 rounded-2xl border border-gray-100/50 dark:border-gray-700/50">
+                        <span className="text-sm font-black text-gray-700 dark:text-gray-300">{l.employeeName}</span>
                         <button 
                           onClick={() => {
                             handleConfirmReturn(l);
@@ -538,37 +553,37 @@ export const Leaves: React.FC = () => {
             initial={{ opacity: 0, height: 0, y: -20 }}
             animate={{ opacity: 1, height: 'auto', y: 0 }}
             exit={{ opacity: 0, height: 0, y: -20 }}
-            className="bg-amber-50 border border-amber-200 rounded-[2.5rem] p-8 shadow-2xl shadow-amber-200/20 overflow-hidden relative"
+            className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-[2.5rem] p-8 shadow-2xl shadow-amber-200/20 dark:shadow-none overflow-hidden relative"
           >
-            <div className="absolute -top-10 -left-10 w-40 h-40 bg-amber-100 rounded-full blur-3xl opacity-50" />
+            <div className="absolute -top-10 -left-10 w-40 h-40 bg-amber-100 dark:bg-amber-900/20 rounded-full blur-3xl opacity-50" />
             
             <div className="relative z-10">
               <div className="flex items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-amber-200 rounded-3xl flex items-center justify-center text-amber-700 shadow-inner ring-4 ring-amber-50">
+                  <div className="w-16 h-16 bg-amber-200 dark:bg-amber-900/40 rounded-3xl flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-inner ring-4 ring-amber-50 dark:ring-amber-900/20">
                     <Bell className="w-8 h-8" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-amber-900">إجراء مطلوب: متابعة عودة الموظفين</h3>
-                    <p className="text-amber-700 font-bold max-w-2xl text-lg mt-1">
+                    <h3 className="text-2xl font-black text-amber-900 dark:text-amber-100">إجراء مطلوب: متابعة عودة الموظفين</h3>
+                    <p className="text-amber-700 dark:text-amber-400 font-bold max-w-2xl text-lg mt-1">
                       لديك {pendingReturns.length} موظفين تنتهي إجازاتهم قريباً أو انتهت بالفعل.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="hidden lg:flex -space-x-4 space-x-reverse items-center bg-white/50 p-2 rounded-2xl border border-amber-200/50">
+                  <div className="hidden lg:flex -space-x-4 space-x-reverse items-center bg-white/50 dark:bg-gray-800/50 p-2 rounded-2xl border border-amber-200/50 dark:border-amber-900/30">
                     {pendingReturns.slice(0, 5).map((l, i) => (
                       <div 
                         key={i} 
-                        className="w-12 h-12 rounded-2xl border-2 border-white bg-amber-600 flex items-center justify-center text-white text-sm font-black ring-2 ring-amber-100 shadow-lg group hover:-translate-y-1 transition-transform cursor-help"
+                        className="w-12 h-12 rounded-2xl border-2 border-white dark:border-gray-800 bg-amber-600 flex items-center justify-center text-white text-sm font-black ring-2 ring-amber-100 dark:ring-amber-900/20 shadow-lg group hover:-translate-y-1 transition-transform cursor-help"
                         title={l.employeeName}
                       >
                         {l.employeeName[0]}
                       </div>
                     ))}
                     {pendingReturns.length > 5 && (
-                      <div className="w-12 h-12 rounded-2xl border-2 border-white bg-amber-100 flex items-center justify-center text-amber-600 text-xs font-black ring-2 ring-amber-100 shadow-sm">
+                      <div className="w-12 h-12 rounded-2xl border-2 border-white dark:border-gray-800 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xs font-black ring-2 ring-amber-100 dark:ring-amber-900/20 shadow-sm">
                         +{pendingReturns.length - 5}
                       </div>
                     )}
@@ -576,7 +591,7 @@ export const Leaves: React.FC = () => {
                   
                   <button
                     onClick={() => setDismissedAlerts(true)}
-                    className="p-4 text-amber-400 hover:text-amber-600 hover:bg-white rounded-3xl transition-all shadow-sm border border-transparent hover:border-amber-200"
+                    className="p-4 text-amber-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-gray-800 rounded-3xl transition-all shadow-sm border border-transparent hover:border-amber-200 dark:hover:border-amber-800"
                     title="إخفاء التنبيه"
                   >
                     <X className="w-6 h-6" />
@@ -589,22 +604,22 @@ export const Leaves: React.FC = () => {
                   const end = new Date(l.endDate);
                   const isOverdue = end < new Date();
                   return (
-                    <div key={l.id} className="bg-white rounded-2xl p-4 flex items-center justify-between border border-amber-100 group hover:shadow-md transition-all">
+                    <div key={l.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 flex items-center justify-between border border-amber-100 dark:border-amber-900/30 group hover:shadow-md transition-all">
                       <div className="flex items-center gap-3">
                         <div className={cn(
                           "w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)]",
                           isOverdue ? "bg-red-500 animate-pulse" : "bg-amber-500"
                         )} />
                         <div>
-                          <span className="font-black text-gray-800 block text-sm">{l.employeeName}</span>
-                          <span className="text-[10px] font-bold text-gray-400">
+                          <span className="font-black text-gray-800 dark:text-white block text-sm">{l.employeeName}</span>
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">
                             {isOverdue ? "انتهت" : "تنتهي"} في: {l.endDate}
                           </span>
                         </div>
                       </div>
                       <button 
                         onClick={() => handleConfirmReturn(l)}
-                        className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 active:scale-90"
+                        className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-90"
                         title="تأكيد تاريخ المباشرة"
                       >
                         <Check className="w-5 h-5" />
@@ -632,44 +647,44 @@ export const Leaves: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 flex items-center gap-5 shadow-sm">
-          <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800 flex items-center gap-5 shadow-sm">
+          <div className="w-14 h-14 bg-amber-50 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-inner">
             <Plane className="w-7 h-7" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400">إجازات نشطة</p>
-            <h4 className="text-3xl font-black text-gray-900">{stats.active}</h4>
+            <p className="text-sm font-bold text-gray-400 dark:text-gray-500">إجازات نشطة</p>
+            <h4 className="text-3xl font-black text-gray-900 dark:text-white">{stats.active}</h4>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 flex items-center gap-5 shadow-sm">
-          <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shadow-inner">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800 flex items-center gap-5 shadow-sm">
+          <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
             <Bell className="w-7 h-7" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400">تنتهي قريباً</p>
-            <h4 className="text-3xl font-black text-gray-900">{stats.endingSoon}</h4>
+            <p className="text-sm font-bold text-gray-400 dark:text-gray-500">تنتهي قريباً</p>
+            <h4 className="text-3xl font-black text-gray-900 dark:text-white">{stats.endingSoon}</h4>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 flex items-center gap-5 shadow-sm">
-          <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center text-red-600 shadow-inner">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800 flex items-center gap-5 shadow-sm">
+          <div className="w-14 h-14 bg-red-50 dark:bg-red-900/40 rounded-2xl flex items-center justify-center text-red-600 dark:text-red-400 shadow-inner">
             <AlertCircle className="w-7 h-7" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400">متأخرين</p>
-            <h4 className="text-3xl font-black text-gray-900">{stats.overdue}</h4>
+            <p className="text-sm font-bold text-gray-400 dark:text-gray-500">متأخرين</p>
+            <h4 className="text-3xl font-black text-gray-900 dark:text-white">{stats.overdue}</h4>
           </div>
         </div>
       </div>
 
       {/* View Toggle */}
-      <div className="flex bg-white p-1 rounded-[1.5rem] border border-gray-100 shadow-sm w-fit mb-4 overflow-x-auto max-w-full">
+      <div className="flex bg-white dark:bg-gray-900 p-1 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 shadow-sm w-fit mb-4 overflow-x-auto max-w-full">
         <button
           onClick={() => setActiveView('ActiveLeaves')}
           className={cn(
             "px-8 py-3 rounded-2xl font-black transition-all flex items-center gap-2 whitespace-nowrap",
-            activeView === 'ActiveLeaves' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-gray-500 hover:bg-gray-50"
+            activeView === 'ActiveLeaves' ? "bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none" : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           )}
         >
           <Plane className="w-5 h-5" />
@@ -679,7 +694,7 @@ export const Leaves: React.FC = () => {
           onClick={() => setActiveView('History')}
           className={cn(
             "px-8 py-3 rounded-2xl font-black transition-all flex items-center gap-2 whitespace-nowrap",
-            activeView === 'History' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-gray-500 hover:bg-gray-50"
+            activeView === 'History' ? "bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none" : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           )}
         >
           <Clock className="w-5 h-5" />
@@ -689,7 +704,7 @@ export const Leaves: React.FC = () => {
           onClick={() => setActiveView('Balances')}
           className={cn(
             "px-8 py-3 rounded-2xl font-black transition-all flex items-center gap-2 whitespace-nowrap",
-            activeView === 'Balances' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "text-gray-500 hover:bg-gray-50"
+            activeView === 'Balances' ? "bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none" : "text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           )}
         >
           <Users className="w-5 h-5" />
@@ -698,19 +713,19 @@ export const Leaves: React.FC = () => {
       </div>
 
       {/* Filters & Search */}
-      <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
           <input
             type="text"
             placeholder="بحث بالاسم، الرقم الوظيفي، أو الهوية..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pr-12 pl-4 py-3 bg-gray-50 border-0 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-right transition-all"
+            className="w-full pr-12 pl-4 py-3 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 font-bold text-right transition-all text-gray-900 dark:text-white"
           />
         </div>
         
-        <div className="flex bg-gray-50 p-1 rounded-2xl">
+        <div className="flex bg-gray-50 dark:bg-gray-800 p-1 rounded-2xl">
           {(['Active', 'Completed', 'All'] as const).map((status) => (
             <button
               key={status}
@@ -718,8 +733,8 @@ export const Leaves: React.FC = () => {
               className={cn(
                 "px-6 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap",
                 filterStatus === status 
-                  ? "bg-white text-blue-600 shadow-sm" 
-                  : "text-gray-500 hover:text-gray-800"
+                  ? "bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-400 shadow-sm" 
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
               )}
             >
               {status === 'Active' ? 'إجازات نشطة' : status === 'Completed' ? 'منتهية' : 'الكل'}
@@ -731,12 +746,12 @@ export const Leaves: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={handleExportBalances}
-              className="px-6 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100"
+              className="px-6 py-3 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100 dark:border-emerald-900/30"
             >
               <Download className="w-4 h-4" />
               تصدير الأرصدة
             </button>
-            <label className="px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 cursor-pointer">
+            <label className="px-6 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 dark:border-blue-900/30 cursor-pointer">
               <Upload className="w-4 h-4" />
               استيراد وتحديث
               <input 
@@ -753,12 +768,12 @@ export const Leaves: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={handleExportOnLeave}
-              className="px-6 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100"
+              className="px-6 py-3 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100 dark:border-emerald-900/30"
             >
               <Download className="w-4 h-4" />
               تصدير المتواجدون
             </button>
-            <label className="px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 cursor-pointer">
+            <label className="px-6 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 dark:border-blue-900/30 cursor-pointer">
               <Upload className="w-4 h-4" />
               استيراد وتحديث التواريخ
               <input 
@@ -770,7 +785,7 @@ export const Leaves: React.FC = () => {
             </label>
             <button
               onClick={() => window.print()}
-              className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100 shadow-sm"
+              className="px-6 py-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100 dark:border-gray-800 shadow-sm"
             >
               <Printer className="w-4 h-4" />
               طباعة القائمة
@@ -782,7 +797,7 @@ export const Leaves: React.FC = () => {
           <button
             onClick={handleDeleteTestLeaves}
             disabled={loading}
-            className="px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-red-100 disabled:opacity-50"
+            className="px-6 py-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-red-100 dark:border-red-900/30 disabled:opacity-50"
           >
             <X className="w-4 h-4" />
             مسح السجل
@@ -796,51 +811,40 @@ export const Leaves: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
           {employees
             .filter(e => e.status === 'Leave')
-            .filter(e => {
-              return e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     (e.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                     (e.iqamaNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
-            })
-            .map((emp) => {
+            .map(emp => {
               const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+              const diffDays = leave ? Math.round((new Date(leave.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
               
-              const end = leave ? new Date(leave.endDate) : null;
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const isValidDate = end && !isNaN(end.getTime());
-              const diffTime = isValidDate ? end.getTime() - today.getTime() : 0;
-              const diffDays = isValidDate ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
-
               return (
                 <motion.div
                   layout
                   key={emp.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden group"
+                  className="bg-white dark:bg-gray-900 rounded-[2rem] p-6 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all relative overflow-hidden group"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-[4rem] -z-0 opacity-50 transition-all group-hover:scale-110" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-bl-[4rem] -z-0 opacity-50 transition-all group-hover:scale-110" />
                   
                   <div className="relative z-10">
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-blue-600 text-xl font-black border border-blue-50">
+                        <div className="w-14 h-14 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl font-black border border-blue-50 dark:border-blue-900/30">
                           {emp.name[0]}
                         </div>
                         <div>
-                          <h4 className="font-black text-gray-900 text-lg">{emp.name}</h4>
-                          <p className="text-sm font-bold text-gray-400">#{emp.employeeId || '---'}</p>
+                          <h4 className="font-black text-gray-900 dark:text-white text-lg">{emp.name}</h4>
+                          <p className="text-sm font-bold text-gray-400 dark:text-gray-500">#{emp.employeeId || '---'}</p>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <div className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl text-[10px] font-black border border-emerald-100 flex items-center gap-1.5">
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-[10px] font-black border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-1.5">
                           <Clock className="w-3 h-3" />
                           أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                         </div>
                         {leave && (
                           <div className={cn(
                             "px-4 py-2 rounded-xl text-xs font-black",
-                            diffDays < 0 ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
+                            diffDays < 0 ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                           )}>
                             {diffDays < 0 ? 'متأخر' : diffDays === 0 ? 'اليوم' : `باقي ${diffDays} يوم`}
                           </div>
@@ -848,7 +852,7 @@ export const Leaves: React.FC = () => {
                         {leave && leave.status === 'Active' && (
                           <button
                             onClick={() => handleEditLeave(leave)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-blue-600 rounded-xl transition-all border border-gray-100 font-black text-[10px]"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-all border border-gray-100 dark:border-gray-800 font-black text-[10px]"
                             title="تعديل التواريخ"
                           >
                             <Calendar className="w-3.5 h-3.5" />
@@ -860,20 +864,20 @@ export const Leaves: React.FC = () => {
 
                     <div className="space-y-4 mb-8">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-gray-400 flex items-center gap-2">
+                        <span className="font-bold text-gray-400 dark:text-gray-500 flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
                           تاريخ البداية
                         </span>
-                        <span className="font-black text-gray-700">{leave?.startDate || '---'}</span>
+                        <span className="font-black text-gray-700 dark:text-gray-300">{leave?.startDate || '---'}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-gray-400 flex items-center gap-2">
+                        <span className="font-bold text-gray-400 dark:text-gray-500 flex items-center gap-2">
                           <Clock className="w-4 h-4" />
                           العودة المتوقعة
                         </span>
-                        <span className="font-black text-gray-700">{leave?.endDate || '---'}</span>
+                        <span className="font-black text-gray-700 dark:text-gray-300">{leave?.endDate || '---'}</span>
                       </div>
-                      <div className="h-2 bg-gray-50 rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-50 dark:bg-gray-800 rounded-full overflow-hidden">
                         <div 
                           className={cn(
                             "h-full rounded-full transition-all duration-1000",
@@ -888,14 +892,14 @@ export const Leaves: React.FC = () => {
                       <div className="flex gap-3">
                         <button
                           onClick={() => handleConfirmReturn(leave)}
-                          className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                          className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-95"
                         >
                           <Check className="w-5 h-5" />
                           تأكيد تاريخ المباشرة
                         </button>
                         <button
                           onClick={() => handleEditLeave(leave)}
-                          className="px-6 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95"
+                          className="px-6 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 dark:shadow-none active:scale-95"
                         >
                           <Calendar className="w-5 h-5" />
                           تمديد
@@ -904,7 +908,7 @@ export const Leaves: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleConfirmReturn(emp)}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-95"
                       >
                         <Check className="w-5 h-5" />
                         تأكيد تاريخ المباشرة
@@ -969,42 +973,42 @@ export const Leaves: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-5 font-bold text-gray-600">{leave.startDate}</td>
-                      <td className="px-8 py-5 font-bold text-gray-600">{leave.endDate}</td>
+                      <td className="px-8 py-5 font-bold text-gray-600 dark:text-gray-400">{leave.startDate}</td>
+                      <td className="px-8 py-5 font-bold text-gray-600 dark:text-gray-400">{leave.endDate}</td>
                       <td className="px-8 py-5">
                         {(() => {
                           const emp = employees.find(e => e.id === leave.employeeId);
                           if (!emp) return '-';
                           return (
-                            <span className="font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg text-xs">
+                            <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-lg text-xs">
                               أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                             </span>
                           );
                         })()}
                       </td>
                       <td className="px-8 py-5">
-                        <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm font-black">
+                        <span className="px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg text-sm font-black">
                           {diffDays} يوم
                         </span>
                       </td>
                       <td className="px-8 py-5 text-center">
                         {leave.status === 'Completed' ? (
-                          <span className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-sm font-black inline-flex items-center gap-2">
+                          <span className="px-4 py-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-sm font-black inline-flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4" />
                             مكتملة
                           </span>
                         ) : isOverdue ? (
-                          <span className="px-4 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-black inline-flex items-center gap-2">
+                          <span className="px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-black inline-flex items-center gap-2">
                             <AlertCircle className="w-4 h-4" />
                             متأخرة
                           </span>
                         ) : isEndingSoon ? (
-                          <span className="px-4 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-sm font-black inline-flex items-center gap-2 animate-pulse">
+                          <span className="px-4 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg text-sm font-black inline-flex items-center gap-2 animate-pulse">
                             <Bell className="w-4 h-4" />
                             تنتهي قريباً
                           </span>
                         ) : (
-                          <span className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-black">
+                          <span className="px-4 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-black">
                             نشطة
                           </span>
                         )}
@@ -1053,20 +1057,20 @@ export const Leaves: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-right">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">اسم الموظف</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-right">الرقم الوظيفي</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">أيام العمل الفعلية من تاريخ آخر مباشرة</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">تاريخ آخر مباشرة</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الحالة</th>
-                  <th className="px-8 py-5 text-sm font-black text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
+                <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-right">اسم الموظف</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-right">الرقم الوظيفي</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">أيام العمل الفعلية من تاريخ آخر مباشرة</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">تاريخ آخر مباشرة</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">الحالة</th>
+                  <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                 {employees
                   .filter(e => {
                     const matchesSearch = 
@@ -1079,27 +1083,27 @@ export const Leaves: React.FC = () => {
                     const actualWorkDaysSinceLastDirect = calculateActualWorkDays(emp.lastDirectDate);
                     
                     return (
-                      <tr key={emp.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-8 py-5 font-bold text-gray-900">{emp.name}</td>
-                        <td className="px-8 py-5 font-bold text-gray-500">{emp.employeeId || '---'}</td>
+                      <tr key={emp.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <td className="px-8 py-5 font-bold text-gray-900 dark:text-white">{emp.name}</td>
+                        <td className="px-8 py-5 font-bold text-gray-500 dark:text-gray-400">{emp.employeeId || '---'}</td>
                         <td className="px-8 py-5 text-center">
-                          <span className="px-6 py-3 bg-blue-50 text-blue-600 rounded-2xl font-black text-xl border border-blue-100 shadow-inner">
+                          <span className="px-6 py-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-xl border border-blue-100 dark:border-blue-900/30 shadow-inner">
                             {actualWorkDaysSinceLastDirect} يوم
                           </span>
                         </td>
-                        <td className="px-8 py-5 text-center font-bold text-gray-500">
+                        <td className="px-8 py-5 text-center font-bold text-gray-500 dark:text-gray-400">
                           {emp.lastDirectDate || 'غير مسجل'}
                         </td>
                         <td className="px-8 py-5 text-center">
                           {emp.status === 'Active' ? (
-                            <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase">نشط</span>
+                            <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-[10px] font-black uppercase">نشط</span>
                           ) : emp.status === 'Leave' ? (
-                            <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase inline-flex items-center gap-1">
+                            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-black uppercase inline-flex items-center gap-1">
                               <Plane className="w-3 h-3" />
                               في إجازة
                             </span>
                           ) : (
-                            <span className="px-3 py-1 bg-gray-50 text-gray-400 rounded-lg text-[10px] font-black uppercase">{emp.status}</span>
+                            <span className="px-3 py-1 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-lg text-[10px] font-black uppercase">{emp.status}</span>
                           )}
                         </td>
                         <td className="px-8 py-5">
@@ -1108,7 +1112,7 @@ export const Leaves: React.FC = () => {
                               onClick={() => {
                                 setViewingEmployee(emp);
                               }}
-                              className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all border border-blue-100/50 shadow-sm"
+                              className="p-2.5 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl transition-all border border-blue-100/50 dark:border-blue-900/30 shadow-sm"
                               title="عرض الملف"
                             >
                               <User className="w-4 h-4" />
@@ -1124,7 +1128,7 @@ export const Leaves: React.FC = () => {
                                   });
                                   setIsModalOpen(true);
                                 }}
-                                className="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all border border-emerald-100/50 shadow-sm"
+                                className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-xl transition-all border border-emerald-100/50 dark:border-emerald-900/30 shadow-sm"
                                 title="إضافة إجازة"
                               >
                                 <Plus className="w-4 h-4" />
@@ -1135,7 +1139,7 @@ export const Leaves: React.FC = () => {
                                   const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
                                   handleConfirmReturn(activeLeave || emp);
                                 }}
-                                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center gap-2"
+                                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-200 dark:shadow-none transition-all active:scale-95 flex items-center gap-2"
                               >
                                 <Check className="w-4 h-4 ml-1" />
                                 تأكيد تاريخ المباشرة
@@ -1192,45 +1196,115 @@ export const Leaves: React.FC = () => {
               </div>
 
               <form onSubmit={handleAddLeave} className="p-8 space-y-6 text-right" dir="rtl">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-500 mr-2">الموظف</label>
-                  <select
-                    required
-                    disabled={!!selectedLeave}
-                    value={formData.employeeId}
-                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                    className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all appearance-none disabled:opacity-50"
-                  >
-                    <option value="">اختر الموظف...</option>
-                    {employees.filter(e => e.status === 'Active' || (selectedLeave && e.id === selectedLeave.employeeId)).map(emp => {
-                      const workDays = calculateActualWorkDays(emp.lastDirectDate);
-                      return (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} - أيام العمل: {workDays} يوم ({emp.employeeId || 'بدون رقم'})
-                        </option>
-                      );
-                    })}
-                  </select>
+                <div className="space-y-4 relative">
+                  <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">البحث عن موظف (بالاسم، الرقم، أو الهوية)</label>
+                  <div className="relative">
+                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="ابحث هنا..."
+                      disabled={!!selectedLeave}
+                      value={employeeSearchTerm}
+                      onChange={(e) => {
+                        setEmployeeSearchTerm(e.target.value);
+                        setShowEmployeeDropdown(true);
+                      } }
+                      onFocus={() => setShowEmployeeDropdown(true)}
+                      className="w-full pr-12 pl-4 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all text-gray-900 dark:text-white"
+                    />
+                    
+                    {formData.employeeId && !selectedLeave && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setFormData({ ...formData, employeeId: '' });
+                          setEmployeeSearchTerm('');
+                        }}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-red-500 hover:text-red-600"
+                      >
+                        تغيير
+                      </button>
+                    )}
+                  </div>
+
+                  <AnimatePresence>
+                    {showEmployeeDropdown && !selectedLeave && employeeSearchTerm && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-[110] top-full mt-2 w-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar"
+                      >
+                        {filteredEmployeesForSelection.length > 0 ? (
+                          filteredEmployeesForSelection.map(emp => (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, employeeId: emp.id });
+                                setEmployeeSearchTerm(emp.name);
+                                setShowEmployeeDropdown(false);
+                              }}
+                              className="w-full text-right p-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-50 dark:border-gray-800 last:border-0 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/40 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                                  {emp.name[0]}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-black text-gray-900 dark:text-white text-sm">{emp.name}</p>
+                                  <div className="flex gap-2 text-[10px] font-bold text-gray-400 mt-0.5">
+                                    <span>#{emp.employeeId || '---'}</span>
+                                    <span>•</span>
+                                    <span>هوية: {emp.iqamaNumber || '---'}</span>
+                                  </div>
+                                </div>
+                                <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-lg">
+                                  {calculateActualWorkDays(emp.lastDirectDate)} يوم
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-8 text-center text-gray-400 font-bold">
+                            لا توجد نتائج بحث مطابقة
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {selectedLeave && (
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800 flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white dark:bg-gray-800 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+                        {employees.find(e => e.id === formData.employeeId)?.name?.[0]}
+                      </div>
+                      <div>
+                        <p className="font-black text-blue-700 dark:text-blue-300">{employees.find(e => e.id === formData.employeeId)?.name}</p>
+                        <p className="text-xs font-bold text-blue-400">رقم الموظف: {employees.find(e => e.id === formData.employeeId)?.employeeId}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {formData.employeeId && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                      <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-2xl border border-blue-100 dark:border-blue-800">
                         <p className="text-xs font-bold text-blue-400 mb-1">أيام العمل الفعلية</p>
-                        <span className="text-xl font-black text-blue-600">
+                        <span className="text-xl font-black text-blue-600 dark:text-blue-400">
                           {calculateActualWorkDays(employees.find(e => e.id === formData.employeeId)?.lastDirectDate)} يوم
                         </span>
                       </div>
-                      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                      <div className="p-4 bg-amber-50 dark:bg-amber-900/30 rounded-2xl border border-amber-100 dark:border-amber-800">
                         <p className="text-xs font-bold text-amber-400 mb-1">خصم الأيام</p>
-                        <span className="text-xl font-black text-amber-600">
+                        <span className="text-xl font-black text-amber-600 dark:text-amber-400">
                           {leaveDays} يوم
                         </span>
                       </div>
                     </div>
 
-                      <div className="p-4 bg-gray-900 rounded-2xl flex items-center justify-between text-white shadow-lg shadow-gray-200">
+                      <div className="p-4 bg-gray-900 dark:bg-black rounded-2xl flex items-center justify-between text-white shadow-lg shadow-gray-200 dark:shadow-none">
                         <div className="flex items-center gap-3">
                           <ArrowLeftRight className="w-5 h-5 text-blue-400" />
                           <span className="font-bold">أيام العمل المتوقعة بعد الإجازة:</span>
@@ -1244,22 +1318,22 @@ export const Leaves: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2 text-right block">تاريخ البدء</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2 text-right block">تاريخ البدء</label>
                     <input
                       type="date"
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all"
+                      className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all text-gray-900 dark:text-white"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 mr-2 text-right block">تاريخ العودة المتوقع (اختياري)</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2 text-right block">تاريخ العودة المتوقع (اختياري)</label>
                     <input
                       type="date"
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all"
+                      className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black transition-all text-gray-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -1267,7 +1341,7 @@ export const Leaves: React.FC = () => {
                 <div className="pt-4 flex gap-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-200 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                   >
                     {selectedLeave ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
                     {selectedLeave ? 'حفظ التعديلات' : 'تسجيل الإجازة الآن'}
@@ -1279,7 +1353,7 @@ export const Leaves: React.FC = () => {
                       setSelectedLeave(null);
                       setFormData({ employeeId: '', startDate: format(new Date(), 'yyyy-MM-dd'), endDate: '' });
                     }}
-                    className="px-8 bg-gray-100 hover:bg-gray-200 text-gray-600 py-4 rounded-2xl font-black transition-all"
+                    className="px-8 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 py-4 rounded-2xl font-black transition-all hover:bg-gray-200 dark:hover:bg-gray-700"
                   >
                     إلغاء
                   </button>
@@ -1305,7 +1379,7 @@ export const Leaves: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              className="relative w-full max-w-lg bg-white rounded-[3rem] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[3rem] shadow-2xl overflow-hidden"
               dir="rtl"
             >
               <div className="p-8 bg-emerald-600 text-white relative">
@@ -1320,18 +1394,18 @@ export const Leaves: React.FC = () => {
               </div>
 
               <div className="p-10 space-y-8">
-                <div className="flex items-center gap-5 p-6 bg-emerald-50 rounded-[2rem] border border-emerald-100">
-                  <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-emerald-600 text-2xl font-black border border-emerald-50">
+                <div className="flex items-center gap-5 p-6 bg-emerald-50 dark:bg-emerald-900/30 rounded-[2rem] border border-emerald-100 dark:border-emerald-800">
+                  <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-2xl font-black border border-emerald-50 dark:border-emerald-700">
                     {selectedLeaveForReturn.employeeName[0]}
                   </div>
                   <div>
-                    <h4 className="font-black text-gray-900 text-xl">{selectedLeaveForReturn.employeeName}</h4>
+                    <h4 className="font-black text-gray-900 dark:text-white text-xl">{selectedLeaveForReturn.employeeName}</h4>
                     <div className="flex gap-2 items-center mt-1">
-                      <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-bold">عائد من إجازة</span>
+                      <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-lg text-[10px] font-bold">عائد من إجازة</span>
                       {(() => {
                         const emp = employees.find(e => e.id === selectedLeaveForReturn.employeeId);
                         return emp?.lastDirectDate ? (
-                          <span className="text-[10px] font-bold text-gray-400">آخر مباشرة: {emp.lastDirectDate}</span>
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">آخر مباشرة: {emp.lastDirectDate}</span>
                         ) : null;
                       })()}
                     </div>
@@ -1339,7 +1413,7 @@ export const Leaves: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-sm font-black text-gray-400 mr-2 flex items-center gap-2">
+                  <label className="text-sm font-black text-gray-400 dark:text-gray-500 mr-2 flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-emerald-500" />
                     تاريخ استلام العمل الفعلي
                   </label>
@@ -1348,9 +1422,9 @@ export const Leaves: React.FC = () => {
                     required
                     value={actualReturnDate}
                     onChange={(e) => setActualReturnDate(e.target.value)}
-                    className="w-full px-6 py-5 bg-gray-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white rounded-[2rem] outline-none font-black text-xl transition-all shadow-inner"
+                    className="w-full px-6 py-5 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-emerald-500 dark:focus:border-emerald-400 focus:bg-white dark:focus:bg-gray-700 rounded-[2rem] outline-none font-black text-xl transition-all shadow-inner text-gray-900 dark:text-white"
                   />
-                  <p className="text-xs font-bold text-gray-400 mr-2 mt-2 leading-relaxed">
+                  <p className="text-xs font-bold text-gray-400 dark:text-gray-500 mr-2 mt-2 leading-relaxed">
                     ملاحظة: سيتم تحديث حالة الموظف إلى "نشط" وسيتم تسجيل هذا التاريخ كآخر تاريخ مباشرة ميدانية.
                   </p>
                 </div>
@@ -1358,14 +1432,14 @@ export const Leaves: React.FC = () => {
                 <div className="flex flex-col gap-3 pt-4">
                   <button
                     onClick={finishReturn}
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl shadow-emerald-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-xl shadow-emerald-500/20 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-3"
                   >
                     <Check className="w-6 h-6" />
                     تأكيد المباشرة الآن
                   </button>
                   <button
                     onClick={() => setIsReturnModalOpen(false)}
-                    className="w-full py-4 text-gray-400 font-black hover:text-gray-600 transition-colors"
+                    className="w-full py-4 text-gray-400 dark:text-gray-500 font-black hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   >
                     إلغاء العملية
                   </button>
@@ -1391,27 +1465,27 @@ export const Leaves: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative bg-white w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden"
+              className="relative bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[3rem] shadow-2xl overflow-hidden"
               dir="rtl"
             >
-              <div className="p-10 border-b border-gray-100 flex items-center justify-between bg-emerald-50/30">
+              <div className="p-10 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-emerald-50/30 dark:bg-emerald-900/10">
                 <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-[2rem] flex items-center justify-center text-emerald-600 font-black text-3xl shadow-inner">
+                  <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/40 rounded-[2rem] flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-black text-3xl shadow-inner">
                     {viewingEmployee.name[0]}
                   </div>
                   <div className="text-right">
-                    <h3 className="text-3xl font-black text-gray-900">{viewingEmployee.name}</h3>
+                    <h3 className="text-3xl font-black text-gray-900 dark:text-white">{viewingEmployee.name}</h3>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="px-3 py-1 bg-white text-gray-500 rounded-xl text-xs font-black shadow-sm border border-gray-100">
+                      <span className="px-3 py-1 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl text-xs font-black shadow-sm border border-gray-100 dark:border-gray-700">
                         #{viewingEmployee.employeeId}
                       </span>
-                      <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black">
+                      <span className="px-3 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-black">
                         {viewingEmployee.jobTitle}
                       </span>
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setViewingEmployee(null)} className="p-3 hover:bg-white rounded-2xl transition-all shadow-sm border border-transparent hover:border-gray-100 group">
+                <button onClick={() => setViewingEmployee(null)} className="p-3 hover:bg-white dark:hover:bg-gray-800 rounded-2xl transition-all shadow-sm border border-transparent hover:border-gray-100 dark:hover:border-gray-700 group">
                   <X className="w-6 h-6 text-gray-400 group-hover:text-red-500 transition-colors" />
                 </button>
               </div>
@@ -1429,12 +1503,12 @@ export const Leaves: React.FC = () => {
                   <DetailItem label="أيام العمل الفعلية من تاريخ آخر مباشرة" value={`${calculateActualWorkDays(viewingEmployee.lastDirectDate)} يوم`} />
                 </div>
 
-                <div className="flex flex-col md:flex-row justify-between items-center p-8 border-2 border-emerald-100 bg-emerald-50/20 rounded-[2.5rem] shadow-sm">
+                <div className="flex flex-col md:flex-row justify-between items-center p-8 border-2 border-emerald-100 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-900/10 rounded-[2.5rem] shadow-sm">
                    <div className="text-right">
-                     <p className="text-gray-400 font-black uppercase text-xs tracking-widest mb-1">صافي الراتب الشهري</p>
-                     <p className="text-sm font-bold text-emerald-600/60">شامل كافة البدلات الثابتة</p>
+                     <p className="text-gray-400 dark:text-gray-500 font-black uppercase text-xs tracking-widest mb-1">صافي الراتب الشهري</p>
+                     <p className="text-sm font-bold text-emerald-600/60 dark:text-emerald-400/60">شامل كافة البدلات الثابتة</p>
                    </div>
-                   <p className="text-5xl font-black text-emerald-600 tracking-tighter">
+                   <p className="text-5xl font-black text-emerald-600 dark:text-emerald-400 tracking-tighter">
                      {new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' }).format(
                        (viewingEmployee.basicSalary || 0) + 
                        (viewingEmployee.housingAllowance || 0) + 
@@ -1449,10 +1523,10 @@ export const Leaves: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-10 bg-gray-50 border-t border-gray-100 flex justify-end gap-4">
+              <div className="p-10 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-4">
                 <button 
                   onClick={() => setViewingEmployee(null)}
-                  className="px-10 py-4 bg-gray-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl shadow-gray-200"
+                  className="px-10 py-4 bg-gray-900 dark:bg-black text-white font-black rounded-2xl hover:bg-black dark:hover:bg-gray-900 transition-all shadow-xl shadow-gray-200 dark:shadow-none"
                 >
                   إغلاق
                 </button>
@@ -1466,13 +1540,15 @@ export const Leaves: React.FC = () => {
 };
 
 const DetailItem: React.FC<{ label: string; value: any; highlight?: boolean }> = ({ label, value, highlight }) => (
-  <div className="space-y-1.5 px-1">
-    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+  <div className="space-y-1.5 px-1 text-right">
+    <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1">{label}</p>
     <p className={cn(
       "font-black text-sm transition-colors",
-      highlight ? "text-blue-600 text-base" : "text-gray-900 hover:text-blue-600"
+      highlight ? "text-blue-600 dark:text-blue-400 text-base" : "text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
     )}>
-      {value || <span className="text-gray-300 font-normal italic">غير متوفر</span>}
+      {value || <span className="text-gray-300 dark:text-gray-600 font-normal italic">غير متوفر</span>}
     </p>
   </div>
 );
+
+export default Leaves;

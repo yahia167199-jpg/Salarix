@@ -6,7 +6,8 @@ import {
   Filter,
   Users,
   ChevronDown,
-  Printer
+  Printer,
+  Shield
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useData } from '../../contexts/DataContext';
@@ -447,16 +448,16 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm print:hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm print:hidden">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-gray-900">
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white">
               {reportType === 'Summary' ? 'ملخص الرواتب حسب القطاعات' : 'التقرير التفصيلي للمجموعة'}
             </h1>
-            <p className="text-sm text-gray-500 font-medium">
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
               {reportType === 'Summary' ? 'تحليل مالي مفصل لمخصصات الرواتب شهرياً' : 'عرض تفصيلي لرواتب المجموعة حسب مراكز التكلفة'}
             </p>
           </div>
@@ -464,12 +465,12 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
 
         <div className="flex items-center gap-3">
           {!forcedType && (
-            <div className="flex bg-gray-50 p-1 rounded-2xl border border-gray-100">
+            <div className="flex bg-gray-50 dark:bg-gray-800 p-1 rounded-2xl border border-gray-100 dark:border-gray-700">
               <button
                 onClick={() => setReportType('Summary')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-xs font-black transition-all",
-                  reportType === 'Summary' ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                  reportType === 'Summary' ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm" : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 )}
               >
                 ملخص القطاعات
@@ -478,7 +479,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                 onClick={() => setReportType('Detailed')}
                 className={cn(
                   "px-4 py-2 rounded-xl text-xs font-black transition-all",
-                  reportType === 'Detailed' ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                  reportType === 'Detailed' ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm" : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 )}
               >
                 التقرير التفصيلي للمجموعة
@@ -486,22 +487,22 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
             </div>
           )}
           <div className="relative">
-            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
             <select
               value={selectedRunId}
               onChange={(e) => handleRunChange(e.target.value)}
-              className="pr-10 pl-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm min-w-[200px] appearance-none cursor-pointer"
+              className="pr-10 pl-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm min-w-[200px] appearance-none cursor-pointer dark:text-white"
             >
-              <option value="">اختر الشهر...</option>
+              <option value="" className="dark:bg-gray-900">اختر الشهر...</option>
               {payrollRuns.map(run => (
-                <option key={run.id} value={run.id}>{run.month}</option>
+                <option key={run.id} value={run.id} className="dark:bg-gray-900">{run.month}</option>
               ))}
             </select>
           </div>
           <button 
             onClick={exportExcel}
             disabled={!reportData.length}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:shadow-none"
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-none disabled:opacity-50 disabled:shadow-none"
           >
             <Download className="w-5 h-5" />
             تصدير Excel
@@ -509,7 +510,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           <button 
             onClick={() => window.print()}
             disabled={!reportData.length}
-            className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-100 text-gray-600 rounded-2xl font-black hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50"
+            className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm disabled:opacity-50"
           >
             <Printer className="w-5 h-5" />
             طباعة
@@ -518,99 +519,99 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       </div>
 
       {loading ? (
-        <div className="bg-white p-20 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-          <p className="text-gray-500 font-bold">جاري إعداد التقرير...</p>
+        <div className="bg-white dark:bg-gray-900 p-20 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-100 dark:border-blue-900 border-t-blue-600 rounded-full animate-spin" />
+          <p className="text-gray-500 dark:text-gray-400 font-bold">جاري إعداد التقرير...</p>
         </div>
       ) : !selectedRunId ? (
-        <div className="bg-white p-20 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
-          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300">
+        <div className="bg-white dark:bg-gray-900 p-20 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
+          <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-300 dark:text-gray-600">
             <Filter className="w-10 h-10" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900">بدء التقرير</h3>
-            <p className="text-gray-500 font-medium">يرجى اختيار الشهر لعرض تقرير ملخص الرواتب</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">بدء التقرير</h3>
+            <p className="text-gray-500 dark:text-gray-400 font-medium">يرجى اختيار الشهر لعرض تقرير ملخص الرواتب</p>
           </div>
         </div>
       ) : results.length === 0 ? (
-        <div className="bg-white p-20 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
-          <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+        <div className="bg-white dark:bg-gray-900 p-20 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
+          <div className="w-20 h-20 bg-amber-50 dark:bg-amber-900/30 rounded-full flex items-center justify-center text-amber-500 dark:text-amber-400">
             <Users className="w-10 h-10" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900">لا توجد بيانات</h3>
-            <p className="text-gray-500 font-medium">لم يتم العثور على نتائج رواتب احتساب لهذا الشهر. يرجى التأكد من احتساب الرواتب في صفحة "مسيرات الرواتب".</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">لا توجد بيانات</h3>
+            <p className="text-gray-500 dark:text-gray-400 font-medium">لم يتم العثور على نتائج رواتب احتساب لهذا الشهر. يرجى التأكد من احتساب الرواتب في صفحة "مسيرات الرواتب".</p>
           </div>
         </div>
       ) : reportData.length === 0 ? (
-        <div className="bg-white p-20 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
-          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+        <div className="bg-white dark:bg-gray-900 p-20 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center gap-4 text-center">
+          <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-500 dark:text-blue-400">
             <Filter className="w-10 h-10" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900">تصنيفات غير متطابقة</h3>
-            <p className="text-gray-500 font-medium">تم العثور على نتائج، ولكن لم يتم تصنيفها ضمن أي قطاع. يرجى مراجعة بيانات القطاعات في ملفات الموظفين.</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">تصنيفات غير متطابقة</h3>
+            <p className="text-gray-500 dark:text-gray-400 font-medium">تم العثور على نتائج، ولكن لم يتم تصنيفها ضمن أي قطاع. يرجى مراجعة بيانات القطاعات في ملفات الموظفين.</p>
           </div>
         </div>
       ) : reportType === 'Detailed' ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl overflow-hidden print:shadow-none print:border-none"
+          className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
-          <div className="p-12 text-center border-b-2 border-gray-50">
-            <h2 className="text-3xl font-black text-gray-900 mb-2">التقرير التفصيلي لرواتب المجموعة - {selectedRun.month} م</h2>
-            <p className="text-gray-400 font-bold">مجموعة {companySettings?.companyName}</p>
+          <div className="p-12 text-center border-b-2 border-gray-50 dark:border-gray-800">
+            <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2">التقرير التفصيلي لرواتب المجموعة - {selectedRun.month} م</h2>
+            <p className="text-gray-400 dark:text-gray-500 font-bold">مجموعة {companySettings?.companyName}</p>
             <div className="w-32 h-1.5 bg-blue-600 mx-auto rounded-full mt-4"></div>
           </div>
 
           <div className="p-8 overflow-x-auto">
-            <table className="w-full text-sm border-collapse border-2 border-gray-900 border-b-4">
+            <table className="w-full text-sm border-collapse border-2 border-gray-900 dark:border-gray-700 border-b-4">
               <thead>
                 <tr className="bg-[#92d050] text-gray-900">
-                  <th className="p-1.5 border-2 border-gray-900 font-extrabold text-center uppercase tracking-wider w-[20%]">القطاعات</th>
-                  <th className="p-1.5 border-2 border-gray-900 font-extrabold text-center uppercase tracking-wider w-[20%]">مركز التكلفة الرئيسي</th>
-                  <th className="p-1.5 border-2 border-gray-900 font-extrabold text-center uppercase tracking-wider w-[20%]">مركز التكلفة / القسم</th>
-                  <th className="p-1.5 border-2 border-gray-900 font-extrabold text-center uppercase tracking-wider w-[20%]">الراتب الاساسي</th>
-                  <th className="p-1.5 border-2 border-gray-900 font-extrabold text-center uppercase tracking-wider w-[20%]">صافي الرواتب</th>
+                  <th className="p-1.5 border-2 border-gray-900 dark:border-gray-700 font-extrabold text-center uppercase tracking-wider w-[20%]">القطاعات</th>
+                  <th className="p-1.5 border-2 border-gray-900 dark:border-gray-700 font-extrabold text-center uppercase tracking-wider w-[20%]">مركز التكلفة الرئيسي</th>
+                  <th className="p-1.5 border-2 border-gray-900 dark:border-gray-700 font-extrabold text-center uppercase tracking-wider w-[20%]">مركز التكلفة / القسم</th>
+                  <th className="p-1.5 border-2 border-gray-900 dark:border-gray-700 font-extrabold text-center uppercase tracking-wider w-[20%]">الراتب الاساسي</th>
+                  <th className="p-1.5 border-2 border-gray-900 dark:border-gray-700 font-extrabold text-center uppercase tracking-wider w-[20%]">صافي الرواتب</th>
                 </tr>
               </thead>
               <tbody>
                 {detailedReportData.sectors.map((sector, sIdx) => (
                   <React.Fragment key={sIdx}>
                     {sector.branches.map((branch, bIdx) => (
-                      <tr key={bIdx} className="font-bold text-gray-900">
+                      <tr key={bIdx} className="font-bold text-gray-900 dark:text-gray-300">
                         {bIdx === 0 && (
                           <td 
                             rowSpan={sector.branches.length < 2 ? 1 : sector.branches.length} 
-                            className="p-3 border-2 border-gray-900 text-center align-middle bg-white font-black text-sm"
+                            className="p-3 border-2 border-gray-900 dark:border-gray-700 text-center align-middle bg-white dark:bg-gray-800 font-black text-sm text-gray-900 dark:text-white"
                           >
                             {sector.name}
                           </td>
                         )}
-                        <td className="p-1.5 border-2 border-gray-900 text-center font-bold">{branch.mainCC}</td>
-                        <td className="p-1.5 border-2 border-gray-900 text-center font-bold">{branch.name}</td>
-                        <td className="p-1.5 border-2 border-gray-900 text-center font-bold px-4">{formatCurrency(branch.basic)}</td>
-                        <td className="p-1.5 border-2 border-gray-900 text-center font-bold px-4">{formatCurrency(branch.net)}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold">{branch.mainCC}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold">{branch.name}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold px-4">{formatCurrency(branch.basic)}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold px-4">{formatCurrency(branch.net)}</td>
                       </tr>
                     ))}
                     {/* Sector Sub-total row as shown in image (yellow bar) */}
-                    <tr className="bg-white font-black text-gray-900 h-10">
+                    <tr className="bg-white dark:bg-gray-800 font-black text-gray-900 dark:text-white h-10">
                       {/* Left side empty or matching layout */}
-                      <td className="border-2 border-gray-900"></td>
-                      <td className="border-2 border-gray-900"></td>
-                      <td className="border-2 border-gray-900"></td>
-                      <td className="p-1.5 border-2 border-gray-900 text-center bg-white font-black">{formatCurrency(sector.sectorBasic)}</td>
-                      <td className="p-1.5 border-2 border-gray-900 text-center bg-yellow-400 font-black">{formatCurrency(sector.sectorNet)}</td>
+                      <td className="border-2 border-gray-900 dark:border-gray-700"></td>
+                      <td className="border-2 border-gray-900 dark:border-gray-700"></td>
+                      <td className="border-2 border-gray-900 dark:border-gray-700"></td>
+                      <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-white dark:bg-gray-800 font-black">{formatCurrency(sector.sectorBasic)}</td>
+                      <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-yellow-400 dark:bg-yellow-500 font-black text-gray-900">{formatCurrency(sector.sectorNet)}</td>
                     </tr>
                   </React.Fragment>
                 ))}
                 
                 {/* Grand Total Row (Green bar as in image) */}
-                <tr className="font-black text-gray-900">
-                  <td colSpan={3} className="p-3 border-2 border-gray-900 bg-[#00b050] text-center text-white text-lg">الإجمالي</td>
-                  <td className="p-1.5 border-2 border-gray-900 text-center font-bold bg-white text-lg">{formatCurrency(detailedReportData.totalBasic)}</td>
-                  <td className="p-1.5 border-2 border-gray-900 text-center font-bold bg-[#ff0000] text-white text-lg">
+                <tr className="font-black text-gray-900 dark:text-white">
+                  <td colSpan={3} className="p-3 border-2 border-gray-900 dark:border-gray-700 bg-[#00b050] text-center text-white text-lg">الإجمالي</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold bg-white dark:bg-gray-800 text-lg">{formatCurrency(detailedReportData.totalBasic)}</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold bg-[#ff0000] text-white text-lg">
                     {formatCurrency(detailedReportData.totalNet)}
                   </td>
                 </tr>
@@ -619,17 +620,17 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                 <tr className="h-4"></tr>
 
                 {/* Saudi Salaries (Yellow bar as in image) */}
-                <tr className="font-black text-gray-900">
-                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 text-right pr-4 bg-white">رواتب السعوديين</td>
-                  <td className="p-1.5 border-2 border-gray-900 text-center bg-yellow-400">
+                <tr className="font-black text-gray-900 dark:text-white">
+                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800">رواتب السعوديين</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-yellow-400 dark:bg-yellow-500 text-gray-900">
                     {formatCurrency(detailedReportData.saudiTotal)}
                   </td>
                 </tr>
 
                 {/* Final Total row as in image (red bar) */}
-                <tr className="font-black text-gray-900">
-                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 text-right pr-4 bg-white">اجماي رواتب شهر {selectedRun.month}</td>
-                  <td className="p-1.5 border-2 border-gray-900 text-center bg-[#ff0000] text-white">
+                <tr className="font-black text-gray-900 dark:text-white">
+                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800">اجماي رواتب شهر {selectedRun.month}</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-[#ff0000] text-white">
                     {formatCurrency(detailedReportData.totalNet + detailedReportData.saudiTotal)}
                   </td>
                 </tr>
@@ -638,22 +639,22 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           </div>
 
           {/* Signatures footer */}
-          <div className="p-12 border-t-2 border-gray-50 flex items-center justify-between text-center gap-4">
+          <div className="p-12 border-t-2 border-gray-50 dark:border-gray-800 flex items-center justify-between text-center gap-4">
              <div className="flex-1">
-               <h3 className="font-black text-base text-gray-400 mb-8 uppercase tracking-widest">الموارد البشرية</h3>
-               <div className="w-full h-0.5 bg-gray-200"></div>
+               <h3 className="font-black text-base text-gray-400 dark:text-gray-500 mb-8 uppercase tracking-widest">الموارد البشرية</h3>
+               <div className="w-full h-0.5 bg-gray-200 dark:bg-gray-800"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-base text-gray-400 mb-8 uppercase tracking-widest">الإدارة المالية</h3>
-               <div className="w-full h-0.5 bg-gray-200"></div>
+               <h3 className="font-black text-base text-gray-400 dark:text-gray-500 mb-8 uppercase tracking-widest">الإدارة المالية</h3>
+               <div className="w-full h-0.5 bg-gray-200 dark:bg-gray-800"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-base text-gray-400 mb-8 uppercase tracking-widest">ادارة المراجعة</h3>
-               <div className="w-full h-0.5 bg-gray-200"></div>
+               <h3 className="font-black text-base text-gray-400 dark:text-gray-500 mb-8 uppercase tracking-widest">ادارة المراجعة</h3>
+               <div className="w-full h-0.5 bg-gray-200 dark:bg-gray-800"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-base text-gray-400 mb-8 uppercase tracking-widest">الرئيس التنفيذي</h3>
-               <div className="w-full h-0.5 bg-gray-200"></div>
+               <h3 className="font-black text-base text-gray-400 dark:text-gray-500 mb-8 uppercase tracking-widest">الرئيس التنفيذي</h3>
+               <div className="w-full h-0.5 bg-gray-200 dark:bg-gray-800"></div>
              </div>
           </div>
         </motion.div>
@@ -661,15 +662,15 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden print:shadow-none print:border-none"
+          className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
-          <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+          <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
             <div className="text-center flex-1">
-               <h2 className="text-2xl font-black text-gray-900">ملخص رواتب شهر {selectedRun.month} م لمجموعة {companySettings?.companyName}</h2>
+               <h2 className="text-2xl font-black text-gray-900 dark:text-white">ملخص رواتب شهر {selectedRun.month} م لمجموعة {companySettings?.companyName}</h2>
             </div>
             <button 
               onClick={() => window.print()}
-              className="p-3 bg-gray-50 text-gray-400 hover:text-blue-600 rounded-xl transition-all hover:bg-blue-50 print:hidden" 
+              className="p-3 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20 print:hidden" 
               title="طباعة"
             >
               <Printer className="w-5 h-5" />
@@ -677,170 +678,188 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           </div>
 
           <div className="overflow-x-auto print:overflow-visible">
-            <table className="w-full text-[10px] text-right border-collapse border border-gray-300">
+            <table className="w-full text-[10px] text-right border-collapse border border-gray-300 dark:border-gray-700">
               <thead>
-                <tr className="bg-white border-y border-gray-300">
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 min-w-[140px] text-center">القطاعات</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">الراتب الاساسي</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدل سكن</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدل نقل</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدل إعاشة</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدلات اخرى</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدل جوال</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">بدل ادارة</th>
-                  <th className="p-2 font-black text-blue-700 border border-gray-300 text-center bg-blue-50/20">اضافة الشهر دخل آخر</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center bg-orange-50/50">عدد ساعات العمل الاضافي</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center bg-orange-50/50">قيمة عمل اضافي</th>
-                  <th className="p-2 font-black text-blue-800 border border-gray-300 text-center bg-blue-100 font-bold">مجموع الدخل</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">تأمينات اجتماعية</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">استلام راتب (كاش)</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">سلف</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">استلام بنك</th>
-                  <th className="p-2 font-black text-gray-800 border border-gray-300 text-center">اقتطاعات اخرى</th>
-                  <th className="p-2 font-black text-red-700 border border-gray-300 text-center bg-red-50/50">عدد الساعات</th>
-                  <th className="p-2 font-black text-red-700 border border-gray-300 text-center bg-red-50/50">خصم المغادرات والتاخير</th>
-                  <th className="p-2 font-black text-red-700 border border-gray-300 text-center bg-red-50/50">عدد ايام الغياب</th>
-                  <th className="p-2 font-black text-red-700 border border-gray-300 text-center bg-red-50/50">خصم الغياب</th>
-                  <th className="p-2 font-black text-red-800 border border-gray-300 text-center bg-red-100 font-bold">مجموع الاقتطاعات</th>
-                  <th className="p-2 font-black text-emerald-800 border border-gray-300 text-center bg-emerald-100 font-bold">صافي الراتب</th>
+                <tr className="bg-white dark:bg-gray-800 border-y border-gray-300 dark:border-gray-700">
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 min-w-[140px] text-center">القطاعات</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">الراتب الاساسي</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدل سكن</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدل نقل</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدل إعاشة</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدلات اخرى</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدل جوال</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">بدل ادارة</th>
+                  <th className="p-2 font-black text-blue-700 dark:text-blue-400 border border-gray-300 dark:border-gray-700 text-center bg-blue-50/20 dark:bg-blue-900/10">اضافة الشهر دخل آخر</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center bg-orange-50/50 dark:bg-orange-900/10">عدد ساعات العمل الاضافي</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center bg-orange-50/50 dark:bg-orange-900/10">قيمة عمل اضافي</th>
+                  <th className="p-2 font-black text-blue-800 dark:text-blue-300 border border-gray-300 dark:border-gray-700 text-center bg-blue-100 dark:bg-blue-900/30 font-bold">مجموع الدخل</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">تأمينات اجتماعية</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام راتب (كاش)</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">سلف</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام بنك</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">اقتطاعات اخرى</th>
+                  <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">عدد الساعات</th>
+                  <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">خصم المغادرات والتاخير</th>
+                  <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">عدد ايام الغياب</th>
+                  <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">خصم الغياب</th>
+                  <th className="p-2 font-black text-red-800 dark:text-red-300 border border-gray-300 dark:border-gray-700 text-center bg-red-100 dark:bg-red-900/30 font-bold">مجموع الاقتطاعات</th>
+                  <th className="p-2 font-black text-emerald-800 dark:text-emerald-300 border border-gray-300 dark:border-gray-700 text-center bg-emerald-100 dark:bg-emerald-900/30 font-bold">صافي الراتب</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {reportData.map((s, idx) => (
-                  <tr key={idx} className={cn("hover:bg-gray-50/50 transition-colors", idx % 2 === 0 ? "bg-white" : "bg-[#fefce8]/30")}>
-                    <td className="p-2 font-bold text-gray-800 border border-gray-300">{s.sectorName}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.basic)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.housing)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.transport)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.subsistence)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.otherAllowances)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.mobile)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.management)}</td>
-                    <td className="p-2 text-center font-bold text-blue-600 border border-gray-300 bg-blue-50/10">{formatCurrency(s.otherIncome)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300 bg-orange-50/10">{s.otHours}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300 bg-orange-50/10">{formatCurrency(s.otAmount)}</td>
-                    <td className="p-2 text-center font-black text-blue-800 border border-gray-300 bg-blue-50">{formatCurrency(s.totalIncome)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.gosi)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.cash)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.loans)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.bank)}</td>
-                    <td className="p-2 text-center text-gray-700 border border-gray-300">{formatCurrency(s.otherDeductions)}</td>
-                    <td className="p-2 text-center text-red-500 border border-gray-300 bg-red-50/10">{s.deductionHours}</td>
-                    <td className="p-2 text-center text-red-500 border border-gray-300 bg-red-50/10">{formatCurrency(s.delayDeduction)}</td>
-                    <td className="p-2 text-center text-red-500 border border-gray-300 bg-red-50/10">{s.absenceDays}</td>
-                    <td className="p-2 text-center text-red-500 border border-gray-300 bg-red-50/10">{formatCurrency(s.absenceDeduction)}</td>
-                    <td className="p-2 text-center font-black text-red-800 border border-gray-300 bg-red-50">{formatCurrency(s.totalDeductions)}</td>
-                    <td className="p-2 text-center font-black text-emerald-800 border border-gray-300 bg-emerald-50">{formatCurrency(s.netSalary)}</td>
+                  <tr key={idx} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors", idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-[#fefce8]/30 dark:bg-yellow-900/10")}>
+                    <td className="p-2 font-bold text-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-700">{s.sectorName}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.basic)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.housing)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.transport)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.subsistence)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.otherAllowances)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.mobile)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.management)}</td>
+                    <td className="p-2 text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-300 dark:border-gray-700 bg-blue-50/10 dark:bg-blue-900/5">{formatCurrency(s.otherIncome)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5">{s.otHours}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5">{formatCurrency(s.otAmount)}</td>
+                    <td className="p-2 text-center font-black text-blue-800 dark:text-blue-200 border border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">{formatCurrency(s.totalIncome)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.gosi)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.cash)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.loans)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.bank)}</td>
+                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.otherDeductions)}</td>
+                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{s.deductionHours}</td>
+                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{formatCurrency(s.delayDeduction)}</td>
+                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{s.absenceDays}</td>
+                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{formatCurrency(s.absenceDeduction)}</td>
+                    <td className="p-2 text-center font-black text-red-800 dark:text-red-200 border border-gray-300 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">{formatCurrency(s.totalDeductions)}</td>
+                    <td className="p-2 text-center font-black text-emerald-800 dark:text-emerald-200 border border-gray-300 dark:border-gray-700 bg-emerald-50 dark:bg-emerald-900/20">{formatCurrency(s.netSalary)}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-100 font-black text-gray-900 border-t-2 border-gray-300">
-                <tr className="bg-white">
-                  <td className="p-2 border border-gray-300 text-center font-black">الاجمالي</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.basic)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.housing)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.transport)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.subsistence)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otherAllowances)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.mobile)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.management)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-blue-700">{formatCurrency(totals.otherIncome)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{totals.otHours}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otAmount)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-blue-800 bg-blue-100">{formatCurrency(totals.totalIncome)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.gosi)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.cash)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.loans)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.bank)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otherDeductions)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">{totals.deductionHours}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">{formatCurrency(totals.delayDeduction)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">{totals.absenceDays}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">{formatCurrency(totals.absenceDeduction)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-800 bg-red-100">{formatCurrency(totals.totalDeductions)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-emerald-800 bg-emerald-100">{formatCurrency(totals.netSalary)}</td>
+              <tfoot className="bg-gray-100 dark:bg-gray-800 font-black text-gray-900 dark:text-white border-t-2 border-gray-300 dark:border-gray-700">
+                <tr className="bg-white dark:bg-gray-900">
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">الاجمالي</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.basic)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.housing)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.transport)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.subsistence)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherAllowances)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.mobile)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.management)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-700 dark:text-blue-400">{formatCurrency(totals.otherIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{totals.otHours}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otAmount)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50">{formatCurrency(totals.totalIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.gosi)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.cash)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.loans)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.bank)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{totals.deductionHours}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{formatCurrency(totals.delayDeduction)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{totals.absenceDays}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{formatCurrency(totals.absenceDeduction)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/50">{formatCurrency(totals.totalDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50">{formatCurrency(totals.netSalary)}</td>
                 </tr>
                 {/* Visual extra rows to match the double total lines in image */}
-                <tr className="bg-white">
-                  <td className="p-2 border border-gray-300 text-center font-black">الاجمالي</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.basic)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.housing)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.transport)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.subsistence)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otherAllowances)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.mobile)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.management)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-blue-700">{formatCurrency(totals.otherIncome)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{totals.otHours}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otAmount)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-blue-800 bg-blue-100">{formatCurrency(totals.totalIncome)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.gosi)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.cash)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.loans)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.bank)}</td>
-                  <td className="p-2 border border-gray-300 text-center">{formatCurrency(totals.otherDeductions)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">0.00</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">0.00</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">0.00</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-600">0.00</td>
-                  <td className="p-2 border border-gray-300 text-center text-red-800 bg-red-100">{formatCurrency(totals.totalDeductions)}</td>
-                  <td className="p-2 border border-gray-300 text-center text-emerald-800 bg-emerald-100">{formatCurrency(totals.netSalary)}</td>
+                <tr className="bg-white dark:bg-gray-900">
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">الاجمالي</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.basic)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.housing)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.transport)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.subsistence)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherAllowances)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.mobile)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.management)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-700 dark:text-blue-400">{formatCurrency(totals.otherIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{totals.otHours}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otAmount)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50">{formatCurrency(totals.totalIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.gosi)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.cash)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.loans)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.bank)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/50">{formatCurrency(totals.totalDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50">{formatCurrency(totals.netSalary)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          <div className="p-12 bg-white flex flex-col items-center gap-8 print:p-4">
-            <div className="w-full max-w-sm bg-white rounded-none border-2 border-black overflow-hidden print:w-64">
+          <div className="p-12 bg-white dark:bg-gray-900 flex flex-col items-center gap-8 print:p-4">
+            <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-none border-2 border-black dark:border-gray-700 overflow-hidden print:w-64">
                <table className="w-full text-xs border-collapse">
                  <thead>
-                   <tr className="bg-gray-100 border-b-2 border-black">
-                     <th className="p-2 text-right border-l-2 border-black font-black">القطاع</th>
-                     <th className="p-2 text-center border-l-2 border-black font-black">القيمة</th>
+                   <tr className="bg-gray-100 dark:bg-gray-800 border-b-2 border-black dark:border-gray-700 text-gray-900 dark:text-white">
+                     <th className="p-2 text-right border-l-2 border-black dark:border-gray-700 font-black">القطاع</th>
+                     <th className="p-2 text-center border-l-2 border-black dark:border-gray-700 font-black">القيمة</th>
                      <th className="p-2 text-center font-black">النسبة</th>
                    </tr>
                  </thead>
-                 <tbody className="divide-y divide-gray-300 font-bold">
-                   {reportData.map((s, idx) => (
-                     <tr key={idx}>
-                       <td className="p-2 text-gray-800 border-l-2 border-black text-right">{s.sectorName}</td>
-                       <td className="p-2 text-center text-gray-700 border-l-2 border-black">{formatCurrency(s.netSalary)}</td>
-                       <td className="p-2 text-center text-blue-700">
-                         {((s.netSalary / totals.netSalary) * 100).toFixed(2)}%
-                       </td>
-                     </tr>
-                   ))}
-                   <tr className="bg-gray-100 text-black font-black border-t-2 border-black">
-                     <td className="p-2 border-l-2 border-black text-right">الإجمالي</td>
-                     <td className="p-2 text-center border-l-2 border-black">{formatCurrency(totals.netSalary)}</td>
-                     <td className="p-2 text-center">100.00%</td>
-                   </tr>
+                 <tbody className="divide-y divide-gray-300 dark:divide-gray-800">
+                    {reportData.map((s, idx) => (
+                      <tr key={idx} className="text-gray-700 dark:text-gray-300">
+                        <td className="p-2 border-l-2 border-black dark:border-gray-700 font-bold">{s.sectorName}</td>
+                        <td className="p-2 text-center border-l-2 border-black dark:border-gray-700 font-bold">{formatCurrency(s.netSalary)}</td>
+                        <td className="p-2 text-center font-bold">{((s.netSalary / totals.netSalary) * 100).toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50 dark:bg-gray-800/50 font-black text-gray-900 dark:text-white border-t-2 border-black dark:border-gray-700">
+                      <td className="p-2 border-l-2 border-black dark:border-gray-700">الإجمالي</td>
+                      <td className="p-2 text-center border-l-2 border-black dark:border-gray-700">{formatCurrency(totals.netSalary)}</td>
+                      <td className="p-2 text-center">100.00%</td>
+                    </tr>
                  </tbody>
                </table>
             </div>
-          </div>
 
+            <div className="w-full border-t-2 border-gray-100 dark:border-gray-800 pt-12 flex flex-col md:flex-row items-start justify-between gap-12 text-center px-12">
+               <div className="flex-1 w-full scale-90 opacity-60 dark:opacity-40 grayscale group hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+                 <h3 className="font-black text-xs text-gray-400 dark:text-gray-500 mb-12 uppercase tracking-[0.3em]">الموارد البشرية</h3>
+                 <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-800"></div>
+                 <p className="mt-4 text-[10px] font-bold text-gray-300 dark:text-gray-600">ختم وتوقيع</p>
+               </div>
+               <div className="flex-1 w-full scale-100 flex flex-col items-center">
+                 <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-400 mb-6">
+                   <Shield className="w-8 h-8" />
+                 </div>
+                 <h3 className="font-black text-xs text-blue-600 dark:text-blue-400 mb-12 uppercase tracking-[0.3em]">الإدارة المالية</h3>
+                 <div className="w-full h-1 bg-blue-600 dark:bg-blue-500 rounded-full shadow-[0_4px_12px_rgba(37,99,235,0.2)]"></div>
+               </div>
+               <div className="flex-1 w-full scale-90 opacity-60 dark:opacity-40 grayscale group hover:grayscale-0 hover:opacity-100 transition-all duration-500">
+                 <h3 className="font-black text-xs text-gray-400 dark:text-gray-500 mb-12 uppercase tracking-[0.3em]">الرئيس التنفيذي</h3>
+                 <div className="w-full h-0.5 bg-gray-100 dark:bg-gray-800"></div>
+                 <p className="mt-4 text-[10px] font-bold text-gray-300 dark:text-gray-600">المصادقة النهائية</p>
+               </div>
+            </div>
+          </div>
+          
           {/* Signatures placeholder matching the image footer */}
-          <div className="p-12 hidden md:flex items-center justify-between text-center gap-4 print:flex print:mt-12">
+          <div className="p-12 hidden md:flex items-center justify-between text-center gap-4 print:flex print:mt-12 border-t border-gray-100 dark:border-gray-800">
              <div className="flex-1">
-               <h3 className="font-black text-xl mb-8">الموارد البشرية</h3>
-               <div className="w-full h-px bg-gray-400"></div>
+               <h3 className="font-black text-xl mb-8 dark:text-white">الموارد البشرية</h3>
+               <div className="w-full h-px bg-gray-400 dark:bg-gray-600"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-xl mb-8">الإدارة المالية</h3>
-               <div className="w-full h-px bg-gray-400"></div>
+               <h3 className="font-black text-xl mb-8 dark:text-white">الإدارة المالية</h3>
+               <div className="w-full h-px bg-gray-400 dark:bg-gray-600"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-xl mb-8">ادارة المراجعة</h3>
-               <div className="w-full h-px bg-gray-400"></div>
+               <h3 className="font-black text-xl mb-8 dark:text-white">ادارة المراجعة</h3>
+               <div className="w-full h-px bg-gray-400 dark:bg-gray-600"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-xl mb-8">نائب الرئيس التنفيذي</h3>
-               <div className="w-full h-px bg-gray-400"></div>
+               <h3 className="font-black text-xl mb-8 dark:text-white">نائب الرئيس التنفيذي</h3>
+               <div className="w-full h-px bg-gray-400 dark:bg-gray-600"></div>
              </div>
              <div className="flex-1">
-               <h3 className="font-black text-xl mb-8">الرئيس التنفيذي</h3>
-               <div className="w-full h-px bg-gray-400"></div>
+               <h3 className="font-black text-xl mb-8 dark:text-white">الرئيس التنفيذي</h3>
+               <div className="w-full h-px bg-gray-400 dark:bg-gray-600"></div>
              </div>
           </div>
         </motion.div>

@@ -355,46 +355,46 @@ export const Settings: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-gray-900">إعدادات المنشأة</h3>
-              <p className="text-sm text-gray-500 font-medium">إدارة الهوية والاسم العام للنظام</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">إعدادات المنشأة</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">إدارة الهوية والاسم العام للنظام</p>
             </div>
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 mr-1">اسم المنشأة</label>
+              <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">اسم المنشأة</label>
               <input
                 type="text"
                 value={formData.companyName}
                 onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold"
+                className="w-full bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
                 placeholder="أدخل اسم الشركة"
               />
             </div>
 
             <div className="space-y-4">
-              <label className="text-sm font-bold text-gray-700 mr-1 block">شعار المنشأة</label>
-              <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+              <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1 block">شعار المنشأة</label>
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
                 <div className="relative group">
-                  <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-gray-100 shadow-sm relative z-10">
+                  <div className="w-24 h-24 bg-white dark:bg-gray-800 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm relative z-10">
                     {formData.logoUrl ? (
                       <img src={formData.logoUrl} alt="Logo Preview" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                     ) : (
-                      <ImageIcon className="w-8 h-8 text-gray-300" />
+                      <ImageIcon className="w-8 h-8 text-gray-300 dark:text-gray-600" />
                     )}
                   </div>
                   {formData.logoUrl && (
                     <button 
                       type="button"
                       onClick={() => setFormData({ ...formData, logoUrl: '' })}
-                      className="absolute -top-2 -left-2 w-6 h-6 bg-white border border-gray-200 text-red-500 rounded-full flex items-center justify-center shadow-lg z-20 hover:bg-red-50 transition-colors"
+                      className="absolute -top-2 -left-2 w-6 h-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-red-500 rounded-full flex items-center justify-center shadow-lg z-20 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -402,11 +402,11 @@ export const Settings: React.FC = () => {
                 </div>
                 
                 <div className="flex-1 space-y-2 text-center sm:text-right">
-                  <h4 className="text-sm font-bold text-gray-900">اختر صورة الشعار</h4>
-                  <p className="text-xs text-gray-400 font-medium">يفضل استخدام صورة شفافة بصيغة PNG وبحجم أقل من 500 ك.ب</p>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white">اختر صورة الشعار</h4>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">يفضل استخدام صورة شفافة بصيغة PNG وبحجم أقل من 500 ك.ب</p>
                   
                   <div className="pt-2">
-                    <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-100 text-blue-600 rounded-xl font-bold cursor-pointer hover:bg-white shadow-sm transition-all border-b-2 active:border-b-0 active:translate-y-0.5">
+                    <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-blue-600 dark:text-blue-400 rounded-xl font-bold cursor-pointer hover:bg-white dark:hover:bg-gray-700 shadow-sm transition-all border-b-2 active:border-b-0 active:translate-y-0.5">
                       <Plus className="w-4 h-4" />
                       <span>رفع من الجهاز</span>
                       <input 
@@ -421,51 +421,51 @@ export const Settings: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-gray-50 space-y-4">
-              <div className="flex items-center gap-3 text-red-600 mb-2">
+            <div className="pt-4 border-t border-gray-50 dark:border-gray-800 space-y-4">
+              <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-2">
                 <Shield className="w-5 h-5" />
                 <h4 className="font-black">تنبيهات الإقامات</h4>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 mr-1">عدد أيام التنبيه قبل انتهاء الإقامة</label>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">عدد أيام التنبيه قبل انتهاء الإقامة</label>
                 <input
                   type="number"
                   value={formData.iqamaAlertDays}
                   onChange={(e) => setFormData({ ...formData, iqamaAlertDays: parseInt(e.target.value) || 0 })}
-                  className="w-full bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold"
+                  className="w-full bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold text-gray-900 dark:text-white"
                   placeholder="مثال: 3"
                 />
-                <p className="text-xs text-gray-400 font-medium mr-1">هذا الرقم يحدد متى يبدأ النظام بتنبيهك بانتهاء إقامة الموظف</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mr-1">هذا الرقم يحدد متى يبدأ النظام بتنبيهك بانتهاء إقامة الموظف</p>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-gray-50 space-y-4">
-              <div className="flex items-center gap-3 text-red-600 mb-2">
+            <div className="pt-4 border-t border-gray-50 dark:border-gray-800 space-y-4">
+              <div className="flex items-center gap-3 text-red-600 dark:text-red-400 mb-2">
                 <Shield className="w-5 h-5" />
                 <h4 className="font-black">حماية النظام</h4>
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 mr-1">كلمة مرور قفل النظام</label>
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">كلمة مرور قفل النظام</label>
                 <div className="relative">
                   <input
                     type="password"
                     value={formData.systemPassword}
                     onChange={(e) => setFormData({ ...formData, systemPassword: e.target.value })}
-                    className="w-full bg-red-50/30 border-0 rounded-2xl p-4 pr-12 outline-none focus:ring-2 focus:ring-red-500/20 transition-all font-mono"
+                    className="w-full bg-red-50/30 dark:bg-red-900/10 border-0 rounded-2xl p-4 pr-12 outline-none focus:ring-2 focus:ring-red-500/20 transition-all font-mono text-gray-900 dark:text-white"
                     placeholder="••••••••"
                   />
-                  <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                 </div>
-                <p className="text-xs text-gray-400 font-medium mr-1">هذه الكلمة تستخدم لقفل الشاشة وإعادة الدخول السريع</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mr-1">هذه الكلمة تستخدم لقفل الشاشة وإعادة الدخول السريع</p>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-600/20 dark:shadow-none disabled:opacity-50"
             >
               <Save className="w-5 h-5" />
               {loading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
@@ -477,24 +477,24 @@ export const Settings: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+            <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
               <MapPin className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-black text-gray-900">إدارة الفروع / الكيانات</h3>
-              <p className="text-sm text-gray-500 font-medium">إضافة وحذف الفروع (تظهر في ملف الموظف)</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">إدارة الفروع / الكيانات</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">إضافة وحذف الفروع (تظهر في ملف الموظف)</p>
             </div>
             <div className="flex items-center gap-2">
-              <label className="p-2 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
+              <label className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
                 <Upload className="w-5 h-5" />
                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportBranches} />
               </label>
               <button 
                 onClick={handleExportBranches}
-                className="p-2 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all"
+                className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
                 title="تصدير اكسيل"
               >
                 <Download className="w-5 h-5" />
@@ -518,7 +518,7 @@ export const Settings: React.FC = () => {
                   }
                 }}
                 placeholder="اسم الفرع الجديد..."
-                className="flex-1 bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold text-right shadow-inner"
+                className="flex-1 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold text-right shadow-inner text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
               />
               <button
                 type="button"
@@ -529,7 +529,7 @@ export const Settings: React.FC = () => {
                 }}
                 className={cn(
                   "px-6 rounded-2xl font-black transition-all shadow-lg active:scale-95 flex items-center justify-center min-w-[64px]",
-                  newBranch.trim() ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/25" : "bg-gray-200 text-gray-400 cursor-default"
+                  newBranch.trim() ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/25 dark:shadow-none" : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-default"
                 )}
               >
                 {addingBranch ? (
@@ -544,17 +544,17 @@ export const Settings: React.FC = () => {
               {branches.map((branch) => (
                 <div 
                   key={branch.id} 
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl group hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors">
+                    <div className="w-8 h-8 bg-white dark:bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                       <MapPin className="w-4 h-4" />
                     </div>
-                    <span className="font-bold text-gray-700">{branch.name}</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">{branch.name}</span>
                   </div>
                   <button 
                     onClick={() => handleDeleteBranch(branch.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                    className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -562,7 +562,7 @@ export const Settings: React.FC = () => {
               ))}
               {branches.length === 0 && (
                 <div className="text-center py-12">
-                  <p className="text-gray-400 font-medium italic">لا يوجد فروع مضافة حالياً</p>
+                  <p className="text-gray-400 dark:text-gray-500 font-medium italic">لا يوجد فروع مضافة حالياً</p>
                 </div>
               )}
             </div>
@@ -573,24 +573,24 @@ export const Settings: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
+            <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-400">
               <Building2 className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-black text-gray-900">إدارة القطاعات</h3>
-              <p className="text-sm text-gray-500 font-medium">إضافة وحذف القطاعات (تظهر في تقرير الملخص)</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">إدارة القطاعات</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">إضافة وحذف القطاعات (تظهر في تقرير الملخص)</p>
             </div>
             <div className="flex items-center gap-2">
-              <label className="p-2 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
+              <label className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
                 <Upload className="w-5 h-5" />
                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportSectors} />
               </label>
               <button 
                 onClick={handleExportSectors}
-                className="p-2 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all"
+                className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
                 title="تصدير اكسيل"
               >
                 <Download className="w-5 h-5" />
@@ -606,14 +606,14 @@ export const Settings: React.FC = () => {
                 onChange={(e) => setNewSector(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddSector()}
                 placeholder="اسم القطاع الجديد..."
-                className="flex-1 bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all font-bold text-right shadow-inner"
+                className="flex-1 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all font-bold text-right shadow-inner text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
               />
               <button
                 onClick={handleAddSector}
                 disabled={!newSector.trim() || addingSector}
                 className={cn(
                   "px-6 rounded-2xl font-black transition-all shadow-lg active:scale-95 flex items-center justify-center min-w-[64px]",
-                  newSector.trim() ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/25" : "bg-gray-200 text-gray-400 cursor-default"
+                  newSector.trim() ? "bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/25 dark:shadow-none" : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-default"
                 )}
               >
                 {addingSector ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-6 h-6" />}
@@ -622,9 +622,9 @@ export const Settings: React.FC = () => {
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
               {sectors.map((sector) => (
-                <div key={sector.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl group hover:bg-gray-100 transition-colors">
-                  <span className="font-bold text-gray-700">{sector.name}</span>
-                  <button onClick={() => handleDeleteSector(sector.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                <div key={sector.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">{sector.name}</span>
+                  <button onClick={() => handleDeleteSector(sector.id)} className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
@@ -637,24 +637,24 @@ export const Settings: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Shield className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-black text-gray-900">إعداد مركز التكلفة / رئيسي</h3>
-              <p className="text-sm text-gray-500 font-medium">إضافة وحذف مراكز التكلفة الرئيسية</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">إعداد مركز التكلفة / رئيسي</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">إضافة وحذف مراكز التكلفة الرئيسية</p>
             </div>
             <div className="flex items-center gap-2">
-              <label className="p-2 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
+              <label className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
                 <Upload className="w-5 h-5" />
                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportManagements} />
               </label>
               <button 
                 onClick={handleExportManagements}
-                className="p-2 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all"
+                className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
                 title="تصدير اكسيل"
               >
                 <Download className="w-5 h-5" />
@@ -670,14 +670,14 @@ export const Settings: React.FC = () => {
                 onChange={(e) => setNewManagement(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddManagement()}
                 placeholder="اسم مركز التكلفة الجديد..."
-                className="flex-1 bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-bold text-right shadow-inner"
+                className="flex-1 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-bold text-right shadow-inner text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
               />
               <button
                 onClick={handleAddManagement}
                 disabled={!newManagement.trim() || addingManagement}
                 className={cn(
                   "px-6 rounded-2xl font-black transition-all shadow-lg active:scale-95 flex items-center justify-center min-w-[64px]",
-                  newManagement.trim() ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25" : "bg-gray-200 text-gray-400 cursor-default"
+                  newManagement.trim() ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 dark:shadow-none" : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-default"
                 )}
               >
                 {addingManagement ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-6 h-6" />}
@@ -686,9 +686,9 @@ export const Settings: React.FC = () => {
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
               {managements.map((m) => (
-                <div key={m.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl group hover:bg-gray-100 transition-colors">
-                  <span className="font-bold text-gray-700">{m.name}</span>
-                  <button onClick={() => handleDeleteManagement(m.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                <div key={m.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">{m.name}</span>
+                  <button onClick={() => handleDeleteManagement(m.id)} className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
@@ -701,24 +701,24 @@ export const Settings: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 border border-gray-100 dark:border-gray-800 shadow-sm"
         >
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600">
+            <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/30 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400">
               <Building2 className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-black text-gray-900">إعداد مركز التكلفة / القسم</h3>
-              <p className="text-sm text-gray-500 font-medium">إضافة وحذف مراكز التكلفة / الأقسام التفصيلية</p>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">إعداد مركز التكلفة / القسم</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">إضافة وحذف مراكز التكلفة / الأقسام التفصيلية</p>
             </div>
             <div className="flex items-center gap-2">
-              <label className="p-2 bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
+              <label className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl cursor-pointer transition-all" title="استيراد اكسيل">
                 <Upload className="w-5 h-5" />
                 <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportCostCenterDepts} />
               </label>
               <button 
                 onClick={handleExportCostCenterDepts}
-                className="p-2 bg-gray-50 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all"
+                className="p-2 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-xl transition-all"
                 title="تصدير اكسيل"
               >
                 <Download className="w-5 h-5" />
@@ -731,15 +731,15 @@ export const Settings: React.FC = () => {
               <select
                 value={selectedSectorForDept}
                 onChange={(e) => setSelectedSectorForDept(e.target.value)}
-                className="w-full bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-right shadow-inner"
+                className="w-full bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-right shadow-inner text-gray-900 dark:text-white appearance-none"
               >
-                <option value="">اختر القطاع للربط...</option>
-                <option value="الادارة العامة">الادارة العامة</option>
-                <option value="قطاع ص المقاولات والمقاولات">قطاع ص المقاولات والمقاولات</option>
-                <option value="ادارة العقار والاملاك">ادارة العقار والاملاك</option>
-                <option value="قطاع الصناعة">قطاع الصناعة</option>
-                <option value="قطاع السلع الكماليه">قطاع السلع الكماليه</option>
-                <option value="قطاع ورش الصيانه و التصنيع">قطاع ورش الصيانه و التصنيع</option>
+                <option value="" className="dark:bg-gray-900">اختر القطاع للربط...</option>
+                <option value="الادارة العامة" className="dark:bg-gray-900">الادارة العامة</option>
+                <option value="قطاع ص المقاولات والمقاولات" className="dark:bg-gray-900">قطاع ص المقاولات والمقاولات</option>
+                <option value="ادارة العقار والاملاك" className="dark:bg-gray-900">ادارة العقار والاملاك</option>
+                <option value="قطاع الصناعة" className="dark:bg-gray-900">قطاع الصناعة</option>
+                <option value="قطاع السلع الكماليه" className="dark:bg-gray-900">قطاع السلع الكماليه</option>
+                <option value="قطاع ورش الصيانه و التصنيع" className="dark:bg-gray-900">قطاع ورش الصيانه و التصنيع</option>
               </select>
               <div className="flex gap-3">
                 <input
@@ -748,14 +748,14 @@ export const Settings: React.FC = () => {
                   onChange={(e) => setNewCostCenterDept(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddCostCenterDept()}
                   placeholder="اسم القسم الجديد..."
-                  className="flex-1 bg-gray-50 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-right shadow-inner"
+                  className="flex-1 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-bold text-right shadow-inner text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600"
                 />
                 <button
                   onClick={handleAddCostCenterDept}
                   disabled={!newCostCenterDept.trim() || !selectedSectorForDept || addingCostCenterDept}
                   className={cn(
                     "px-6 rounded-2xl font-black transition-all shadow-lg active:scale-95 flex items-center justify-center min-w-[64px]",
-                    (newCostCenterDept.trim() && selectedSectorForDept) ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/25" : "bg-gray-200 text-gray-400 cursor-default"
+                    (newCostCenterDept.trim() && selectedSectorForDept) ? "bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/25 dark:shadow-none" : "bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-default"
                   )}
                 >
                   {addingCostCenterDept ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-6 h-6" />}
@@ -765,19 +765,19 @@ export const Settings: React.FC = () => {
 
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
               {costCenterDepts.map((ccd) => (
-                <div key={ccd.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl group hover:bg-gray-100 transition-colors">
+                <div key={ccd.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl group hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="flex flex-col text-right">
-                    <span className="font-bold text-gray-700">{ccd.name}</span>
-                    <span className="text-xs text-gray-400 font-medium">{ccd.sectorName}</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">{ccd.name}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">{ccd.sectorName}</span>
                   </div>
-                  <button onClick={() => handleDeleteCostCenterDept(ccd.id)} className="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                  <button onClick={() => handleDeleteCostCenterDept(ccd.id)} className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
               ))}
               {costCenterDepts.length === 0 && (
                 <div className="text-center py-8">
-                  <p className="text-gray-400 font-medium italic">لا يوجد مراكز تكلفة مضافة حالياً</p>
+                  <p className="text-gray-400 dark:text-gray-500 font-medium italic">لا يوجد مراكز تكلفة مضافة حالياً</p>
                 </div>
               )}
             </div>
