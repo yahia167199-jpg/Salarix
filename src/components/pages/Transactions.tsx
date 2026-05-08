@@ -121,6 +121,16 @@ export const Transactions: React.FC = () => {
       // Pro-rate based on suggested/actual work days: (Monthly / 30) * actualWorkDays
       const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
 
+      // Auto-notes logic for Directing/Joining Date
+      let initialNotes = '';
+      if (directDate && directDate.startsWith(formData.month)) {
+        const parts = directDate.split('-');
+        if (parts.length === 3) {
+          const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+          initialNotes = `مباشرة عمل يوم ${formattedDate} م`;
+        }
+      }
+
       setFormData({
         ...formData,
         employeeId: empId,
@@ -133,6 +143,7 @@ export const Transactions: React.FC = () => {
         mobileAllowance: proRate(emp.mobileAllowance || 0),
         managementAllowance: proRate(emp.managementAllowance || 0),
         dailyWorkHours: emp.dailyWorkHours || 8,
+        notes: initialNotes
       });
     } else {
       setFormData({ ...formData, employeeId: empId });
@@ -166,12 +177,58 @@ export const Transactions: React.FC = () => {
       overtimeBaseSalary: emp.basicSalary 
     });
 
-    setFormData(prev => ({
-      ...prev,
-      ...updatedBase,
-      overtimeValue: details.overtimeValue,
-      absenceDeduction: details.absenceDeduction
-    }));
+    // Auto-notes logic
+    let newNotes = formData.notes || '';
+    
+    // 1. Join/Direct Date note
+    const directDate = emp.lastDirectDate || emp.joinDate;
+    const joinNote = (directDate && directDate.startsWith(formData.month)) 
+      ? (() => {
+          const parts = directDate.split('-');
+          return parts.length === 3 ? `مباشرة عمل يوم ${parts[2]}/${parts[1]}/${parts[0]} م` : '';
+        })()
+      : '';
+
+    // 2. Absence note
+    const absenceNote = formData.absenceDays > 0 ? `خصم ${formData.absenceDays} يوم غياب` : '';
+
+    // Merge notes logic: 
+    // We want to keep manual notes but manage auto ones
+    // For simplicity, we'll construct the dynamic part
+    const autoParts = [joinNote, absenceNote].filter(Boolean);
+    const autoString = autoParts.join(' - ');
+
+    // If notes were empty or only contained previous auto-notes, we update them
+    // This is tricky without knowing what's manual. 
+    // Let's just update the notes if they are empty or if we are just starting
+    // OR we just append/prepend if not present.
+    // Better: If the user hasn't typed anything else, or if the auto-string changes
+    
+    setFormData(prev => {
+      let finalNotes = prev.notes;
+      
+      // If notes are empty or only contained old auto-notes pattern, replace them
+      // pattern matches "خصم \d+ يوم غياب" and "مباشرة عمل يوم \d+/\d+/\d+ م"
+      const absenceRegex = /خصم \d+ يوم غياب/;
+      const joinRegex = /مباشرة عمل يوم \d+\/\d+\/\d+ م/;
+      
+      let tempNotes = finalNotes;
+      
+      // Remove old auto notes to re-add fresh ones
+      tempNotes = tempNotes.replace(absenceRegex, '').replace(joinRegex, '').trim();
+      // Remove artifacts like " - - " or " - " at ends
+      tempNotes = tempNotes.replace(/^ - | - $/g, '').replace(/ -  - /g, ' - ').trim();
+      
+      const combined = [tempNotes, autoString].filter(Boolean).join(' - ');
+      
+      return {
+        ...prev,
+        ...updatedBase,
+        overtimeValue: details.overtimeValue,
+        absenceDeduction: details.absenceDeduction,
+        notes: combined
+      };
+    });
   }, [formData.actualWorkDays, formData.overtimeHours, formData.absenceDays, formData.dailyWorkHours, formData.employeeId]);
 
   const calculateTotals = (data: typeof formData) => {
@@ -483,7 +540,8 @@ export const Transactions: React.FC = () => {
         'مجموع الاقتطاعات': t.totalDeductions,
         'صافي الراتب': t.netSalary,
         'الحالة': t.status === 'Draft' ? 'مسودة' : 'معتمد',
-        'زيادة راتب': t.salaryIncrease || 0
+        'زيادة راتب': t.salaryIncrease || 0,
+        'ملاحظات': t.notes || ''
       };
     });
 
@@ -776,6 +834,7 @@ export const Transactions: React.FC = () => {
                     <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الموظف</th>
                     <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase">الشهر</th>
                     <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">صافي الراتب</th>
+                    <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-right">الملاحظات</th>
                     <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">الحالة</th>
                     <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase text-center">الإجراءات</th>
                   </tr>
@@ -805,6 +864,7 @@ export const Transactions: React.FC = () => {
                         </td>
                         <td className="px-8 py-5 font-bold text-gray-600 dark:text-gray-400">{t.month}</td>
                         <td className="px-8 py-5 font-black text-blue-600 dark:text-blue-400 text-center">{formatCurrency(t.netSalary)}</td>
+                        <td className="px-8 py-5 text-xs font-bold text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={t.notes}>{t.notes || '---'}</td>
                         <td className="px-8 py-5 text-center">
                           <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
                             تـــــــم
