@@ -617,25 +617,31 @@ export const Transactions: React.FC = () => {
   const sortedTransactions = useMemo(() => {
     return [...transactions]
       .filter(t => {
+        // Strict month filter
+        if (t.month !== selectedMonth) return false;
+
         const emp = employees.find(e => e.id === t.employeeId);
         const empName = emp?.name || '';
         
         // Search term filter
         const matchesSearch = (empName || '').toLowerCase().includes((searchTerm || '').toLowerCase()) || 
-                             (t.month || '').includes(searchTerm || '') ||
                              (emp?.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                              (emp?.iqamaNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
         if (!matchesSearch) return false;
 
         // Classification filter
         if (classificationFilter !== 'All') {
-          if (emp?.classification !== classificationFilter) return false;
+          if (classificationFilter === 'Standard') {
+            if (emp?.classification === 'Saudi' || emp?.classification === 'Accounting') return false;
+          } else {
+            if (emp?.classification !== classificationFilter) return false;
+          }
         }
 
         return true;
       })
-      .sort((a, b) => b.month.localeCompare(a.month));
-  }, [transactions, employees, searchTerm, classificationFilter]);
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [transactions, employees, searchTerm, classificationFilter, selectedMonth]);
 
   const handleReturnFromLeave = (emp: Employee) => {
     setSelectedEmpForReturn(emp);
@@ -840,7 +846,14 @@ export const Transactions: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {sortedTransactions.map((t) => {
+                  {sortedTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-8 py-20 text-center">
+                        <History className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-4" />
+                        <p className="text-gray-400 dark:text-gray-500 font-bold">لا يوجد حركات لهذا الشهر يطابق البحث ({selectedMonth})</p>
+                      </td>
+                    </tr>
+                  ) : sortedTransactions.map((t) => {
                     const emp = employees.find(e => e.id === t.employeeId);
                     const isJoiningThisMonth = (emp?.lastDirectDate && emp.lastDirectDate.startsWith(t.month)) || 
                                                 (emp?.joinDate && emp.joinDate.startsWith(t.month));

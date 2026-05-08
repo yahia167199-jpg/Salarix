@@ -95,7 +95,7 @@ export const Layout: React.FC = () => {
 
   const renderPage = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard onNavigate={setActiveTab} />;
       case 'employees': return <EmployeesList />;
       case 'employees-saudi': return <EmployeesList filterClassification="Saudi" />;
       case 'employees-accounting': return <EmployeesList filterClassification="Accounting" />;

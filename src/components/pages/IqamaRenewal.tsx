@@ -12,13 +12,17 @@ import {
   Edit2,
   Check,
   X,
-  Printer
+  Printer,
+  ChevronDown
 } from 'lucide-react';
 import { useData } from '../../contexts/DataContext';
 import { db, doc, updateDoc } from '../../firebase';
 import { cn } from '../../lib/utils';
 import { format, addDays, isPast, isBefore } from 'date-fns';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 export const IqamaRenewal: React.FC = () => {
   const { employees, companySettings, leaves } = useData();
@@ -36,19 +40,17 @@ export const IqamaRenewal: React.FC = () => {
     const alertThreshold = addDays(today, alertDays);
 
     return employees
-      .filter(emp => {
+      .map(emp => {
         const nat = emp.nationality?.toLowerCase() || '';
         const isSaudi = nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية');
-        return !isSaudi && emp.status !== 'End of Service';
-      })
-      .map(emp => {
+        
         const expiryDate = emp.iqamaExpiryDate ? new Date(emp.iqamaExpiryDate) : null;
       
       let status: 'Active' | 'Expiring' | 'Expired' | 'Out of Sponsorship' = 'Active';
       
       const hasNoDate = !expiryDate || isNaN(expiryDate.getTime());
 
-      if (hasNoDate || emp.officialEmployer === 'خارج الكفالة') {
+      if (hasNoDate) {
         status = 'Out of Sponsorship';
       } else if (isPast(expiryDate)) {
         status = 'Expired';
@@ -73,12 +75,20 @@ export const IqamaRenewal: React.FC = () => {
   }, [employees, alertDays]);
 
   const filteredEmployees = employeesWithIqamaStatus.filter(emp => {
-    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         emp.employeeId.includes(searchTerm) ||
-                         (emp.iqamaNumber || '').includes(searchTerm);
+    const name = (emp.name || '').toLowerCase();
+    const id = String(emp.employeeId || '');
+    const iqama = (emp.iqamaNumber || '');
+    
+    const matchesSearch = name.includes(searchTerm.toLowerCase()) || 
+                         id.includes(searchTerm) ||
+                         iqama.includes(searchTerm);
     
     const matchesType = filterType === 'All' || 
-                        (filterType === 'Out of Kingdom' ? emp.status !== 'Active' : emp.iqamaStatus === filterType);
+                        (filterType === 'Out of Kingdom' ? emp.status === 'Leave' : 
+                         filterType === 'Active' ? (emp.iqamaStatus === 'Active' && emp.status === 'Active') :
+                         emp.iqamaStatus === filterType);
+
+    const nat = (emp.nationality || '').toLowerCase();
     
     let matchesMonth = true;
     if (selectedMonth !== 'All') {
@@ -109,11 +119,123 @@ export const IqamaRenewal: React.FC = () => {
   }, [employeesWithIqamaStatus]);
 
   const stats = {
-    total: employeesWithIqamaStatus.length,
-    active: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Active').length,
+    total: employeesWithIqamaStatus.filter(e => {
+        const nat = (e.nationality || '').toLowerCase();
+        return !(nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية'));
+    }).length,
+    active: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Active' && e.status === 'Active').length,
     expiring: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Expiring').length,
     expired: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Expired').length,
     outOfSponsorship: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Out of Sponsorship').length,
+    outOfKingdom: employeesWithIqamaStatus.filter(e => e.status === 'Leave').length,
+  };
+
+  const handlePrintPDF = async () => {
+    setLoading(true);
+    try {
+      const printContent = document.createElement('div');
+      printContent.style.position = 'absolute';
+      printContent.style.left = '-9999px';
+      printContent.style.top = '0';
+      printContent.style.width = '800px';
+      printContent.style.backgroundColor = 'white';
+      printContent.style.color = 'black';
+      printContent.style.direction = 'rtl';
+      printContent.style.padding = '40px';
+
+      const header = `
+        <div style="margin-bottom: 30px; position: relative;">
+          ${companySettings?.logoUrl ? `
+            <div style="position: absolute; left: 0; top: 0;">
+              <img src="${companySettings.logoUrl}" style="height: 60px; width: auto; object-fit: contain;" />
+            </div>
+          ` : ''}
+          
+          <div style="text-align: center; padding-top: 10px;">
+            <h2 style="margin: 0; color: #1e293b; font-size: 20px; font-weight: 900;">${companySettings?.companyName || 'اسم المنشأة'}</h2>
+            <h1 style="margin: 10px 0 0 0; color: #2563eb; font-size: 32px; font-weight: 900;">تقرير تجديد الإقامات</h1>
+          </div>
+
+          <div style="margin-top: 30px; padding: 20px; background-color: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: bold;">
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+              <span style="color: #64748b; font-size: 12px;">تاريخ التقرير</span>
+              <span style="font-size: 14px;">${new Date().toLocaleDateString('ar-SA')}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 5px; text-align: center;">
+              <span style="color: #64748b; font-size: 12px;">الشهر المختار</span>
+              <span style="font-size: 14px;">${selectedMonth === 'All' ? 'الكل' : selectedMonth}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 5px; text-align: left;">
+              <span style="color: #64748b; font-size: 12px;">عدد الموظفين</span>
+              <span style="font-size: 14px;">${filteredEmployees.length} موظف</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      let tableRows = filteredEmployees.map(emp => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 12px; text-align: right;">${emp.name}</td>
+          <td style="padding: 12px; text-align: right;">${emp.employeeId}</td>
+          <td style="padding: 12px; text-align: right; font-family: monospace;">${emp.iqamaNumber}</td>
+          <td style="padding: 12px; text-align: right;">${emp.iqamaExpiryDate || '---'}</td>
+          <td style="padding: 12px; text-align: center;">
+            <span style="font-weight: bold; color: ${
+              emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#059669' : 
+              emp.iqamaStatus === 'Expiring' ? '#d97706' : 
+              emp.iqamaStatus === 'Out of Sponsorship' ? '#64748b' : 
+              emp.status === 'Leave' ? '#2563eb' : '#dc2626'
+            }">
+              ${emp.iqamaStatus === 'Active' && emp.status === 'Active' ? 'نشطة' : 
+                emp.iqamaStatus === 'Expiring' ? 'تنتهي قريباً' : 
+                emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' :
+                emp.status === 'Leave' ? 'خارج المملكة' : 'منتهية'}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+
+      const table = `
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 12px; text-align: right;">اسم الموظف</th>
+              <th style="padding: 12px; text-align: right;">الرقم الوظيفي</th>
+              <th style="padding: 12px; text-align: right;">رقم الإقامة</th>
+              <th style="padding: 12px; text-align: right;">تاريخ الانتهاء</th>
+              <th style="padding: 12px; text-align: center;">حالة الإقامة</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      `;
+
+      printContent.innerHTML = header + table;
+      document.body.appendChild(printContent);
+
+      const canvas = await html2canvas(printContent, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`تجديد_الاقامات_${selectedMonth}_${new Date().toISOString().split('T')[0]}.pdf`);
+
+      document.body.removeChild(printContent);
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('حدث خطأ أثناء إنشاء ملف PDF');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleExport = () => {
@@ -201,7 +323,7 @@ export const IqamaRenewal: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Stats Header */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
         <StatCard 
           label="إجمالي الموظفين" 
           value={stats.total} 
@@ -213,6 +335,12 @@ export const IqamaRenewal: React.FC = () => {
           value={stats.active} 
           icon={CheckCircle2} 
           color="emerald" 
+        />
+        <StatCard 
+          label="خارج المملكة" 
+          value={stats.outOfKingdom} 
+          icon={Download} 
+          color="blue" 
         />
         <StatCard 
           label="تنتهي قريباً" 
@@ -228,7 +356,7 @@ export const IqamaRenewal: React.FC = () => {
           color="red" 
         />
         <StatCard 
-          label="خارج الإقامة" 
+          label="خارج الكفالة" 
           value={stats.outOfSponsorship} 
           icon={ShieldCheck} 
           color="gray" 
@@ -237,65 +365,80 @@ export const IqamaRenewal: React.FC = () => {
 
       {/* Main Content Card */}
       <div className="bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative group w-full lg:w-96">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ابحث برقم الإقامة أو اسم الموظف..."
-                className="w-full bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl p-4 pr-12 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold group-hover:bg-gray-100 dark:group-hover:bg-gray-700 shadow-inner text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-              />
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+        <div className="p-8 border-b border-gray-50 dark:border-gray-800 space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-4 flex-1">
+              <div className="relative group flex-1 max-w-sm">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="ابحث برقم الإقامة أو اسم الموظف..."
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-4 pr-12 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold shadow-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+              </div>
+
+              <div className="relative group">
+                <Clock className={cn(
+                  "absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors",
+                  selectedMonth !== 'All' ? "text-blue-600" : "text-gray-400"
+                )} />
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className={cn(
+                    "pr-10 pl-10 py-4 bg-gray-50 dark:bg-gray-800 border rounded-2xl focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-bold shadow-sm appearance-none min-w-[200px] text-sm cursor-pointer",
+                    selectedMonth !== 'All' 
+                      ? "border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-400" 
+                      : "border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-600"
+                  )}
+                >
+                  <option value="All">فلترة بالشهور (الكل)</option>
+                  {months.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
             </div>
 
-            <div className="flex bg-gray-50 dark:bg-gray-800 p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700 h-14 overflow-x-auto">
-              <FilterTab active={filterType === 'All'} onClick={() => setFilterType('All')} label="الكل" />
-              <FilterTab active={filterType === 'Active'} onClick={() => setFilterType('Active')} label="نشط" color="emerald" />
-              <FilterTab active={filterType === 'Expiring'} onClick={() => setFilterType('Expiring')} label="تنبيه" color="amber" />
-              <FilterTab active={filterType === 'Expired'} onClick={() => setFilterType('Expired')} label="منتهي" color="red" />
-              <FilterTab active={filterType === 'Out of Sponsorship'} onClick={() => setFilterType('Out of Sponsorship')} label="خارج الكفالة" color="blue" />
-              <FilterTab active={filterType === 'Out of Kingdom'} onClick={() => setFilterType('Out of Kingdom')} label="خارج المملكة" color="blue" />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExport}
+                className="px-6 py-3 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100 dark:border-emerald-900/30"
+              >
+                <Download className="w-5 h-5" />
+                تصدير البيانات
+              </button>
+              <button
+                onClick={handlePrintPDF}
+                disabled={loading}
+                className="px-6 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100 dark:border-gray-700 disabled:opacity-50"
+              >
+                <Printer className="w-5 h-5" />
+                طباعة PDF
+              </button>
+              <label className="px-6 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 dark:border-blue-900/30 cursor-pointer">
+                <Upload className="w-5 h-5" />
+                استيراد وتحديث
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls" 
+                  className="hidden" 
+                  onChange={handleImport}
+                />
+              </label>
             </div>
-
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="h-14 px-6 bg-gray-50 dark:bg-gray-800 border-0 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-bold text-gray-900 dark:text-white shadow-sm appearance-none cursor-pointer min-w-[180px]"
-            >
-              <option value="All">فلترة بالشهور (الكل)</option>
-              {months.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleExport}
-              className="px-6 py-3 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-emerald-100 dark:border-emerald-900/30"
-            >
-              <Download className="w-5 h-5" />
-              تصدير البيانات
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="px-6 py-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100 dark:border-gray-700"
-            >
-              <Printer className="w-5 h-5" />
-              طباعة
-            </button>
-            <label className="px-6 py-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-blue-100 dark:border-blue-900/30 cursor-pointer">
-              <Upload className="w-5 h-5" />
-              استيراد وتحديث
-              <input 
-                type="file" 
-                accept=".xlsx, .xls" 
-                className="hidden" 
-                onChange={handleImport}
-              />
-            </label>
+          <div className="flex bg-gray-50 dark:bg-gray-800 p-1.5 rounded-2xl border border-gray-100 dark:border-gray-700 h-14 overflow-x-auto w-fit">
+            <FilterTab active={filterType === 'All'} onClick={() => setFilterType('All')} label="الكل" />
+            <FilterTab active={filterType === 'Active'} onClick={() => setFilterType('Active')} label="نشط" color="emerald" />
+            <FilterTab active={filterType === 'Expiring'} onClick={() => setFilterType('Expiring')} label="تنبيه" color="amber" />
+            <FilterTab active={filterType === 'Expired'} onClick={() => setFilterType('Expired')} label="منتهي" color="red" />
+            <FilterTab active={filterType === 'Out of Sponsorship'} onClick={() => setFilterType('Out of Sponsorship')} label="خارج الكفالة" color="blue" />
+            <FilterTab active={filterType === 'Out of Kingdom'} onClick={() => setFilterType('Out of Kingdom')} label="خارج المملكة" color="blue" />
           </div>
         </div>
 
@@ -330,7 +473,7 @@ export const IqamaRenewal: React.FC = () => {
                         ? "bg-gradient-to-br from-red-900 to-red-950 text-white hover:from-red-800 hover:to-red-900"
                         : emp.iqamaStatus === 'Expiring'
                         ? "bg-gradient-to-br from-orange-600 to-orange-800 text-white hover:from-orange-500 hover:to-orange-700"
-                        : emp.status !== 'Active'
+                        : emp.status === 'Leave'
                         ? "bg-gradient-to-br from-blue-800 to-blue-950 text-white hover:from-blue-700 hover:to-blue-900"
                         : "hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
                     )}
@@ -339,7 +482,7 @@ export const IqamaRenewal: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm",
-                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                             ? "bg-white/10 text-white border border-white/20"
                             : emp.iqamaStatus === 'Active' 
                             ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" 
@@ -350,14 +493,14 @@ export const IqamaRenewal: React.FC = () => {
                         <div>
                           <p className={cn(
                             "font-black leading-none mb-1",
-                            (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white" : "text-gray-900 dark:text-white"
+                            (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-900 dark:text-white"
                           )}>{emp.name}</p>
                           <p className={cn(
                             "text-xs font-bold",
                             emp.iqamaStatus === 'Expired' ? "text-red-300" :
                             emp.iqamaStatus === 'Expiring' ? "text-orange-200" :
                             emp.iqamaStatus === 'Out of Sponsorship' ? "text-gray-200" :
-                            emp.status !== 'Active' ? "text-blue-200" :
+                            emp.status === 'Leave' ? "text-blue-200" :
                             "text-gray-400 dark:text-gray-500"
                           )}>#{emp.employeeId}</p>
                         </div>
@@ -375,7 +518,7 @@ export const IqamaRenewal: React.FC = () => {
                       ) : (
                         <span className={cn(
                           "font-mono font-black tracking-wider",
-                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white" : "text-gray-700 dark:text-gray-300"
+                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-700 dark:text-gray-300"
                         )}>
                           {emp.iqamaNumber}
                         </span>
@@ -394,14 +537,14 @@ export const IqamaRenewal: React.FC = () => {
                           <div className="flex flex-col">
                             <span className={cn(
                               "font-bold",
-                              (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white" : "text-gray-900 dark:text-white"
+                              (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-900 dark:text-white"
                             )}>{emp.iqamaExpiryDate || '---'}</span>
                             <span className={cn(
                               "text-[10px] font-bold",
                               emp.iqamaStatus === 'Expired' ? "text-red-300" :
                               emp.iqamaStatus === 'Expiring' ? "text-orange-200" :
                               emp.iqamaStatus === 'Out of Sponsorship' ? "text-gray-200" :
-                              emp.status !== 'Active' ? "text-blue-200" :
+                              emp.status === 'Leave' ? "text-blue-200" :
                               "text-gray-400 dark:text-gray-500"
                             )}>التنسيق: YYYY-MM-DD</span>
                           </div>
@@ -412,22 +555,24 @@ export const IqamaRenewal: React.FC = () => {
                       <div className={cn(
                         "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black ring-1 ring-inset",
                         emp.iqamaStatus === 'Active' ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 ring-emerald-100 dark:ring-emerald-900/30" :
-                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "bg-white/10 text-white ring-white/30" :
+                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "bg-white/10 text-white ring-white/30" :
                         "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-red-100 dark:ring-red-900/30"
                       )}>
                         {emp.iqamaStatus === 'Active' ? <CheckCircle2 className="w-3.5 h-3.5" /> :
                          emp.iqamaStatus === 'Expiring' ? <Clock className="w-3.5 h-3.5" /> :
                          emp.iqamaStatus === 'Out of Sponsorship' ? <ShieldCheck className="w-3.5 h-3.5" /> :
+                         emp.status === 'Leave' ? <Download className="w-3.5 h-3.5" /> :
                          <AlertTriangle className="w-3.5 h-3.5" />}
                         {emp.iqamaStatus === 'Active' ? 'نشطة' :
                          emp.iqamaStatus === 'Expiring' ? 'تنتهي قريباً' : 
-                         emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : 'منتهية'}
+                         emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' :
+                         emp.status === 'Leave' ? 'خارج المملكة' : 'منتهية'}
                       </div>
                     </td>
                     <td className="px-8 py-5">
                       <span className={cn(
                         "font-bold text-sm",
-                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white" : "text-gray-600 dark:text-gray-400"
+                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-600 dark:text-gray-400"
                       )}>
                         {emp.officialEmployer || '---'}
                       </span>
@@ -435,17 +580,17 @@ export const IqamaRenewal: React.FC = () => {
                     <td className="px-8 py-5">
                       <span className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black border",
-                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                        (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                           ? "bg-white/10 text-white border-white/30"
                           : emp.status === 'Active' 
                             ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100" 
                             : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100"
                       )}>
-                        {emp.status === 'Active' ? 'لا' : 'نعم'}
+                        {emp.status === 'Leave' ? 'نعم' : 'لا'}
                       </span>
                     </td>
                     <td className="px-8 py-5 font-bold text-sm">
-                      <span className={(emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white" : "text-gray-600 dark:text-gray-400"}>
+                      <span className={(emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-600 dark:text-gray-400"}>
                         {emp.nationality || 'غير محدد'}
                       </span>
                     </td>
@@ -454,7 +599,7 @@ export const IqamaRenewal: React.FC = () => {
                         <div className="flex items-center justify-center gap-2 text-center">
                           <span className={cn(
                             "text-sm font-black",
-                            (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                            (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                               ? "text-white"
                               : emp.daysRemaining <= 0 ? "text-red-500 dark:text-red-400" :
                                 emp.daysRemaining <= alertDays ? "text-amber-500 dark:text-amber-400" :
@@ -466,7 +611,7 @@ export const IqamaRenewal: React.FC = () => {
                       ) : (
                         <span className={cn(
                           "italic text-sm text-center block",
-                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active') ? "text-white/50" : "text-gray-300 dark:text-gray-600"
+                          (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white/50" : "text-gray-300 dark:text-gray-600"
                         )}>التاريخ غير محدد</span>
                       )}
                     </td>
@@ -478,7 +623,7 @@ export const IqamaRenewal: React.FC = () => {
                               onClick={() => handleSaveRow(emp.id)}
                               className={cn(
                                 "p-2.5 rounded-xl transition-all border shadow-sm",
-                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                                   ? "bg-white/10 text-white border-white/30 hover:bg-white/20"
                                   : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-100"
                               )}
@@ -490,7 +635,7 @@ export const IqamaRenewal: React.FC = () => {
                               onClick={() => setEditingId(null)}
                               className={cn(
                                 "p-2.5 rounded-xl transition-all border shadow-sm",
-                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                                   ? "bg-white/10 text-white border-white/30 hover:bg-white/20"
                                   : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30 hover:bg-red-100"
                               )}
@@ -511,7 +656,7 @@ export const IqamaRenewal: React.FC = () => {
                               }}
                               className={cn(
                                 "p-2.5 rounded-xl transition-all shadow-sm border",
-                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status !== 'Active')
+                                (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave')
                                   ? "bg-white/10 text-white border-white/30 hover:bg-white/20"
                                   : "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 hover:bg-blue-100"
                               )}
