@@ -142,6 +142,7 @@ export const IqamaRenewal: React.FC = () => {
       printContent.style.color = 'black';
       printContent.style.direction = 'rtl';
       printContent.style.padding = '40px';
+      printContent.style.fontFamily = 'Arial, sans-serif';
 
       const header = `
         <div style="margin-bottom: 30px; position: relative;">
@@ -175,12 +176,24 @@ export const IqamaRenewal: React.FC = () => {
 
       let tableRows = filteredEmployees.map(emp => `
         <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 12px; text-align: right;">${emp.name}</td>
-          <td style="padding: 12px; text-align: right;">${emp.employeeId}</td>
-          <td style="padding: 12px; text-align: right; font-family: monospace;">${emp.iqamaNumber}</td>
-          <td style="padding: 12px; text-align: right;">${emp.iqamaExpiryDate || '---'}</td>
-          <td style="padding: 12px; text-align: center;">
-            <span style="font-weight: bold; color: ${
+          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9;">${emp.employeeId}</td>
+          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-weight: bold;">${emp.name}</td>
+          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaNumber}</td>
+          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-size: 11px;">${emp.officialEmployer || '---'}</td>
+          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">${emp.nationality || '---'}</td>
+          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
+            <span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; ${emp.status === 'Leave' ? 'background-color: #2563eb; color: white;' : 'background-color: #f1f5f9; color: #64748b;'}">
+              ${emp.status === 'Leave' ? 'نعم' : 'لا'}
+            </span>
+          </td>
+          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaExpiryDate || '---'}</td>
+          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
+            <span style="font-weight: 900; ${emp.daysRemaining <= 0 ? 'color: #dc2626;' : emp.daysRemaining <= alertDays ? 'color: #d97706;' : 'color: #059669;'}">
+              ${emp.daysRemaining !== undefined ? emp.daysRemaining : '---'}
+            </span>
+          </td>
+          <td style="padding: 10px 5px; text-align: center;">
+            <span style="font-weight: bold; font-size: 11px; color: ${
               emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#059669' : 
               emp.iqamaStatus === 'Expiring' ? '#d97706' : 
               emp.iqamaStatus === 'Out of Sponsorship' ? '#64748b' : 
@@ -196,14 +209,18 @@ export const IqamaRenewal: React.FC = () => {
       `).join('');
 
       const table = `
-        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
           <thead>
-            <tr style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
-              <th style="padding: 12px; text-align: right;">اسم الموظف</th>
-              <th style="padding: 12px; text-align: right;">الرقم الوظيفي</th>
-              <th style="padding: 12px; text-align: right;">رقم الإقامة</th>
-              <th style="padding: 12px; text-align: right;">تاريخ الانتهاء</th>
-              <th style="padding: 12px; text-align: center;">حالة الإقامة</th>
+            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">الرقم الوظيفي</th>
+              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">اسم الموظف</th>
+              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">رقم الإقامة</th>
+              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">صاحب العمل</th>
+              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">الجنسية</th>
+              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">خارج المملكة</th>
+              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">تاريخ الانتهاء</th>
+              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">المتبقي</th>
+              <th style="padding: 12px 5px; text-align: center;">حالة الإقامة</th>
             </tr>
           </thead>
           <tbody>
@@ -215,18 +232,54 @@ export const IqamaRenewal: React.FC = () => {
       printContent.innerHTML = header + table;
       document.body.appendChild(printContent);
 
+      // Wait for images to load before capturing
+      const images = printContent.getElementsByTagName('img');
+      const imagePromises = Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = resolve; // Continue even if image fails
+        });
+      });
+
+      await Promise.all(imagePromises);
+
       const canvas = await html2canvas(printContent, {
         scale: 2,
         useCORS: true,
+        allowTaint: true,
         logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          // Remove all stylesheets that might contain unsupported color functions like oklch
+          // Our printContent uses explicit inline styles with hex colors, so this is safe.
+          const styleSheets = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
+          styleSheets.forEach(s => s.remove());
+        }
       });
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // Add subsequent pages if content overflows
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
       pdf.save(`تجديد_الاقامات_${selectedMonth}_${new Date().toISOString().split('T')[0]}.pdf`);
 
       document.body.removeChild(printContent);
