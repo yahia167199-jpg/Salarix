@@ -26,7 +26,7 @@ import * as XLSX from 'xlsx';
 export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification: initialFilterClassification }) => {
   const { employees, allowanceTypes, branches, sectors, managements, costCenterDepts } = useData();
   const [searchTerm, setSearchTerm] = useState('');
-  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>(initialFilterClassification || 'Standard');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'Out of Sponsorship' | 'All'>(initialFilterClassification || 'Standard');
   const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'All'>('Active');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
@@ -338,14 +338,25 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     if (classificationFilter !== 'All') {
       if (classificationFilter === 'Standard') {
         result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting');
+      } else if (classificationFilter === 'Out of Sponsorship') {
+        result = result.filter(e => e.status === 'Out of Sponsorship');
       } else {
-        result = result.filter(e => e.classification === classificationFilter);
+        result = result.filter(e => e.classification === (classificationFilter as EmployeeCategory));
       }
     }
     if (statusFilter !== 'All') {
       result = result.filter(e => e.status === statusFilter);
     }
-    const sortedResult = [...result].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+    
+    // Sort by employeeId numerically ascending
+    const sortedResult = [...result].sort((a, b) => {
+      const idA = parseInt(a.employeeId || '0', 10);
+      const idB = parseInt(b.employeeId || '0', 10);
+      if (isNaN(idA) || isNaN(idB)) {
+        return (a.employeeId || '').localeCompare(b.employeeId || '');
+      }
+      return idA - idB;
+    });
 
     return sortedResult.filter(e => 
       (e.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -390,6 +401,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
               <option value="Standard">موظف عادي</option>
               <option value="Saudi">السعوديين</option>
               <option value="Accounting">رواتب المحاسبات</option>
+              <option value="Out of Sponsorship">خارج الكفالة</option>
             </select>
             <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
           </div>
@@ -596,19 +608,20 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <td className="px-6 py-5 text-center">
                       <div className={cn(
                         "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black whitespace-nowrap border",
-                        emp.status === 'Active' ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100" :
+                        (emp.status === 'Active' || emp.status === 'Out of Sponsorship') ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100" :
                         (emp.status === 'Leave' || emp.status === 'End of Service') ? "bg-white/10 text-white border-white/30" :
                         "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-100"
                       )}>
                         <div className={cn("w-1.5 h-1.5 rounded-full", 
-                          emp.status === 'Active' ? "bg-emerald-600" :
+                          (emp.status === 'Active' || emp.status === 'Out of Sponsorship') ? "bg-emerald-600" :
                           emp.status === 'End of Service' ? "bg-red-400" :
                           emp.status === 'Leave' ? "bg-blue-300" :
                           "bg-gray-600"
                         )} />
                         {emp.status === 'Active' ? 'نشط' : 
                          emp.status === 'End of Service' ? 'إنهاء خدمات' :
-                         emp.status === 'Leave' ? 'إجازة' : 'غير نشط'}
+                         emp.status === 'Leave' ? 'إجازة' : 
+                         emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'غير نشط'}
                       </div>
                     </td>
                     <td className="px-6 py-5">

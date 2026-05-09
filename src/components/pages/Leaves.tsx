@@ -89,7 +89,7 @@ export const Leaves: React.FC = () => {
   }, []);
 
   const activeEmployees = useMemo(() => 
-    employees.filter(e => e.status === 'Active'), 
+    employees.filter(e => e.status === 'Active' || e.status === 'Out of Sponsorship'), 
     [employees]
   );
 
@@ -293,10 +293,11 @@ export const Leaves: React.FC = () => {
   const filteredLeaves = useMemo(() => {
     return leaves.filter(l => {
       const emp = employees.find(e => e.id === l.employeeId);
+      const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
-        l.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (emp?.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (emp?.iqamaNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (l.employeeName || '').toLowerCase().includes(searchLower) ||
+        (emp?.employeeId || '').toLowerCase().includes(searchLower) ||
+        (emp?.iqamaNumber || '').toLowerCase().includes(searchLower);
       
       const matchesStatus = filterStatus === 'All' || l.status === filterStatus;
       return matchesSearch && matchesStatus;
@@ -332,7 +333,7 @@ export const Leaves: React.FC = () => {
   const filteredEmployeesForSelection = useMemo(() => {
     if (!employeeSearchTerm) return [];
     return employees.filter(e => 
-      (e.status === 'Active' || (selectedLeave && e.id === selectedLeave.employeeId)) &&
+      (e.status === 'Active' || e.status === 'Out of Sponsorship' || (selectedLeave && e.id === selectedLeave.employeeId)) &&
       (
         e.name.toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||
         (e.employeeId || '').toLowerCase().includes(employeeSearchTerm.toLowerCase()) ||

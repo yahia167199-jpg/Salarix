@@ -36,14 +36,15 @@ export const PayrollRuns: React.FC = () => {
     const runId = runDocRef.id;
     
     // Use data from global context to avoid redundant Firestore reads
-    const employees = allEmployees.filter(e => e.status === 'Active');
+    // Requirement: Include both 'Active' and 'Out of Sponsorship' employees in payroll
+    const employees = allEmployees.filter(e => e.status === 'Active' || e.status === 'Out of Sponsorship');
     const transactions = allTransactions.filter(t => t.month === month);
 
     const batch = writeBatch(db);
     let totalNet = 0;
 
     const results: PayrollResult[] = employees
-      .filter(emp => emp.status === 'Active')
+      .filter(emp => emp.status === 'Active' || emp.status === 'Out of Sponsorship')
       .map(emp => {
         // Find transaction for this employee this month
         const empTrans = transactions.find(t => t.employeeId === emp.id);

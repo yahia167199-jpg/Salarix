@@ -40,10 +40,12 @@ export const IqamaRenewal: React.FC = () => {
     const alertThreshold = addDays(today, alertDays);
 
     return employees
-      .map(emp => {
+      .filter(emp => {
         const nat = emp.nationality?.toLowerCase() || '';
         const isSaudi = nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية');
-        
+        return !isSaudi;
+      })
+      .map(emp => {
         const expiryDate = emp.iqamaExpiryDate ? new Date(emp.iqamaExpiryDate) : null;
       
       let status: 'Active' | 'Expiring' | 'Expired' | 'Out of Sponsorship' = 'Active';
@@ -128,6 +130,41 @@ export const IqamaRenewal: React.FC = () => {
     expired: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Expired').length,
     outOfSponsorship: employeesWithIqamaStatus.filter(e => e.iqamaStatus === 'Out of Sponsorship').length,
     outOfKingdom: employeesWithIqamaStatus.filter(e => e.status === 'Leave').length,
+    needsSync: employeesWithIqamaStatus.filter(e => 
+      e.iqamaStatus === 'Out of Sponsorship' && 
+      (e.status !== 'Out of Sponsorship' || e.officialEmployer !== 'خارج الكفالة')
+    ).length
+  };
+
+  const handleSyncOutOfSponsorship = async () => {
+    const targets = employeesWithIqamaStatus.filter(e => 
+      e.iqamaStatus === 'Out of Sponsorship' && 
+      (e.status !== 'Out of Sponsorship' || e.officialEmployer !== 'خارج الكفالة')
+    );
+
+    if (targets.length === 0) return;
+
+    if (!confirm(`سيتم تحويل حالة ${targets.length} موظف إلى "خارج الكفالة" وتحديث جهة العمل. هل أنت متأكد؟`)) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let count = 0;
+      for (const emp of targets) {
+        await updateDoc(doc(db, 'employees', emp.id), {
+          status: 'Out of Sponsorship',
+          officialEmployer: 'خارج الكفالة'
+        });
+        count++;
+      }
+      alert(`تم تحديث ${count} موظف بنجاح`);
+    } catch (error) {
+      console.error('Sync error:', error);
+      alert('حدث خطأ أثناء التحديث الجماعي');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrintPDF = async () => {
@@ -174,12 +211,14 @@ export const IqamaRenewal: React.FC = () => {
         </div>
       `;
 
-      let tableRows = filteredEmployees.map(emp => `
+      let tableRows = filteredEmployees.map(emp => {
+        const officialEmployer = emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : (emp.officialEmployer || '---');
+        return `
         <tr style="border-bottom: 1px solid #e2e8f0;">
           <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9;">${emp.employeeId}</td>
           <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-weight: bold;">${emp.name}</td>
           <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaNumber}</td>
-          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-size: 11px;">${emp.officialEmployer || '---'}</td>
+          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-size: 11px;">${officialEmployer}</td>
           <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">${emp.nationality || '---'}</td>
           <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
             <span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; ${emp.status === 'Leave' ? 'background-color: #2563eb; color: white;' : 'background-color: #f1f5f9; color: #64748b;'}">
@@ -189,7 +228,7 @@ export const IqamaRenewal: React.FC = () => {
           <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaExpiryDate || '---'}</td>
           <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
             <span style="font-weight: 900; ${emp.daysRemaining <= 0 ? 'color: #dc2626;' : emp.daysRemaining <= alertDays ? 'color: #d97706;' : 'color: #059669;'}">
-              ${emp.daysRemaining !== undefined ? emp.daysRemaining : '---'}
+              ${emp.daysRemaining !== -1 ? emp.daysRemaining : '---'}
             </span>
           </td>
           <td style="padding: 10px 5px; text-align: center;">
@@ -206,7 +245,7 @@ export const IqamaRenewal: React.FC = () => {
             </span>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
 
       const table = `
         <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
@@ -375,6 +414,38 @@ export const IqamaRenewal: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Sync Alert Banner */}
+      <AnimatePresence>
+        {stats.needsSync > 0 && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2rem] p-6 text-white shadow-xl shadow-blue-500/20 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg">تنبيه تحديث حالة الملفات</h3>
+                  <p className="text-blue-100 font-bold text-sm">يوجد {stats.needsSync} موظف حالة إقامتهم "خارج الكفالة" ولكن ملفهم الوظيفي لم يتم تحديثه بعد.</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleSyncOutOfSponsorship}
+                disabled={loading}
+                className="px-8 py-3 bg-white text-blue-600 rounded-2xl font-black text-sm hover:bg-blue-50 transition-all active:scale-95 shadow-lg shadow-black/10 flex items-center gap-2 shrink-0 disabled:opacity-50"
+              >
+                {loading ? 'جاري التحديث...' : 'تحديث جميع الملفات الآن'}
+                <CheckCircle2 className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Stats Header */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
         <StatCard 
@@ -627,7 +698,7 @@ export const IqamaRenewal: React.FC = () => {
                         "font-bold text-sm",
                         (emp.iqamaStatus === 'Expired' || emp.iqamaStatus === 'Expiring' || emp.iqamaStatus === 'Out of Sponsorship' || emp.status === 'Leave') ? "text-white" : "text-gray-600 dark:text-gray-400"
                       )}>
-                        {emp.officialEmployer || '---'}
+                        {emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : (emp.officialEmployer || '---')}
                       </span>
                     </td>
                     <td className="px-8 py-5">
