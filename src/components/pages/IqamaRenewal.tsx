@@ -41,9 +41,15 @@ export const IqamaRenewal: React.FC = () => {
 
     return employees
       .filter(emp => {
+        // Exclude Saudis
         const nat = emp.nationality?.toLowerCase() || '';
         const isSaudi = nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية');
-        return !isSaudi;
+        if (isSaudi) return false;
+
+        // Only include Active, Out of Sponsorship, or Leave (On Vacation)
+        // Exclude End of Service (EOS) or any other inactive status
+        const isActiveOrRelevant = emp.status === 'Active' || emp.status === 'Out of Sponsorship' || emp.status === 'Leave';
+        return isActiveOrRelevant;
       })
       .map(emp => {
         const expiryDate = emp.iqamaExpiryDate ? new Date(emp.iqamaExpiryDate) : null;
