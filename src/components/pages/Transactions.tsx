@@ -205,7 +205,7 @@ export const Transactions: React.FC = () => {
     // Better: If the user hasn't typed anything else, or if the auto-string changes
     
     setFormData(prev => {
-      let finalNotes = prev.notes;
+      let finalNotes = prev.notes || '';
       
       // If notes are empty or only contained old auto-notes pattern, replace them
       // pattern matches "خصم \d+ يوم غياب" and "مباشرة عمل يوم \d+/\d+/\d+ م"

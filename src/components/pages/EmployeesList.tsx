@@ -65,7 +65,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     paymentMethod: 'Bank',
     allowances: [],
     email: '',
-    iqamaExpiryDate: ''
+    iqamaExpiryDate: '',
+    isCitizenHusband: false
   });
 
   // Handle auto-sector mapping
@@ -118,7 +119,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       paymentMethod: 'Bank',
       allowances: [],
       email: '',
-      iqamaExpiryDate: ''
+      iqamaExpiryDate: '',
+      isCitizenHusband: false
     });
   };
 
@@ -205,7 +207,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       'حالة الموظف': emp.status === 'Active' ? 'نشط' : 
                     emp.status === 'Leave' ? 'إجازة' :
                     emp.status === 'End of Service' ? 'انهاء خدمات' :
-                    emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط'
+                    emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط',
+      'زوج مواطنة': emp.isCitizenHusband ? 'نعم' : 'لا'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -286,6 +289,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           managementAllowance: Number(row['بدل ادارة']) || 0,
           dailyWorkHours: Number(row['عدد ساعات العمل'] || 8) || 8,
           status: status,
+          isCitizenHusband: row['زوج مواطنة'] === 'نعم' || row['isCitizenHusband'] === true,
           allowances: [],
           email: ''
         });
@@ -337,9 +341,11 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     let result = employees;
     if (classificationFilter !== 'All') {
       if (classificationFilter === 'Standard') {
-        result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting');
+        result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting' && !e.isCitizenHusband);
       } else if (classificationFilter === 'Out of Sponsorship') {
-        result = result.filter(e => e.status === 'Out of Sponsorship');
+        result = result.filter(e => e.status === 'Out of Sponsorship' && !e.isCitizenHusband);
+      } else if (classificationFilter === 'Saudi') {
+        result = result.filter(e => e.classification === 'Saudi' || e.isCitizenHusband);
       } else {
         result = result.filter(e => e.classification === (classificationFilter as EmployeeCategory));
       }
@@ -971,6 +977,16 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})}
                     />
                   </div>
+                  <div className="space-y-2 flex items-center gap-3 pt-6">
+                    <input 
+                      type="checkbox"
+                      id="isCitizenHusband"
+                      className="w-6 h-6 rounded-lg border-gray-100 bg-gray-50 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      checked={formData.isCitizenHusband || false}
+                      onChange={(e) => setFormData({...formData, isCitizenHusband: e.target.checked})}
+                    />
+                    <label htmlFor="isCitizenHusband" className="text-sm font-black text-gray-700 dark:text-gray-200 cursor-pointer select-none">زوج مواطنة (يعامل كالسعودي)</label>
+                  </div>
                   <div className="space-y-2 md:col-span-2">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-bold text-gray-500 mr-2">بدلات إضافية (مخصصة)</label>
@@ -1133,6 +1149,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   <DetailItem label="رصيد الإجازات الحالي" value={`${calculateBalance(viewingEmployee)} يوم`} />
                   <DetailItem label="عدد ساعات العمل" value={`${viewingEmployee.dailyWorkHours || 8} ساعات`} />
                   <DetailItem label="البريد الإلكتروني" value={viewingEmployee.email} />
+                  {viewingEmployee.isCitizenHusband && (
+                    <DetailItem label="زوج مواطنة" value="نعم" highlight />
+                  )}
                 </div>
 
                 <div className="p-8 bg-blue-50/30 rounded-[2.5rem] border border-blue-100/50">
