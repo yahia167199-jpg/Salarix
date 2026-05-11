@@ -1305,15 +1305,7 @@ export const Leaves: React.FC = () => {
                       </div>
                     </div>
 
-                      <div className="p-4 bg-gray-900 dark:bg-black rounded-2xl flex items-center justify-between text-white shadow-lg shadow-gray-200 dark:shadow-none">
-                        <div className="flex items-center gap-3">
-                          <ArrowLeftRight className="w-5 h-5 text-blue-400" />
-                          <span className="font-bold">أيام العمل المتوقعة بعد الإجازة:</span>
-                        </div>
-                        <span className="text-xl font-black text-blue-400">
-                          0 يوم
-                        </span>
-                      </div>
+
                   </div>
                 )}
 
