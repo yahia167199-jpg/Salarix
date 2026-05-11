@@ -48,7 +48,11 @@ export const IqamaRenewal: React.FC = () => {
 
         // Only include Active, Out of Sponsorship, or Leave (On Vacation)
         // Exclude End of Service (EOS) or any other inactive status
-        const isActiveOrRelevant = emp.status === 'Active' || emp.status === 'Out of Sponsorship' || emp.status === 'Leave';
+        const isActiveOrRelevant = emp.status === 'Active' || 
+                                   emp.status === 'Out of Sponsorship' || 
+                                   emp.status === 'Out of Sponsorship (Active)' || 
+                                   emp.status === 'Out of Sponsorship (Leave)' || 
+                                   emp.status === 'Leave';
         return isActiveOrRelevant;
       })
       .map(emp => {
@@ -92,8 +96,8 @@ export const IqamaRenewal: React.FC = () => {
                          iqama.includes(searchTerm);
     
     const matchesType = filterType === 'All' || 
-                        (filterType === 'Out of Kingdom' ? emp.status === 'Leave' : 
-                         filterType === 'Active' ? (emp.iqamaStatus === 'Active' && emp.status === 'Active') :
+                        (filterType === 'Out of Kingdom' ? (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') : 
+                         filterType === 'Active' ? (emp.iqamaStatus === 'Active' && (emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)')) :
                          emp.iqamaStatus === filterType);
 
     const nat = (emp.nationality || '').toLowerCase();
@@ -173,168 +177,146 @@ export const IqamaRenewal: React.FC = () => {
     }
   };
 
-  const handlePrintPDF = async () => {
+  const handlePrintPDF = () => {
     setLoading(true);
-    try {
-      const printContent = document.createElement('div');
-      printContent.style.position = 'absolute';
-      printContent.style.left = '-9999px';
-      printContent.style.top = '0';
-      printContent.style.width = '800px';
-      printContent.style.backgroundColor = 'white';
-      printContent.style.color = 'black';
-      printContent.style.direction = 'rtl';
-      printContent.style.padding = '40px';
-      printContent.style.fontFamily = 'Arial, sans-serif';
+    const companyName = companySettings?.companyName || 'اسم المنشأة';
+    const logoUrl = companySettings?.logoUrl;
+    
+    const printContent = document.createElement('div');
+    printContent.dir = 'rtl';
+    printContent.className = 'p-8 bg-white';
 
-      const header = `
-        <div style="margin-bottom: 30px; position: relative;">
-          ${companySettings?.logoUrl ? `
-            <div style="position: absolute; left: 0; top: 0;">
-              <img src="${companySettings.logoUrl}" style="height: 60px; width: auto; object-fit: contain;" />
-            </div>
-          ` : ''}
-          
-          <div style="text-align: center; padding-top: 10px;">
-            <h2 style="margin: 0; color: #1e293b; font-size: 20px; font-weight: 900;">${companySettings?.companyName || 'اسم المنشأة'}</h2>
-            <h1 style="margin: 10px 0 0 0; color: #2563eb; font-size: 32px; font-weight: 900;">تقرير تجديد الإقامات</h1>
+    const header = `
+      <div style="background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 20px; padding: 30px; color: white; margin-bottom: 25px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.3);">
+        <div style="position: relative; z-index: 10;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 25px;">
+             ${logoUrl ? 
+               `<img src="${logoUrl}" style="width: 60px; height: 60px; object-fit: contain; border-radius: 12px; background: white; padding: 6px;" alt="Logo" />` :
+               `<div style="width: 60px; height: 60px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2);">
+                 <span style="font-size: 18px; font-weight: 900;">Logo</span>
+               </div>`
+             }
+             <div style="text-align: center;">
+                <h2 style="font-size: 18px; font-weight: 900; margin: 0; color: #93c5fd;">${companyName}</h2>
+                <h1 style="font-size: 32px; font-weight: 900; margin: 5px 0 0 0; letter-spacing: -1px;">تقرير تجديد الإقامات</h1>
+             </div>
           </div>
-
-          <div style="margin-top: 30px; padding: 20px; background-color: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-weight: bold;">
-            <div style="display: flex; flex-direction: column; gap: 5px;">
-              <span style="color: #64748b; font-size: 12px;">تاريخ التقرير</span>
-              <span style="font-size: 14px;">${new Date().toLocaleDateString('ar-SA')}</span>
+          
+          <div style="display: flex; justify-content: center; gap: 40px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+            <div>
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">العدد</p>
+              <p style="font-size: 22px; font-weight: 900; margin: 0;">${filteredEmployees.length}</p>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 5px; text-align: center;">
-              <span style="color: #64748b; font-size: 12px;">الشهر المختار</span>
-              <span style="font-size: 14px;">${selectedMonth === 'All' ? 'الكل' : selectedMonth}</span>
+            <div>
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">الشهر</p>
+              <p style="font-size: 22px; font-weight: 900; margin: 0;">${selectedMonth === 'All' ? 'الكل' : selectedMonth}</p>
             </div>
-            <div style="display: flex; flex-direction: column; gap: 5px; text-align: left;">
-              <span style="color: #64748b; font-size: 12px;">عدد الموظفين</span>
-              <span style="font-size: 14px;">${filteredEmployees.length} موظف</span>
+            <div>
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">التاريخ</p>
+              <p style="font-size: 22px; font-weight: 900; margin: 0;">${format(new Date(), 'yyyy-MM-dd')}</p>
             </div>
           </div>
         </div>
-      `;
+        <div style="position: absolute; top: -50%; left: -20%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%); border-radius: 50%;"></div>
+      </div>
+    `;
 
-      let tableRows = filteredEmployees.map(emp => {
-        const officialEmployer = emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : (emp.officialEmployer || '---');
-        return `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9;">${emp.employeeId}</td>
-          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-weight: bold;">${emp.name}</td>
-          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaNumber}</td>
-          <td style="padding: 10px 5px; text-align: right; border-left: 1px solid #f1f5f9; font-size: 11px;">${officialEmployer}</td>
-          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">${emp.nationality || '---'}</td>
-          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
-            <span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; ${emp.status === 'Leave' ? 'background-color: #2563eb; color: white;' : 'background-color: #f1f5f9; color: #64748b;'}">
-              ${emp.status === 'Leave' ? 'نعم' : 'لا'}
-            </span>
+    const tableRows = filteredEmployees.map(emp => {
+      const officialEmployer = emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : (emp.officialEmployer || '---');
+      const statusColor = emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#15803d' : 
+                         emp.iqamaStatus === 'Expiring' ? '#b45309' : 
+                         emp.iqamaStatus === 'Expired' ? '#b91c1c' : '#475569';
+      const statusBg = emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#f0fdf4' : 
+                      emp.iqamaStatus === 'Expiring' ? '#fffbeb' : 
+                      emp.iqamaStatus === 'Expired' ? '#fef2f2' : '#f8fafc';
+
+      return `
+        <tr style="border-bottom: 1px solid #f1f5f9; page-break-inside: avoid;">
+          <td style="padding: 12px 8px; border-right: 3px solid ${statusColor};">
+            <div style="font-size: 12px; font-weight: 900; color: #1e293b;">${emp.name}</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 2px; font-weight: bold;">${emp.jobTitle || '---'}</div>
           </td>
-          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9; font-family: monospace;">${emp.iqamaExpiryDate || '---'}</td>
-          <td style="padding: 10px 5px; text-align: center; border-left: 1px solid #f1f5f9;">
-            <span style="font-weight: 900; ${emp.daysRemaining <= 0 ? 'color: #dc2626;' : emp.daysRemaining <= alertDays ? 'color: #d97706;' : 'color: #059669;'}">
+          <td style="padding: 12px 8px; font-weight: 800; color: #1e3a8a; text-align: center; font-size: 11px;">${emp.employeeId}</td>
+          <td style="padding: 12px 8px; font-weight: 900; text-align: center; font-size: 11px; color: #334155; font-family: monospace;">${emp.iqamaNumber}</td>
+          <td style="padding: 12px 8px; font-size: 10px; text-align: right; color: #475569;">${officialEmployer}</td>
+          <td style="padding: 12px 8px; font-size: 10px; text-align: center; color: #475569; font-weight: bold; width: 60px;">${emp.nationality || '---'}</td>
+          <td style="padding: 12px 8px; text-align: center; font-weight: 900; font-size: 11px; font-family: monospace; color: #1e293b;">${emp.iqamaExpiryDate || '---'}</td>
+          <td style="padding: 12px 8px; text-align: center;">
+            <div style="font-weight: 900; font-size: 11px; ${emp.daysRemaining <= 0 ? 'color: #dc2626;' : (emp.daysRemaining !== -1 && emp.daysRemaining <= alertDays) ? 'color: #d97706;' : 'color: #059669;'};">
               ${emp.daysRemaining !== -1 ? emp.daysRemaining : '---'}
-            </span>
+            </div>
           </td>
-          <td style="padding: 10px 5px; text-align: center;">
-            <span style="font-weight: bold; font-size: 11px; color: ${
-              emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#059669' : 
-              emp.iqamaStatus === 'Expiring' ? '#d97706' : 
-              emp.iqamaStatus === 'Out of Sponsorship' ? '#64748b' : 
-              emp.status === 'Leave' ? '#2563eb' : '#dc2626'
-            }">
+          <td style="padding: 12px 8px; text-align: center;">
+            <span style="padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 900; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBg};">
               ${emp.iqamaStatus === 'Active' && emp.status === 'Active' ? 'نشطة' : 
-                emp.iqamaStatus === 'Expiring' ? 'تنتهي قريباً' : 
-                emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' :
-                emp.status === 'Leave' ? 'خارج المملكة' : 'منتهية'}
+                emp.iqamaStatus === 'Expiring' ? 'تنبيه' : 
+                emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج' :
+                emp.status === 'Leave' ? 'إجازة' : 'منتهية'}
             </span>
           </td>
         </tr>
-      `}).join('');
-
-      const table = `
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #e2e8f0;">
-          <thead>
-            <tr style="background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">الرقم الوظيفي</th>
-              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">اسم الموظف</th>
-              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">رقم الإقامة</th>
-              <th style="padding: 12px 5px; text-align: right; border-left: 1px solid #cbd5e1;">صاحب العمل</th>
-              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">الجنسية</th>
-              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">خارج المملكة</th>
-              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">تاريخ الانتهاء</th>
-              <th style="padding: 12px 5px; text-align: center; border-left: 1px solid #cbd5e1;">المتبقي</th>
-              <th style="padding: 12px 5px; text-align: center;">حالة الإقامة</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows}
-          </tbody>
-        </table>
       `;
+    }).join('');
 
-      printContent.innerHTML = header + table;
-      document.body.appendChild(printContent);
+    const table = `
+      <table style="width: 100%; border-collapse: separate; border-spacing: 0; direction: rtl; text-align: right; table-layout: fixed;">
+        <thead>
+          <tr style="background: #f8fafc;">
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 25%;">الموظف</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الرقم</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 15%;">رقم الإقامة</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 15%;">صاحب العمل</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الجنسية</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الانتهاء</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 8%;">المتبقي</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #1e3a8a; text-align: center; background: #f1f5f9; width: 7%;">الحالة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
 
-      // Wait for images to load before capturing
-      const images = printContent.getElementsByTagName('img');
-      const imagePromises = Array.from(images).map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = resolve; // Continue even if image fails
-        });
-      });
-
-      await Promise.all(imagePromises);
-
-      const canvas = await html2canvas(printContent, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          // Remove all stylesheets that might contain unsupported color functions like oklch
-          // Our printContent uses explicit inline styles with hex colors, so this is safe.
-          const styleSheets = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-          styleSheets.forEach(s => s.remove());
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      // Add subsequent pages if content overflows
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
-
-      pdf.save(`تجديد_الاقامات_${selectedMonth}_${new Date().toISOString().split('T')[0]}.pdf`);
-
-      document.body.removeChild(printContent);
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      alert('حدث خطأ أثناء إنشاء ملف PDF');
-    } finally {
-      setLoading(false);
+    printContent.innerHTML = header + table;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>تقرير تجديد الإقامات - ${selectedMonth}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 20px; background: white; -webkit-print-color-adjust: exact; }
+              @media print {
+                body { padding: 0; margin: 0; }
+                @page { size: portrait; margin: 1cm; }
+                tr { page-break-inside: avoid !important; }
+                thead { display: table-header-group; }
+                table { border: 1px solid #e2e8f0; width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #f1f5f9; }
+              }
+            </style>
+          </head>
+          <body dir="rtl">
+            ${printContent.outerHTML}
+            <script>
+              window.onload = () => {
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
+    setLoading(false);
   };
+
 
   const handleExport = () => {
     const data = filteredEmployees.map(emp => ({

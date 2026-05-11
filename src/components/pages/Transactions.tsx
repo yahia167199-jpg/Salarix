@@ -43,7 +43,7 @@ export const Transactions: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('Standard');
   const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All'>('Standard');
-  const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave'>('Active');
+  const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave' | 'Out of Sponsorship (Active)' | 'Out of Sponsorship (Leave)'>('Active');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -333,7 +333,9 @@ export const Transactions: React.FC = () => {
   const filteredEmployeesForGrid = useMemo(() => {
     return employees
       .filter(e => {
-        if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave');
+        if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
+        if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+        if (gridStatusFilter === 'Leave') return (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
         return e.status === gridStatusFilter;
       })
       .filter(e => {
@@ -366,7 +368,7 @@ export const Transactions: React.FC = () => {
 
   const gridStats = useMemo(() => {
     const total = employees.filter(e => {
-      if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave');
+      if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
       return e.status === gridStatusFilter;
     }).length;
     const finished = transactions.filter(t => t.month === selectedMonth).length;
@@ -449,7 +451,7 @@ export const Transactions: React.FC = () => {
 
   const handleExportDataEntryTemplate = () => {
     const targetEmployees = employees.filter(emp => 
-      (emp.status === 'Active' || emp.status === 'Leave') && 
+      (emp.status === 'Active' || emp.status === 'Leave' || emp.status === 'Out of Sponsorship' || emp.status === 'Out of Sponsorship (Active)' || emp.status === 'Out of Sponsorship (Leave)') && 
       (emp.classification === 'Standard' || !emp.classification)
     );
 
@@ -984,9 +986,8 @@ export const Transactions: React.FC = () => {
                   onChange={(e) => setGridStatusFilter(e.target.value as any)}
                   className="pr-10 pl-10 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl outline-none font-bold shadow-sm appearance-none min-w-[150px] text-sm cursor-pointer text-gray-900 dark:text-white"
                 >
-                  <option value="All">حالة الموظف (الكل)</option>
-                  <option value="Active">نشط</option>
-                  <option value="Leave">إجازة</option>
+                  <option value="Active">نشط (يشمل خارج الكفالة)</option>
+                  <option value="Leave">إجازة (يشمل خارج الكفالة)</option>
                 </select>
                 <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
               </div>

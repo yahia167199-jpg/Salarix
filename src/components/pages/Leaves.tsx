@@ -224,22 +224,240 @@ export const Leaves: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [selectedPrintMonth, setSelectedPrintMonth] = useState(format(new Date(), 'yyyy-MM'));
+
+  const filteredOnLeaveEmployees = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    return employees.filter(e => 
+      (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)') && (
+        e.name.toLowerCase().includes(searchLower) ||
+        (e.employeeId || '').toLowerCase().includes(searchLower) ||
+        (e.iqamaNumber || '').toLowerCase().includes(searchLower)
+      )
+    );
+  }, [employees, searchTerm]);
+
+  const calculateNetSalaryForReport = (emp: Employee, year: number, month: number) => {
+    const totalSalary = (emp.basicSalary || 0) + 
+      (emp.housingAllowance || 0) + 
+      (emp.transportAllowance || 0) + 
+      (emp.subsistenceAllowance || 0) + 
+      (emp.mobileAllowance || 0) + 
+      (emp.managementAllowance || 0) + 
+      (emp.otherAllowances || 0) +
+      (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+
+    const workDays = calculateWorkDaysForReport(emp, year, month);
+    return (totalSalary / 30) * workDays;
+  };
+
+  const calculateWorkDaysForReport = (emp: Employee, year: number, month: number) => {
+    // Standardize to 30 days as requested
+    const daysInMonth = 30;
+    
+    const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+    if (!activeLeave) return 30;
+
+    const leaveStart = new Date(activeLeave.startDate);
+    const leaveMonth = leaveStart.getMonth();
+    const leaveYear = leaveStart.getFullYear();
+    
+    // Month is 1-indexed from input, Date.getMonth() is 0-indexed
+    const targetMonth = month - 1;
+    const targetYear = year;
+
+    // If leave started before the target month/year
+    if (leaveYear < targetYear || (leaveYear === targetYear && leaveMonth < targetMonth)) {
+      return 0;
+    }
+    
+    // If leave started in the target month/year
+    if (leaveYear === targetYear && leaveMonth === targetMonth) {
+      // Worked until the day before leave start
+      return Math.min(30, Math.max(0, leaveStart.getDate() - 1));
+    }
+    
+    // If leave starts after the target month
+    return 30;
+  };
+
   const handleExportOnLeave = () => {
-    const onLeaveEmployees = employees.filter(e => e.status === 'Leave');
-    const data = onLeaveEmployees.map(emp => {
-      const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+    const [year, month] = selectedPrintMonth.split('-').map(Number);
+    const data = filteredOnLeaveEmployees.map(emp => {
+      const allowancesTotal = (emp.housingAllowance || 0) + 
+        (emp.transportAllowance || 0) + 
+        (emp.subsistenceAllowance || 0) + 
+        (emp.mobileAllowance || 0) + 
+        (emp.managementAllowance || 0) + 
+        (emp.otherAllowances || 0) +
+        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+      
+      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
+      const workDays = calculateWorkDaysForReport(emp, year, month);
+      const netSalary = calculateNetSalaryForReport(emp, year, month);
+
       return {
-        'رقم الموظف': emp.employeeId,
-        'اسم الموظف': emp.name,
-        'تاريخ البداية': leave?.startDate || '',
-        'تاريخ العودة المتوقعة': leave?.endDate || '',
+        'الموظف': emp.name,
+        'الرقم الوظيفي': emp.employeeId,
+        'الجنسية': emp.nationality,
+        'صاحب العمل': emp.officialEmployer || '---',
+        'القطاع': emp.sectors || '---',
+        'مركز التكلفة/الرئيسي': emp.sectorManagement || '---',
+        'الحالة': 'في إجازة',
+        'الأساسي': emp.basicSalary || 0,
+        'البدلات': allowancesTotal,
+        'الإجمالي': totalSalary,
+        'أيام العمل هذا الشهر': workDays,
+        'صافي الراتب': Math.round(netSalary),
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'المتواجدون في إجازة');
-    XLSX.writeFile(wb, `المتواجدون_في_إجازة_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    XLSX.writeFile(wb, `تقرير_المتواجدون_بإجازة_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const handlePrintOnLeave = () => {
+    const [year, month] = selectedPrintMonth.split('-').map(Number);
+    const monthLongAr = new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const companyName = companySettings?.companyName || 'اسم الشركة الخاص بك';
+    const logoUrl = companySettings?.logoUrl;
+
+    const printContent = document.createElement('div');
+    printContent.dir = 'rtl';
+    printContent.className = 'p-6 bg-white';
+    
+    const header = `
+      <div style="background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 12px; padding: 20px 30px; color: white; margin-bottom: 25px; position: relative; overflow: hidden; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
+        <div style="position: relative; z-index: 10; display: flex; justify-content: space-between; align-items: center;">
+          <div style="text-align: right;">
+            <h2 style="font-size: 14px; font-weight: 700; margin: 0; color: #93c5fd; opacity: 0.9;">${companyName}</h2>
+            <h1 style="font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: -0.5px;">تقرير الموظفين المتواجدون في إجازة</h1>
+            <p style="font-size: 12px; font-weight: 700; margin: 0; opacity: 0.8; color: #93c5fd;">لشهر: ${monthLongAr}</p>
+          </div>
+          <div style="display: flex; gap: 20px; align-items: center;">
+            <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 10px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);">
+              <p style="font-size: 9px; font-weight: 900; color: rgba(255,255,255,0.6); margin: 0;">إجمالي الحالات</p>
+              <p style="font-size: 18px; font-weight: 900; margin: 0;">${filteredOnLeaveEmployees.length}</p>
+            </div>
+            ${logoUrl ? 
+              `<img src="${logoUrl}" style="width: 55px; height: 55px; object-fit: contain; background: white; border-radius: 10px; padding: 4px;" alt="Logo" />` :
+              `<div style="width: 55px; height: 55px; background: rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(255,255,255,0.2);">
+                <span style="font-size: 12px; font-weight: 900; color: white;">LOGO</span>
+              </div>`
+            }
+          </div>
+        </div>
+        <div style="position: absolute; top: -50%; left: -10%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%); border-radius: 50%;"></div>
+      </div>
+    `;
+
+    const tableRows = filteredOnLeaveEmployees.map(emp => {
+      const allowancesTotal = (emp.housingAllowance || 0) + 
+        (emp.transportAllowance || 0) + 
+        (emp.subsistenceAllowance || 0) + 
+        (emp.mobileAllowance || 0) + 
+        (emp.managementAllowance || 0) + 
+        (emp.otherAllowances || 0) +
+        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+      
+      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
+      const workDays = calculateWorkDaysForReport(emp, year, month);
+      const netSalary = calculateNetSalaryForReport(emp, year, month);
+      
+      // Estimate GOSI if Saudi
+      const isSaudi = emp.nationality?.includes('سعودي') || emp.classification === 'Saudi';
+      const gosi = isSaudi ? (emp.basicSalary + (emp.housingAllowance || 0)) * 0.1 : 0;
+      const totalDeductions = gosi;
+
+      return `
+        <tr style="border-bottom: 1px solid #f1f5f9; page-break-inside: avoid;">
+          <td style="padding: 10px 6px; border-right: 3px solid #3b82f6; width: 140px;">
+            <div style="font-size: 10px; font-weight: 900; color: #0f172a;">${emp.name}</div>
+          </td>
+          <td style="padding: 10px 6px; font-weight: 700; color: #475569; text-align: center; font-size: 9px; width: 80px;">${emp.nationality || '---'}</td>
+          <td style="padding: 10px 6px; font-size: 9px; color: #64748b; text-align: right; width: 100px;">${emp.jobTitle || '---'}</td>
+          <td style="padding: 10px 6px; font-weight: 800; color: #3b82f6; text-align: center; font-size: 9px; width: 60px;">${emp.employeeId}</td>
+          <td style="padding: 10px 6px; font-size: 9px; text-align: right; color: #475569;">${emp.sectors || '---'}</td>
+          <td style="padding: 10px 6px; font-size: 8px; text-align: right; color: #64748b;">${emp.costCenterMain || emp.sectorManagement || '---'}</td>
+          <td style="padding: 10px 6px; font-size: 10px; text-align: center; font-weight: 900; color: #1e3a8a;">${workDays}</td>
+          <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #1e293b;">${totalSalary}</td>
+          <td style="padding: 10px 6px; font-size: 9px; text-align: center; color: #475569;">${Math.round(netSalary)}</td>
+          <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #dc2626;">${Math.round(totalDeductions)}</td>
+          <td style="padding: 10px 6px; font-size: 11px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${Math.round(netSalary - totalDeductions)}</td>
+          <td style="padding: 10px 6px; text-align: center;">
+            <span style="font-size: 8px; font-weight: 900; color: #1d4ed8; background: #eff6ff; padding: 2px 6px; border-radius: 4px; border: 1px solid #dbeafe;">إجازة</span>
+          </td>
+          <td style="padding: 10px 6px; font-size: 8px; text-align: center; color: #64748b; font-weight: bold;">${emp.lastDirectDate || '---'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const table = `
+      <table style="width: 100%; border-collapse: separate; border-spacing: 0; direction: rtl; text-align: right; table-layout: fixed;">
+        <thead>
+          <tr style="background: #f8fafc;">
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 140px;">اسم الموظف</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 80px;">الجنسية</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 100px;">الوظيفة</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 60px;">الرقم</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right;">القطاع</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right;">مركز التكلفة/رئيسي</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">أيام العمل</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">مجموع الدخل</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">استلام الراتب</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">الإقتطاعات</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #1e3a8a; text-align: center; background: #f1f5f9;">الصافي</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">الحالة</th>
+            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 9px; color: #64748b; text-align: center; width: 80px;">ملاحظات</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+
+    printContent.innerHTML = header + table;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>تقرير الموظفين المتواجدون في إجازة - ${monthLongAr}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 15px; background: white; -webkit-print-color-adjust: exact; }
+              @media print {
+                body { padding: 0.5cm; margin: 0; }
+                @page { size: landscape; margin: 0; }
+                tr { page-break-inside: avoid !important; }
+                thead { display: table-header-group; }
+                table { border: 1px solid #e2e8f0; }
+              }
+            </style>
+          </head>
+          <body dir="rtl">
+            ${printContent.outerHTML}
+            <script>
+              window.onload = () => {
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    setIsPrintModalOpen(false);
   };
 
   const handleImportOnLeave = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -679,6 +897,64 @@ export const Leaves: React.FC = () => {
         </div>
       </div>
 
+      {/* Print Modal */}
+      <AnimatePresence>
+        {isPrintModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPrintModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-10">
+                <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-[2rem] flex items-center justify-center mb-8 mx-auto shadow-inner">
+                  <Printer className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+                </div>
+                
+                <h2 className="text-3xl font-black text-gray-900 dark:text-white text-center mb-4">طباعة تقرير الإجازات</h2>
+                <p className="text-gray-500 dark:text-gray-400 text-center mb-10 font-bold">يرجى اختيار الشهر المطلوب لاحتساب صافي الرواتب بدقة للموظفين في إجازة</p>
+                
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-sm font-black text-gray-400 dark:text-gray-500 mr-2 block">شهر التقرير</label>
+                    <input 
+                      type="month"
+                      value={selectedPrintMonth}
+                      onChange={(e) => setSelectedPrintMonth(e.target.value)}
+                      className="w-full px-6 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-2xl outline-none focus:border-blue-500 transition-all text-xl font-black text-gray-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    <button
+                      onClick={() => setIsPrintModalOpen(false)}
+                      className="w-full py-5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black transition-all hover:bg-gray-200 active:scale-95"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      onClick={handlePrintOnLeave}
+                      className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-blue-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
+                    >
+                      <Printer className="w-5 h-5" />
+                      طباعة الآن
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* View Toggle */}
       <div className="flex bg-white dark:bg-gray-900 p-1 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 shadow-sm w-fit mb-4 overflow-x-auto max-w-full">
         <button
@@ -785,7 +1061,7 @@ export const Leaves: React.FC = () => {
               />
             </label>
             <button
-              onClick={() => window.print()}
+              onClick={() => setIsPrintModalOpen(true)}
               className="px-6 py-3 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center gap-2 transition-all active:scale-95 border border-gray-100 dark:border-gray-800 shadow-sm"
             >
               <Printer className="w-4 h-4" />
@@ -810,8 +1086,7 @@ export const Leaves: React.FC = () => {
       {/* Main Content Areas */}
       {activeView === 'ActiveLeaves' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">
-          {employees
-            .filter(e => e.status === 'Leave')
+          {filteredOnLeaveEmployees
             .map(emp => {
               const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
               const diffDays = leave ? Math.round((new Date(leave.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
@@ -822,99 +1097,104 @@ export const Leaves: React.FC = () => {
                   key={emp.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-gray-900 rounded-[2rem] p-6 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all relative overflow-hidden group"
+                  className="bg-gradient-to-br from-blue-900 to-indigo-950 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-blue-950/20 hover:shadow-blue-950/40 border-0 transition-all relative overflow-hidden group select-none"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-bl-[4rem] -z-0 opacity-50 transition-all group-hover:scale-110" />
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-bl-[6rem] -z-0 opacity-50 transition-all group-hover:scale-110 group-hover:rotate-6" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-tr-[4rem] -z-0 opacity-30 transition-all group-hover:scale-125" />
                   
                   <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl font-black border border-blue-50 dark:border-blue-900/30">
+                    <div className="flex items-start justify-between mb-8">
+                      <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl shadow-inner flex items-center justify-center text-white text-2xl font-black border border-white/20">
                           {emp.name[0]}
                         </div>
                         <div>
-                          <h4 className="font-black text-gray-900 dark:text-white text-lg">{emp.name}</h4>
-                          <p className="text-sm font-bold text-gray-400 dark:text-gray-500">#{emp.employeeId || '---'}</p>
+                          <h4 className="font-black text-white text-xl leading-tight">{emp.name}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm font-bold text-blue-200">#{emp.employeeId || '---'}</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 opacity-50" />
+                            <span className="text-[10px] font-bold text-blue-300">{emp.jobTitle}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-xl text-[10px] font-black border border-emerald-100 dark:border-emerald-900/30 flex items-center gap-1.5">
-                          <Clock className="w-3 h-3" />
+                      <div className="flex flex-col items-end gap-3">
+                        <div className="bg-white/10 backdrop-blur-md text-emerald-300 px-4 py-2 rounded-2xl text-[11px] font-black border border-white/10 flex items-center gap-2 shrink-0 shadow-sm">
+                          <Clock className="w-3.5 h-3.5" />
                           أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                         </div>
                         {leave && (
                           <div className={cn(
-                            "px-4 py-2 rounded-xl text-xs font-black",
-                            diffDays < 0 ? "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400" : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                            "px-5 py-2.5 rounded-2xl text-xs font-black shadow-inner backdrop-blur-md",
+                            diffDays < 0 ? "bg-red-500/20 text-red-200 border border-red-500/30" : "bg-blue-500/30 text-blue-100 border border-blue-400/30"
                           )}>
-                            {diffDays < 0 ? 'متأخر' : diffDays === 0 ? 'اليوم' : `باقي ${diffDays} يوم`}
+                            {diffDays < 0 ? 'متأخر عن العودة' : diffDays === 0 ? 'العودة اليوم' : `باقي ${diffDays} يوم`}
                           </div>
                         )}
-                        {leave && leave.status === 'Active' && (
-                          <button
-                            onClick={() => handleEditLeave(leave)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-all border border-gray-100 dark:border-gray-800 font-black text-[10px]"
-                            title="تعديل التواريخ"
-                          >
-                            <Calendar className="w-3.5 h-3.5" />
-                            تعديل المواعيد
-                          </button>
-                        )}
                       </div>
                     </div>
 
-                    <div className="space-y-4 mb-8">
+                    <div className="space-y-5 mb-10 bg-white/5 backdrop-blur-sm p-6 rounded-[2rem] border border-white/10">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-gray-400 dark:text-gray-500 flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
+                        <span className="font-bold text-blue-200 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 opacity-50" />
                           تاريخ البداية
                         </span>
-                        <span className="font-black text-gray-700 dark:text-gray-300">{leave?.startDate || '---'}</span>
+                        <span className="font-black text-white">{leave?.startDate || '---'}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-bold text-gray-400 dark:text-gray-500 flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
+                        <span className="font-bold text-blue-200 flex items-center gap-2">
+                          <Plane className="w-4 h-4 opacity-50 rotate-180" />
                           العودة المتوقعة
                         </span>
-                        <span className="font-black text-gray-700 dark:text-gray-300">{leave?.endDate || '---'}</span>
+                        <span className="font-black text-white">{leave?.endDate || '---'}</span>
                       </div>
-                      <div className="h-2 bg-gray-50 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div 
-                          className={cn(
-                            "h-full rounded-full transition-all duration-1000",
-                            diffDays < 0 ? "bg-red-500" : "bg-blue-500"
-                          )}
-                          style={{ width: leave ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100)))}%` : '0%' }}
-                        />
+                      <div className="pt-2">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-blue-300 mb-2 px-1">
+                          <span>تقدم الإجازة</span>
+                          <span>{leave ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100))).toFixed(0)}%` : '0%'}</span>
+                        </div>
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: leave ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100)))}%` : '0%' }}
+                            transition={{ duration: 1.5, ease: "easeOut" }}
+                            className={cn(
+                              "h-full rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]",
+                              diffDays < 0 ? "bg-red-400" : "bg-blue-400"
+                            )}
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {leave ? (
-                      <div className="flex gap-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      {leave ? (
+                        <>
+                          <button
+                            onClick={() => handleConfirmReturn(leave)}
+                            className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-95 text-sm"
+                          >
+                            <CheckCircle2 className="w-5 h-5" />
+                            تأكيد المباشرة
+                          </button>
+                          <button
+                            onClick={() => handleEditLeave(leave)}
+                            className="px-6 py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 backdrop-blur-md border border-white/10 active:scale-95 text-sm"
+                          >
+                            <Edit2 className="w-5 h-5" />
+                            تعديل
+                          </button>
+                        </>
+                      ) : (
                         <button
-                          onClick={() => handleConfirmReturn(leave)}
-                          className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-95"
+                          onClick={() => handleConfirmReturn(emp)}
+                          className="col-span-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-95"
                         >
-                          <Check className="w-5 h-5" />
-                          تأكيد تاريخ المباشرة
+                          <CheckCircle2 className="w-5 h-5" />
+                          تأكيد المباشرة الآن
                         </button>
-                        <button
-                          onClick={() => handleEditLeave(leave)}
-                          className="px-6 py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 dark:shadow-none active:scale-95"
-                        >
-                          <Calendar className="w-5 h-5" />
-                          تمديد
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleConfirmReturn(emp)}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-95"
-                      >
-                        <Check className="w-5 h-5" />
-                        تأكيد تاريخ المباشرة
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               );

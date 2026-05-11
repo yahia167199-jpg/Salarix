@@ -21,18 +21,22 @@ import { writeBatch, doc as firestoreDoc } from 'firebase/firestore';
 import { Employee, Allowance, AllowanceType, EmployeeCategory, EmployeeStatus } from '../../types';
 import { formatCurrency, cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }> = ({ filterClassification: initialFilterClassification }) => {
-  const { employees, allowanceTypes, branches, sectors, managements, costCenterDepts } = useData();
+  const { employees, allowanceTypes, branches, sectors, managements, costCenterDepts, leaves } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'Out of Sponsorship' | 'All'>(initialFilterClassification || 'Standard');
   const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'All'>('Active');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string | 'bulk', show: boolean }>({ id: '', show: false });
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedPrintMonth, setSelectedPrintMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<Omit<Employee, 'id'>>({
@@ -169,52 +173,344 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
   };
 
   const handleExportExcel = () => {
-    const data = employees.map((emp, index) => ({
-      'ت عام': index + 1,
-      'رقم الأقامة': emp.iqamaNumber || '',
-      'صاحب العمل الرسمي': emp.officialEmployer || '',
-      'الراتب الاساسي': emp.basicSalary,
-      'بدل سكن': emp.housingAllowance || 0,
-      'كود البنك': emp.bankCode || '',
-      'الايبــــــــــان': emp.bankAccount || '',
-      'المهنة حسب الاقامة': emp.professionAsPerIqama || '',
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    const data = (statusFilter === 'Leave' ? filteredEmployees : employees).map((emp, index) => {
+      const allowancesTotal = (emp.housingAllowance || 0) + 
+        (emp.transportAllowance || 0) + 
+        (emp.subsistenceAllowance || 0) + 
+        (emp.otherAllowances || 0) + 
+        (emp.mobileAllowance || 0) + 
+        (emp.managementAllowance || 0) +
+        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+
+      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
+      
+      let netSalary = totalSalary;
+      let workDaysThisMonth = daysInMonth;
+
+      if (emp.status === 'Leave') {
+        const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+        if (activeLeave) {
+          const leaveStart = new Date(activeLeave.startDate);
+          if (leaveStart.getFullYear() < currentYear || (leaveStart.getFullYear() === currentYear && leaveStart.getMonth() < currentMonth)) {
+            netSalary = 0;
+            workDaysThisMonth = 0;
+          } else if (leaveStart.getFullYear() === currentYear && leaveStart.getMonth() === currentMonth) {
+            workDaysThisMonth = leaveStart.getDate() - 1;
+            netSalary = (totalSalary / daysInMonth) * workDaysThisMonth;
+          }
+        } else {
+          // If no leave record found but status is leave, assume 0 for safety or full? 
+          // Usually better to assume 0 as per user request if they are on leave.
+          netSalary = 0;
+          workDaysThisMonth = 0;
+        }
+      }
+
+      if (statusFilter === 'Leave') {
+        return {
+          'الموظف': emp.name,
+          'الرقم الوظيفي': emp.employeeId,
+          'الجنسية': emp.nationality || '',
+          'صاحب العمل': emp.officialEmployer || '',
+          'القطاع': emp.sectors || '',
+          'مركز التكلفة/الرئيسي': emp.sectorManagement || '',
+          'الحالة': 'في إجازة',
+          'الأساسي': emp.basicSalary,
+          'البدلات': allowancesTotal,
+          'الإجمالي': totalSalary,
+          'أيام العمل': workDaysThisMonth,
+          'صافي الراتب': Math.round(netSalary)
+        };
+      }
+
+      return {
+        'ت عام': index + 1,
+        'رقم الأقامة': emp.iqamaNumber || '',
+        'صاحب العمل الرسمي': emp.officialEmployer || '',
+        'الراتب الاساسي': emp.basicSalary,
+        'بدل سكن': emp.housingAllowance || 0,
+        'كود البنك': emp.bankCode || '',
+        'الايبــــــــــان': emp.bankAccount || '',
+        'المهنة حسب الاقامة': emp.professionAsPerIqama || '',
+        'الإسم': emp.name,
+        'الجنسية': emp.nationality || '',
+        'الوظيفة': emp.jobTitle || '',
+        'الرقم الوظيفي': emp.employeeId || '',
+        'بداية العمل': emp.joinDate || '',
+        'آخر مباشرة': emp.lastDirectDate || '',
+        'تاريخ انتهاء الإقامة': emp.iqamaExpiryDate || '',
+        'ادارة القطاع': emp.sectorManagement || '',
+        'القطاعات': emp.sectors || '',
+        'مركز التكلفة / رئيسي': emp.costCenterMain || '',
+        'مركز التكلفة / قسم': emp.costCenterDept || '',
+        'الموقع': emp.location || '',
+        'بدل نقل': emp.transportAllowance || 0,
+        'بدل إعاشه': emp.subsistenceAllowance || 0,
+        'بدلات أخرى': emp.otherAllowances || 0,
+        'بدل جوال': emp.mobileAllowance || 0,
+        'بدل ادارة': emp.managementAllowance || 0,
+        'المجموع': totalSalary,
+        'أيام العمل هذا الشهر': workDaysThisMonth,
+        'صافي الراتب المتوقع': Math.round(netSalary),
+        'عدد ساعات العمل': emp.dailyWorkHours || 8,
+        'تصنيف التوظيف': emp.classification === 'Standard' ? 'موظف عادي' : 
+                         emp.classification === 'Saudi' ? 'سعودي' : 
+                         emp.classification === 'Accounting' ? 'محاسبات' : 'موظف عادي',
+        'نوع استلام الراتب': emp.paymentMethod === 'Bank' ? 'استلام البنك' : 'استلام راتب',
+        'حالة الموظف': emp.status === 'Active' ? 'نشط' : 
+                      emp.status === 'Leave' ? 'إجازة' :
+                      emp.status === 'End of Service' ? 'انهاء خدمات' :
+                      emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط',
+        'زوج مواطنة': emp.isCitizenHusband ? 'نعم' : 'لا'
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, statusFilter === 'Leave' ? "On Leave Employees" : "Employees");
+    XLSX.writeFile(wb, statusFilter === 'Leave' ? "On_Leave_Employees_Report.xlsx" : "Employees_Master.xlsx");
+  };
+
+  const handleExportUpdateTemplate = () => {
+    // Sort all employees by employeeId numerically
+    const sortedEmployees = [...employees].sort((a, b) => {
+      const idA = parseInt(a.employeeId || '0', 10);
+      const idB = parseInt(b.employeeId || '0', 10);
+      if (isNaN(idA) || isNaN(idB)) {
+        return (a.employeeId || '').localeCompare(b.employeeId || '');
+      }
+      return idA - idB;
+    });
+
+    const data = sortedEmployees.map(emp => ({
       'الإسم': emp.name,
-      'الجنسية': emp.nationality || '',
-      'الوظيفة': emp.jobTitle || '',
       'الرقم الوظيفي': emp.employeeId || '',
-      'بداية العمل': emp.joinDate || '',
-      'آخر مباشرة': emp.lastDirectDate || '',
-      'تاريخ انتهاء الإقامة': emp.iqamaExpiryDate || '',
       'ادارة القطاع': emp.sectorManagement || '',
       'القطاعات': emp.sectors || '',
       'مركز التكلفة / رئيسي': emp.costCenterMain || '',
-      'مركز التكلفة / قسم': emp.costCenterDept || '',
-      'الموقع': emp.location || '',
-      'بدل نقل': emp.transportAllowance || 0,
-      'بدل إعاشه': emp.subsistenceAllowance || 0,
-      'بدلات أخرى': emp.otherAllowances || 0,
-      'بدل جوال': emp.mobileAllowance || 0,
-      'بدل ادارة': emp.managementAllowance || 0,
-      'المجموع': emp.basicSalary + (emp.housingAllowance || 0) + (emp.transportAllowance || 0) + 
-                 (emp.subsistenceAllowance || 0) + (emp.otherAllowances || 0) + 
-                 (emp.mobileAllowance || 0) + (emp.managementAllowance || 0) +
-                 (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0),
-      'عدد ساعات العمل': emp.dailyWorkHours || 8,
-      'تصنيف التوظيف': emp.classification === 'Standard' ? 'موظف عادي' : 
-                       emp.classification === 'Saudi' ? 'سعودي' : 
-                       emp.classification === 'Accounting' ? 'محاسبات' : 'موظف عادي',
-      'نوع استلام الراتب': emp.paymentMethod === 'Bank' ? 'استلام البنك' : 'استلام راتب',
-      'حالة الموظف': emp.status === 'Active' ? 'نشط' : 
-                    emp.status === 'Leave' ? 'إجازة' :
-                    emp.status === 'End of Service' ? 'انهاء خدمات' :
-                    emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط',
-      'زوج مواطنة': emp.isCitizenHusband ? 'نعم' : 'لا'
+      'مركز التكلفة / قسم': emp.costCenterDept || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Employees");
-    XLSX.writeFile(wb, "Employees_Master.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Employees Update");
+    XLSX.writeFile(wb, "Employees_Full_Update.xlsx");
+  };
+
+  const handleImportUpdatedData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const dataArr = evt.target?.result;
+        const wb = XLSX.read(dataArr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        const batch = writeBatch(db);
+        let updatedCount = 0;
+
+        data.forEach((row) => {
+          const empId = String(row['الرقم الوظيفي'] || '');
+          if (!empId) return;
+
+          // Find existing employee by employeeId
+          const existingEmp = employees.find(e => e.employeeId === empId);
+          if (existingEmp) {
+            const docRef = firestoreDoc(db, 'employees', existingEmp.id);
+            batch.update(docRef, {
+              name: row['الإسم'] || existingEmp.name,
+              sectorManagement: row['ادارة القطاع'] || existingEmp.sectorManagement,
+              sectors: row['القطاعات'] || existingEmp.sectors,
+              costCenterMain: row['مركز التكلفة / رئيسي'] || existingEmp.costCenterMain,
+              costCenterDept: row['مركز التكلفة / قسم'] || existingEmp.costCenterDept
+            });
+            updatedCount++;
+          }
+        });
+
+        if (updatedCount > 0) {
+          await batch.commit();
+          alert(`تم تحديث ${updatedCount} موظف بنجاح`);
+        } else {
+          alert('لم يتم العثور على موظفين مطابقين للتحديث');
+        }
+        setIsUpdateModalOpen(false);
+      } catch (error) {
+        console.error('Import error:', error);
+        alert('حدث خطأ أثناء استيراد البيانات');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handlePrintPDF = () => {
+    setIsPrinting(true);
+    const [year, month] = selectedPrintMonth.split('-').map(Number);
+    const monthName = format(new Date(year, month - 1), 'MMMM yyyy', { locale: undefined }); // Using default is fine or manually map
+    const monthLongAr = new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1));
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const printContent = document.createElement('div');
+    printContent.dir = 'rtl';
+    printContent.className = 'p-4 bg-white';
+    
+    const header = `
+      <div style="background: linear-gradient(135deg, #1e3a8a, #312e81); border-radius: 24px; padding: 40px; color: white; margin-bottom: 30px; position: relative; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.3);">
+        <div style="position: relative; z-index: 10;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="text-align: right;">
+              <h1 style="font-size: 32px; font-weight: 900; margin: 0; letter-spacing: -0.025em; color: #fff;">سجل الموظفين والرواتب</h1>
+              <p style="font-size: 16px; font-weight: bold; margin-top: 8px; opacity: 0.9; color: #bfdbfe;">تقرير شامل - لشهر ${monthLongAr}</p>
+            </div>
+            <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2);">
+              <span style="font-size: 30px; font-weight: 900;">SR</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 20px; border-top: 1px solid rgba(255,255,255,0.1); pt-20px; margin-top: 20px; padding-top: 20px;">
+            <div>
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 4px;">إجمالي الموظفين المشمولين</p>
+              <p style="font-size: 18px; font-weight: 900; margin: 0; color: white;">${filteredEmployees.length} موظف</p>
+            </div>
+            <div style="flex-grow: 1;"></div>
+            <div style="text-align: left;">
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 4px;">تاريخ إصدار التقرير</p>
+              <p style="font-size: 14px; font-weight: bold; margin: 0; color: white;">${format(new Date(), 'yyyy-MM-dd')}</p>
+            </div>
+          </div>
+        </div>
+        <div style="position: absolute; top: -50px; left: -50px; width: 250px; height: 250px; background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%); border-radius: 50%;"></div>
+      </div>
+    `;
+
+    const tableRows = filteredEmployees.map(emp => {
+      const allowancesTotal = (emp.housingAllowance || 0) + 
+        (emp.transportAllowance || 0) + 
+        (emp.subsistenceAllowance || 0) + 
+        (emp.managementAllowance || 0) + 
+        (emp.mobileAllowance || 0) + 
+        (emp.otherAllowances || 0) +
+        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+
+      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
+      
+      let workDays = daysInMonth;
+      let netSalary = totalSalary;
+
+      if (emp.status === 'Leave') {
+        const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+        if (activeLeave) {
+          const leaveStart = new Date(activeLeave.startDate);
+          const targetDate = new Date(year, month - 1, 1);
+          
+          if (leaveStart < targetDate) {
+            workDays = 0;
+            netSalary = 0;
+          } else if (leaveStart.getMonth() === targetDate.getMonth() && leaveStart.getFullYear() === targetDate.getFullYear()) {
+            workDays = leaveStart.getDate() - 1;
+            netSalary = (totalSalary / daysInMonth) * workDays;
+          }
+        } else {
+            workDays = 0;
+            netSalary = 0;
+        }
+      }
+
+      return `
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;">
+          <td style="padding: 16px; border-right: 4px solid ${emp.status === 'Leave' ? '#3b82f6' : 'transparent'};">
+            <div style="font-weight: 900; color: #1e293b; font-size: 14px;">${emp.name}</div>
+            <div style="font-size: 11px; font-weight: bold; color: #64748b; margin-top: 4px;">${emp.jobTitle}</div>
+          </td>
+          <td style="padding: 16px; font-weight: 800; color: #1e3a8a; text-align: center;">${emp.employeeId}</td>
+          <td style="padding: 16px; font-weight: 600; color: #475569; text-align: center;">${emp.nationality || '---'}</td>
+          <td style="padding: 16px; font-size: 12px; color: #475569; text-align: right;">${emp.officialEmployer || '---'}</td>
+          <td style="padding: 16px; font-size: 12px; color: #475569; text-align: right;">${emp.sectors || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #64748b; text-align: right; max-width: 120px;">${emp.sectorManagement || '---'}</td>
+          <td style="padding: 16px; text-align: center;">
+            <span style="padding: 6px 12px; border-radius: 10px; font-size: 10px; font-weight: 900; background: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#f0fdf4' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#eff6ff' : '#fef2f2'}; color: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#15803d' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#1d4ed8' : '#b91c1c'}; border: 1px solid ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#dcfce7' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#dbeafe' : '#fee2e2'};">
+              {emp.status === 'Active' ? 'نشط' : 
+               emp.status === 'Leave' ? 'إجازة' : 
+               emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 
+               emp.status === 'Out of Sponsorship (Active)' ? 'خارج الكفالة (نشط)' :
+               emp.status === 'Out of Sponsorship (Leave)' ? 'خارج الكفالة (إجازة)' :
+               'انهاء خدمة'}
+            </span>
+          </td>
+          <td style="padding: 16px; text-align: center; font-size: 12px; font-weight: bold; color: #475569;">${emp.lastDirectDate || '---'}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 600;">${emp.basicSalary}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 600;">${allowancesTotal}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 900;">${totalSalary}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${Math.round(netSalary)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const table = `
+      <table style="width: 100%; border-collapse: separate; border-spacing: 0; text-align: right; direction: rtl;">
+        <thead>
+          <tr style="background: #f8fafc;">
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: right; border-bottom: 2px solid #e2e8f0; font-size: 12px; width: 220px;">الموظف / المهنة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">م</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الجنسية</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">صاحب العمل</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">القطاع</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">مركز التكلفة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الحالة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">آخر مباشرة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الأطاسي</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">البدلات</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الإجمالي</th>
+            <th style="padding: 20px; font-weight: 900; color: #1e3a8a; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px; background: #f1f5f9;">صافي الراتب</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+
+    printContent.innerHTML = header + table;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>تقرير الموظفين - ${monthLongAr}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 20px; background: white; -webkit-print-color-adjust: exact; }
+              @page { size: landscape; margin: 1cm; }
+              @media print {
+                body { padding: 0; margin: 0; }
+              }
+            </style>
+          </head>
+          <body dir="rtl">
+            ${printContent.outerHTML}
+            <script>
+              window.onload = () => {
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+    setIsPrinting(false);
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -259,6 +555,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         if (statusRaw === 'إجازة' || statusRaw === 'Leave') status = 'Leave';
         else if (statusRaw === 'انهاء خدمات' || statusRaw === 'End of Service') status = 'End of Service';
         else if (statusRaw === 'خارج الكفالة' || statusRaw === 'Out of Sponsorship') status = 'Out of Sponsorship';
+        else if (statusRaw === 'خارج الكفالة (نشط)' || statusRaw === 'Out of Sponsorship (Active)') status = 'Out of Sponsorship (Active)';
+        else if (statusRaw === 'خارج الكفالة (إجازة)' || statusRaw === 'Out of Sponsorship (Leave)') status = 'Out of Sponsorship (Leave)';
 
         batch.set(docRef, {
           classification,
@@ -351,7 +649,11 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       }
     }
     if (statusFilter !== 'All') {
-      result = result.filter(e => e.status === statusFilter);
+      if (statusFilter === 'Out of Sponsorship') {
+        result = result.filter(e => e.status?.startsWith('Out of Sponsorship'));
+      } else {
+        result = result.filter(e => e.status === statusFilter);
+      }
     }
     
     // Sort by employeeId numerically ascending
@@ -426,10 +728,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   : "border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:border-gray-200 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-white"
               )}
             >
-              <option value="All">كل الحالات</option>
+              <option value="All">حالة الموظف (الكل)</option>
               <option value="Active">نشط</option>
               <option value="Leave">إجازة</option>
-              <option value="Inactive">غير نشط</option>
               <option value="End of Service">إنهاء خدمات</option>
               <option value="Out of Sponsorship">خارج الكفالة</option>
             </select>
@@ -454,16 +755,18 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           <button 
             onClick={handleExportExcel}
             className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            title="تصدير الكل"
           >
             <Download className="w-5 h-5" />
             <span className="hidden md:inline">تصدير</span>
           </button>
           <button 
-            onClick={() => window.print()}
-            className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            onClick={() => setIsUpdateModalOpen(true)}
+            className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors shadow-sm flex items-center gap-2 font-bold"
+            title="تحديث البيانات"
           >
-            <Printer className="w-5 h-5" />
-            <span className="hidden md:inline">طباعة</span>
+            <FileSpreadsheet className="w-5 h-5" />
+            <span className="hidden md:inline">تحديث البيانات (Excel)</span>
           </button>
           <button 
             onClick={() => { setEditingEmployee(null); setIsModalOpen(true); }}
@@ -513,21 +816,21 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
 
                 return (
                     <tr 
-                    key={emp.id} 
-                    className={cn(
-                      "transition-colors group text-right border-b border-gray-50 dark:border-gray-800",
-                      emp.status === 'Leave' 
-                        ? "bg-gradient-to-br from-blue-900 to-blue-950 text-white hover:from-blue-800 hover:to-blue-900" 
-                        : emp.status === 'End of Service'
-                        ? "bg-gradient-to-br from-red-900 to-red-950 text-white hover:from-red-800 hover:to-red-900"
-                        : "hover:bg-gray-50/50 dark:hover:bg-gray-800/50",
-                      selectedIds.includes(emp.id) && (
-                        emp.status === 'Leave' ? "ring-2 ring-white/30" : 
-                        emp.status === 'End of Service' ? "ring-2 ring-white/30" : 
-                        "bg-blue-50/30 dark:bg-blue-900/20"
-                      )
-                    )}
-                  >
+                      key={emp.id} 
+                      className={cn(
+                        "transition-colors group text-right border-b border-gray-50 dark:border-gray-800",
+                        (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)')
+                          ? "bg-gradient-to-br from-blue-900 to-blue-950 text-white hover:from-blue-800 hover:to-blue-900" 
+                          : (emp.status === 'End of Service')
+                          ? "bg-gradient-to-br from-red-900 to-red-950 text-white hover:from-red-800 hover:to-red-900"
+                          : "hover:bg-gray-50/50 dark:hover:bg-gray-800/50",
+                        selectedIds.includes(emp.id) && (
+                          (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? "ring-2 ring-white/30" : 
+                          emp.status === 'End of Service' ? "ring-2 ring-white/30" : 
+                          "bg-blue-50/30 dark:bg-blue-900/20"
+                        )
+                      )}
+                    >
                     <td className="px-6 py-5">
                       <input 
                         type="checkbox" 
@@ -614,20 +917,21 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <td className="px-6 py-5 text-center">
                       <div className={cn(
                         "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black whitespace-nowrap border",
-                        (emp.status === 'Active' || emp.status === 'Out of Sponsorship') ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100" :
-                        (emp.status === 'Leave' || emp.status === 'End of Service') ? "bg-white/10 text-white border-white/30" :
+                        (emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 font-black" :
+                        (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)' || emp.status === 'End of Service') ? "bg-white/10 text-white border-white/30" :
                         "bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-100"
                       )}>
                         <div className={cn("w-1.5 h-1.5 rounded-full", 
-                          (emp.status === 'Active' || emp.status === 'Out of Sponsorship') ? "bg-emerald-600" :
-                          emp.status === 'End of Service' ? "bg-red-400" :
-                          emp.status === 'Leave' ? "bg-blue-300" :
-                          "bg-gray-600"
+                          (emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? "bg-emerald-500" :
+                          (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)' || emp.status === 'End of Service') ? "bg-white" :
+                          "bg-gray-400"
                         )} />
                         {emp.status === 'Active' ? 'نشط' : 
-                         emp.status === 'End of Service' ? 'إنهاء خدمات' :
                          emp.status === 'Leave' ? 'إجازة' : 
-                         emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'غير نشط'}
+                         emp.status === 'Out of Sponsorship (Active)' ? 'خارج الكفالة (نشط)' :
+                         emp.status === 'Out of Sponsorship (Leave)' ? 'خارج الكفالة (إجازة)' :
+                         emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' :
+                         emp.status === 'End of Service' ? 'إنهاء خدمات' : 'غير نشط'}
                       </div>
                     </td>
                     <td className="px-6 py-5">
@@ -965,7 +1269,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       <option value="Active">نشط</option>
                       <option value="Leave">اجازة</option>
                       <option value="End of Service">انهاء خدمات</option>
-                      <option value="Out of Sponsorship">خارج الكفالة</option>
+                      <option value="Out of Sponsorship (Active)">خارج الكفالة (نشط)</option>
+                      <option value="Out of Sponsorship (Leave)">خارج الكفالة (إجازة)</option>
+                      <option value="Out of Sponsorship">خارج الكفالة (أخرى)</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -1219,6 +1525,86 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   className="px-10 py-4 bg-gray-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl shadow-gray-200"
                 >
                   حسناً، فهمت
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isUpdateModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsUpdateModalOpen(false)}
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white dark:bg-gray-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-emerald-50/30 dark:bg-emerald-900/10">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                    <FileSpreadsheet className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 dark:text-white">تحديث الموظفين عبر Excel</h3>
+                </div>
+                <button onClick={() => setIsUpdateModalOpen(false)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors">
+                  <CloseIcon className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                  <p className="text-sm text-blue-800 dark:text-blue-300 font-bold mb-4">
+                    الخطوة 1: قم بتحميل ملف البيانات الحالي للتعديل عليه
+                  </p>
+                  <button 
+                    onClick={handleExportUpdateTemplate}
+                    className="w-full py-4 bg-white dark:bg-gray-800 border-2 border-blue-200 dark:border-blue-900 text-blue-600 dark:text-blue-400 font-black rounded-2xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-95"
+                  >
+                    <Download className="w-5 h-5" />
+                    تصدير كافة الموظفين (للتعديل)
+                  </button>
+                  <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-3 text-center font-bold">
+                    سيتم ترتيب الموظفين حسب الرقم الوظيفي تصاعدياً
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 dark:bg-emerald-900/10 p-6 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-300 font-bold mb-4">
+                    الخطوة 2: ارفع الملف بعد التعديل لتم التحديث
+                  </p>
+                  <label className="flex flex-col items-center justify-center w-full min-h-[140px] border-2 border-dashed border-emerald-200 dark:border-emerald-900/50 rounded-[2rem] bg-white dark:bg-gray-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all cursor-pointer group">
+                    <div className="flex flex-col items-center justify-center p-6 text-center">
+                      <div className="p-4 bg-emerald-100 dark:bg-emerald-900/30 rounded-full mb-3 group-hover:scale-110 transition-transform">
+                        <Upload className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <p className="text-sm font-black text-gray-700 dark:text-gray-300">اضغط لرفع الملف المحدث</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1 font-bold">Excel (.xlsx, .xls)</p>
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".xlsx, .xls" 
+                      onChange={handleImportUpdatedData} 
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="p-8 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 flex justify-center">
+                <button 
+                  onClick={() => setIsUpdateModalOpen(false)}
+                  className="px-12 py-4 bg-gray-900 dark:bg-black text-white font-black rounded-2xl hover:opacity-90 transition-all shadow-xl shadow-gray-200 dark:shadow-none"
+                >
+                  إغلاق النافذة
                 </button>
               </div>
             </motion.div>

@@ -20,7 +20,7 @@ export interface AppUser {
   createdAt: string;
 }
 
-export type EmployeeStatus = 'Active' | 'Leave' | 'End of Service' | 'Out of Sponsorship' | 'Inactive';
+export type EmployeeStatus = 'Active' | 'Leave' | 'End of Service' | 'Out of Sponsorship' | 'Out of Sponsorship (Active)' | 'Out of Sponsorship (Leave)' | 'Inactive';
 export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
 
 export type EmployeeCategory = 'Standard' | 'Saudi' | 'Accounting';
