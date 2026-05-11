@@ -354,7 +354,14 @@ export const Transactions: React.FC = () => {
         }
         return true;
       })
-      .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+      .sort((a, b) => {
+        const idA = parseInt(a.employeeId || '0', 10);
+        const idB = parseInt(b.employeeId || '0', 10);
+        if (isNaN(idA) || isNaN(idB)) {
+          return (a.employeeId || '').localeCompare(b.employeeId || '');
+        }
+        return idA - idB;
+      });
   }, [employees, transactions, selectedMonth, monthlyCardFilter, gridStatusFilter, searchTerm, showIncompleteOnly]);
 
   const gridStats = useMemo(() => {
