@@ -154,12 +154,12 @@ export const IqamaRenewal: React.FC = () => {
 
     if (targets.length === 0) return;
 
-    if (!confirm(`سيتم تحويل حالة ${targets.length} موظف إلى "خارج الكفالة" وتحديث جهة العمل. هل أنت متأكد؟`)) {
-      return;
-    }
+    if (!confirm(`سيتم تحويل حالة ${targets.length} موظف إلى "خارج الكفالة" وتحديث بياناتهم؟`)) return;
 
-    setLoading(true);
     try {
+      /* 
+    if (!confirm(`سيتم تحويل حالة ${targets.length} موظف إلى "خارج الكفالة" وت�    try {
+      */
       let count = 0;
       for (const emp of targets) {
         await updateDoc(doc(db, 'employees', emp.id), {
@@ -184,40 +184,27 @@ export const IqamaRenewal: React.FC = () => {
     
     const printContent = document.createElement('div');
     printContent.dir = 'rtl';
-    printContent.className = 'p-8 bg-white';
+    printContent.className = 'p-4 bg-white';
 
     const header = `
-      <div style="background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 20px; padding: 30px; color: white; margin-bottom: 25px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.3);">
-        <div style="position: relative; z-index: 10;">
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 15px; margin-bottom: 25px;">
-             ${logoUrl ? 
-               `<img src="${logoUrl}" style="width: 60px; height: 60px; object-fit: contain; border-radius: 12px; background: white; padding: 6px;" alt="Logo" />` :
-               `<div style="width: 60px; height: 60px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2);">
-                 <span style="font-size: 18px; font-weight: 900;">Logo</span>
-               </div>`
-             }
-             <div style="text-align: center;">
-                <h2 style="font-size: 18px; font-weight: 900; margin: 0; color: #93c5fd;">${companyName}</h2>
-                <h1 style="font-size: 32px; font-weight: 900; margin: 5px 0 0 0; letter-spacing: -1px;">تقرير تجديد الإقامات</h1>
-             </div>
-          </div>
-          
-          <div style="display: flex; justify-content: center; gap: 40px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
-            <div>
-              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">العدد</p>
-              <p style="font-size: 22px; font-weight: 900; margin: 0;">${filteredEmployees.length}</p>
-            </div>
-            <div>
-              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">الشهر</p>
-              <p style="font-size: 22px; font-weight: 900; margin: 0;">${selectedMonth === 'All' ? 'الكل' : selectedMonth}</p>
-            </div>
-            <div>
-              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 3px;">التاريخ</p>
-              <p style="font-size: 22px; font-weight: 900; margin: 0;">${format(new Date(), 'yyyy-MM-dd')}</p>
-            </div>
-          </div>
+      <div style="background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 15px; padding: 25px 35px; color: white; margin-bottom: 30px; position: relative; overflow: hidden; box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.2); display: flex; justify-content: space-between; align-items: center;">
+        <div style="position: relative; z-index: 10; display: flex; flex-direction: column; align-items: flex-start;">
+          <h2 style="font-size: 14px; font-weight: 700; margin: 0; color: #93c5fd; opacity: 0.9;">${companyName}</h2>
+          <h1 style="font-size: 24px; font-weight: 900; margin: 5px 0; letter-spacing: -1px; color: white;">${selectedMonth === 'All' ? 'كشف تجديد الإقامات' : `كشف الاقامات التي تنتهي في ${selectedMonth}`}</h1>
         </div>
-        <div style="position: absolute; top: -50%; left: -20%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%); border-radius: 50%;"></div>
+        <div style="display: flex; gap: 20px; align-items: center; position: relative; z-index: 10;">
+          <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 12px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1);">
+            <p style="font-size: 10px; font-weight: 900; color: rgba(255,255,255,0.6); margin: 0; margin-bottom: 2px;">إجمالي الحالات</p>
+            <p style="font-size: 22px; font-weight: 900; margin: 0; color: white;">${filteredEmployees.length}</p>
+          </div>
+          ${logoUrl ? 
+            `<img src="${logoUrl}" style="width: 60px; height: 60px; object-fit: contain; background: white; border-radius: 12px; padding: 6px;" alt="Logo" />` :
+            `<div style="width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(255,255,255,0.2);">
+              <span style="font-size: 12px; font-weight: 900; color: white;">LOGO</span>
+            </div>`
+          }
+        </div>
+        <div style="position: absolute; top: -50%; left: -10%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%); border-radius: 50%;"></div>
       </div>
     `;
 
@@ -225,33 +212,37 @@ export const IqamaRenewal: React.FC = () => {
       const officialEmployer = emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' : (emp.officialEmployer || '---');
       const statusColor = emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#15803d' : 
                          emp.iqamaStatus === 'Expiring' ? '#b45309' : 
-                         emp.iqamaStatus === 'Expired' ? '#b91c1c' : '#475569';
+                         emp.iqamaStatus === 'Expired' ? '#b91c1c' : '#1d4ed8';
       const statusBg = emp.iqamaStatus === 'Active' && emp.status === 'Active' ? '#f0fdf4' : 
                       emp.iqamaStatus === 'Expiring' ? '#fffbeb' : 
-                      emp.iqamaStatus === 'Expired' ? '#fef2f2' : '#f8fafc';
+                      emp.iqamaStatus === 'Expired' ? '#fef2f2' : '#eff6ff';
+      const statusText = emp.iqamaStatus === 'Active' && emp.status === 'Active' ? 'نشطة' : 
+                        emp.iqamaStatus === 'Expiring' ? 'تنبيه' : 
+                        emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج الكفالة' :
+                        emp.status === 'Leave' ? 'إجازة' : 'منتهية';
 
       return `
         <tr style="border-bottom: 1px solid #f1f5f9; page-break-inside: avoid;">
-          <td style="padding: 12px 8px; border-right: 3px solid ${statusColor};">
-            <div style="font-size: 12px; font-weight: 900; color: #1e293b;">${emp.name}</div>
-            <div style="font-size: 9px; color: #64748b; margin-top: 2px; font-weight: bold;">${emp.jobTitle || '---'}</div>
+          <td style="padding: 10px 8px; border-right: 4px solid ${statusColor};">
+            <div style="font-size: 11px; font-weight: 900; color: #0f172a;">${emp.name}</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 2px; font-weight: 700;">${emp.jobTitle || '---'}</div>
           </td>
-          <td style="padding: 12px 8px; font-weight: 800; color: #1e3a8a; text-align: center; font-size: 11px;">${emp.employeeId}</td>
-          <td style="padding: 12px 8px; font-weight: 900; text-align: center; font-size: 11px; color: #334155; font-family: monospace;">${emp.iqamaNumber}</td>
-          <td style="padding: 12px 8px; font-size: 10px; text-align: right; color: #475569;">${officialEmployer}</td>
-          <td style="padding: 12px 8px; font-size: 10px; text-align: center; color: #475569; font-weight: bold; width: 60px;">${emp.nationality || '---'}</td>
-          <td style="padding: 12px 8px; text-align: center; font-weight: 900; font-size: 11px; font-family: monospace; color: #1e293b;">${emp.iqamaExpiryDate || '---'}</td>
-          <td style="padding: 12px 8px; text-align: center;">
+          <td style="padding: 10px 8px; font-weight: 800; color: #1e3a8a; text-align: center; font-size: 10px;">${emp.employeeId}</td>
+          <td style="padding: 10px 8px; font-weight: 900; text-align: center; font-size: 11px; color: #334155; font-family: monospace;">${emp.iqamaNumber}</td>
+          <td style="padding: 10px 8px; font-size: 10px; text-align: right; color: #475569;">${emp.nationality || '---'}</td>
+          <td style="padding: 10px 8px; font-size: 9px; text-align: right; color: #64748b; font-weight: 600;">${officialEmployer}</td>
+          <td style="padding: 10px 8px; text-align: center; font-weight: 900; font-size: 10px; color: ${emp.status === 'Leave' ? '#2563eb' : '#64748b'};">
+            ${emp.status === 'Leave' ? 'نعم' : 'لا'}
+          </td>
+          <td style="padding: 10px 8px; text-align: center; font-weight: 900; font-size: 11px; font-family: monospace; color: #1e293b;">${emp.iqamaExpiryDate || '---'}</td>
+          <td style="padding: 10px 8px; text-align: center;">
             <div style="font-weight: 900; font-size: 11px; ${emp.daysRemaining <= 0 ? 'color: #dc2626;' : (emp.daysRemaining !== -1 && emp.daysRemaining <= alertDays) ? 'color: #d97706;' : 'color: #059669;'};">
-              ${emp.daysRemaining !== -1 ? emp.daysRemaining : '---'}
+              ${emp.daysRemaining !== -1 ? `${emp.daysRemaining} يوم` : '---'}
             </div>
           </td>
-          <td style="padding: 12px 8px; text-align: center;">
-            <span style="padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 900; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBg};">
-              ${emp.iqamaStatus === 'Active' && emp.status === 'Active' ? 'نشطة' : 
-                emp.iqamaStatus === 'Expiring' ? 'تنبيه' : 
-                emp.iqamaStatus === 'Out of Sponsorship' ? 'خارج' :
-                emp.status === 'Leave' ? 'إجازة' : 'منتهية'}
+          <td style="padding: 10px 8px; text-align: center;">
+            <span style="padding: 4px 10px; border-radius: 6px; font-size: 9px; font-weight: 900; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusBg};">
+              ${statusText}
             </span>
           </td>
         </tr>
@@ -262,14 +253,15 @@ export const IqamaRenewal: React.FC = () => {
       <table style="width: 100%; border-collapse: separate; border-spacing: 0; direction: rtl; text-align: right; table-layout: fixed;">
         <thead>
           <tr style="background: #f8fafc;">
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 25%;">الموظف</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الرقم</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 15%;">رقم الإقامة</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 15%;">صاحب العمل</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الجنسية</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 10%;">الانتهاء</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 8%;">المتبقي</th>
-            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #1e3a8a; text-align: center; background: #f1f5f9; width: 7%;">الحالة</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 180px;">الموظف / المهنة</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 70px;">الرقم</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 120px;">رقم الإقامة</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 90px;">الجنسية</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right;">صاحب العمل</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 80px;">خارج المملكة</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 100px;">تاريخ الانتهاء</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 80px;">المتبقي</th>
+            <th style="padding: 12px 8px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #1e3a8a; text-align: center; background: #f1f5f9; width: 90px;">الحالة</th>
           </tr>
         </thead>
         <tbody>
@@ -285,13 +277,13 @@ export const IqamaRenewal: React.FC = () => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>تقرير تجديد الإقامات - ${selectedMonth}</title>
+            <title>تقرير تجديد الإقامات - ${companyName}</title>
             <style>
               @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
-              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 20px; background: white; -webkit-print-color-adjust: exact; }
+              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 15px; background: white; -webkit-print-color-adjust: exact; }
               @media print {
-                body { padding: 0; margin: 0; }
-                @page { size: portrait; margin: 1cm; }
+                body { padding: 0.5cm; margin: 0; }
+                @page { size: landscape; margin: 0; }
                 tr { page-break-inside: avoid !important; }
                 thead { display: table-header-group; }
                 table { border: 1px solid #e2e8f0; width: 100%; border-collapse: collapse; }
@@ -316,7 +308,6 @@ export const IqamaRenewal: React.FC = () => {
     }
     setLoading(false);
   };
-
 
   const handleExport = () => {
     const data = filteredEmployees.map(emp => ({
@@ -622,7 +613,7 @@ export const IqamaRenewal: React.FC = () => {
                       {editingId === emp.id ? (
                         <input 
                           type="text"
-                          value={editForm.iqamaNumber}
+                          value={editForm.iqamaNumber || ''}
                           onChange={(e) => setEditForm({ ...editForm, iqamaNumber: e.target.value })}
                           className="w-full bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-900 rounded-lg px-3 py-1.5 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm text-right text-gray-900 dark:text-white"
                           placeholder="رقم الإقامة"
@@ -641,7 +632,7 @@ export const IqamaRenewal: React.FC = () => {
                         {editingId === emp.id ? (
                           <input 
                             type="date"
-                            value={editForm.iqamaExpiryDate}
+                            value={editForm.iqamaExpiryDate || ''}
                             onChange={(e) => setEditForm({ ...editForm, iqamaExpiryDate: e.target.value })}
                             className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-900 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm text-gray-900 dark:text-white"
                           />

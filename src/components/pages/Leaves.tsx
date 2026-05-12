@@ -56,8 +56,7 @@ export const Leaves: React.FC = () => {
   const [selectedLeaveForReturn, setSelectedLeaveForReturn] = useState<any>(null);
   const [actualReturnDate, setActualReturnDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
-  const [dismissedAlerts, setDismissedAlerts] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+
 
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
@@ -104,17 +103,12 @@ export const Leaves: React.FC = () => {
       const diffTime = end.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      // Return true if ended, ends today, or ends in next 3 days
-      return diffDays <= 3;
+      // Return true if ended, ends today
+      return diffDays <= 0;
     });
   }, [leaves]);
 
-  useEffect(() => {
-    if (pendingReturns.length > 0 && !dismissedAlerts) {
-      const timer = setTimeout(() => setShowToast(true), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [pendingReturns.length, dismissedAlerts]);
+
 
   const calculateActualWorkDays = (lastDirectDate?: string) => {
     if (!lastDirectDate) return 0;
@@ -356,6 +350,11 @@ export const Leaves: React.FC = () => {
       </div>
     `;
 
+    let totalIncomeSum = 0;
+    let salaryReceptionSum = 0;
+    let deductionsSum = 0;
+    let netSum = 0;
+
     const tableRows = filteredOnLeaveEmployees.map(emp => {
       const allowancesTotal = (emp.housingAllowance || 0) + 
         (emp.transportAllowance || 0) + 
@@ -373,6 +372,12 @@ export const Leaves: React.FC = () => {
       const isSaudi = emp.nationality?.includes('سعودي') || emp.classification === 'Saudi';
       const gosi = isSaudi ? (emp.basicSalary + (emp.housingAllowance || 0)) * 0.1 : 0;
       const totalDeductions = gosi;
+      const netAmount = Math.round(netSalary - totalDeductions);
+
+      totalIncomeSum += totalSalary;
+      salaryReceptionSum += Math.round(netSalary);
+      deductionsSum += Math.round(totalDeductions);
+      netSum += netAmount;
 
       return `
         <tr style="border-bottom: 1px solid #f1f5f9; page-break-inside: avoid;">
@@ -388,7 +393,7 @@ export const Leaves: React.FC = () => {
           <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #1e293b;">${totalSalary}</td>
           <td style="padding: 10px 6px; font-size: 9px; text-align: center; color: #475569;">${Math.round(netSalary)}</td>
           <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #dc2626;">${Math.round(totalDeductions)}</td>
-          <td style="padding: 10px 6px; font-size: 11px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${Math.round(netSalary - totalDeductions)}</td>
+          <td style="padding: 10px 6px; font-size: 11px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${netAmount}</td>
           <td style="padding: 10px 6px; text-align: center;">
             <span style="font-size: 8px; font-weight: 900; color: #1d4ed8; background: #eff6ff; padding: 2px 6px; border-radius: 4px; border: 1px solid #dbeafe;">إجازة</span>
           </td>
@@ -418,6 +423,14 @@ export const Leaves: React.FC = () => {
         </thead>
         <tbody>
           ${tableRows}
+          <tr style="background: #eff6ff; border-top: 2px solid #3b82f6; page-break-inside: avoid;">
+            <td colspan="7" style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 11px;">الاجمالي العام للموظفين المتواجدين في إجازة</td>
+            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 10px;">${totalIncomeSum.toLocaleString()}</td>
+            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 10px;">${salaryReceptionSum.toLocaleString()}</td>
+            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #dc2626; font-size: 10px;">${deductionsSum.toLocaleString()}</td>
+            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 11px; background: #dbeafe;">${netSum.toLocaleString()}</td>
+            <td colspan="2" style="background: #f8fafc;"></td>
+          </tr>
         </tbody>
       </table>
     `;
@@ -531,7 +544,7 @@ export const Leaves: React.FC = () => {
       const today = new Date();
       const diff = end.getTime() - today.getTime();
       const days = Math.ceil(diff / (1000 * 3600 * 24));
-      return days <= 3 && days >= 0;
+      return days <= 0 && days >= -1;
     }).length;
 
     const overdue = leaves.filter(l => {
@@ -701,156 +714,7 @@ export const Leaves: React.FC = () => {
 
   return (
     <div className="space-y-8 relative">
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {showToast && pendingReturns.length > 0 && (
-          <motion.div
-            initial={{ x: 400, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 400, opacity: 0 }}
-            className="fixed bottom-8 left-8 z-[200] max-w-sm w-full pointer-events-auto"
-            dir="rtl"
-          >
-            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-2 border-amber-100 dark:border-amber-900/30 rounded-[2.5rem] p-6 shadow-2xl shadow-amber-200/40 dark:shadow-none relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-1 bg-amber-500 h-full" />
-              <button 
-                onClick={() => setShowToast(false)}
-                className="absolute top-6 left-6 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500 transition-colors"
-                title="إغلاق التنبيه"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              <div className="flex gap-5">
-                <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/40 rounded-[1.5rem] flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-                  <Bell className="w-8 h-8" />
-                </div>
-                <div className="pl-6">
-                  <h4 className="font-black text-gray-900 dark:text-white text-lg leading-tight mb-1">تنبيه المراجعة</h4>
-                  <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
-                    هناك {pendingReturns.length} موظفين يقترب موعد عودتهم
-                  </p>
-                  
-                  <div className="mt-5 space-y-2">
-                    {pendingReturns.slice(0, 2).map(l => (
-                      <div key={l.id} className="flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50 p-2.5 rounded-2xl border border-gray-100/50 dark:border-gray-700/50">
-                        <span className="text-sm font-black text-gray-700 dark:text-gray-300">{l.employeeName}</span>
-                        <button 
-                          onClick={() => {
-                            handleConfirmReturn(l);
-                            if (pendingReturns.length <= 1) setShowToast(false);
-                          }}
-                          className="text-xs font-black text-white bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-xl shadow-sm transition-all active:scale-95"
-                        >
-                          تأكيد تاريخ المباشرة
-                        </button>
-                      </div>
-                    ))}
-                    {pendingReturns.length > 2 && (
-                      <button 
-                        onClick={() => {
-                          setShowToast(false);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }}
-                        className="w-full text-center py-2 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors"
-                      >
-                        عرض جميع الموظفين ({pendingReturns.length})
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Pending Returns Alert */}
-      <AnimatePresence>
-        {pendingReturns.length > 0 && !dismissedAlerts && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, y: -20 }}
-            animate={{ opacity: 1, height: 'auto', y: 0 }}
-            exit={{ opacity: 0, height: 0, y: -20 }}
-            className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-[2.5rem] p-8 shadow-2xl shadow-amber-200/20 dark:shadow-none overflow-hidden relative"
-          >
-            <div className="absolute -top-10 -left-10 w-40 h-40 bg-amber-100 dark:bg-amber-900/20 rounded-full blur-3xl opacity-50" />
-            
-            <div className="relative z-10">
-              <div className="flex items-center justify-between gap-6">
-                <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-amber-200 dark:bg-amber-900/40 rounded-3xl flex items-center justify-center text-amber-700 dark:text-amber-400 shadow-inner ring-4 ring-amber-50 dark:ring-amber-900/20">
-                    <Bell className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-amber-900 dark:text-amber-100">إجراء مطلوب: متابعة عودة الموظفين</h3>
-                    <p className="text-amber-700 dark:text-amber-400 font-bold max-w-2xl text-lg mt-1">
-                      لديك {pendingReturns.length} موظفين تنتهي إجازاتهم قريباً أو انتهت بالفعل.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <div className="hidden lg:flex -space-x-4 space-x-reverse items-center bg-white/50 dark:bg-gray-800/50 p-2 rounded-2xl border border-amber-200/50 dark:border-amber-900/30">
-                    {pendingReturns.slice(0, 5).map((l, i) => (
-                      <div 
-                        key={i} 
-                        className="w-12 h-12 rounded-2xl border-2 border-white dark:border-gray-800 bg-amber-600 flex items-center justify-center text-white text-sm font-black ring-2 ring-amber-100 dark:ring-amber-900/20 shadow-lg group hover:-translate-y-1 transition-transform cursor-help"
-                        title={l.employeeName}
-                      >
-                        {l.employeeName[0]}
-                      </div>
-                    ))}
-                    {pendingReturns.length > 5 && (
-                      <div className="w-12 h-12 rounded-2xl border-2 border-white dark:border-gray-800 bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400 text-xs font-black ring-2 ring-amber-100 dark:ring-amber-900/20 shadow-sm">
-                        +{pendingReturns.length - 5}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={() => setDismissedAlerts(true)}
-                    className="p-4 text-amber-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-white dark:hover:bg-gray-800 rounded-3xl transition-all shadow-sm border border-transparent hover:border-amber-200 dark:hover:border-amber-800"
-                    title="إخفاء التنبيه"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {pendingReturns.slice(0, 4).map(l => {
-                  const end = new Date(l.endDate);
-                  const isOverdue = end < new Date();
-                  return (
-                    <div key={l.id} className="bg-white dark:bg-gray-900 rounded-2xl p-4 flex items-center justify-between border border-amber-100 dark:border-amber-900/30 group hover:shadow-md transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)]",
-                          isOverdue ? "bg-red-500 animate-pulse" : "bg-amber-500"
-                        )} />
-                        <div>
-                          <span className="font-black text-gray-800 dark:text-white block text-sm">{l.employeeName}</span>
-                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">
-                            {isOverdue ? "انتهت" : "تنتهي"} في: {l.endDate}
-                          </span>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleConfirmReturn(l)}
-                        className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-emerald-500/20 dark:shadow-none active:scale-90"
-                        title="تأكيد تاريخ المباشرة"
-                      >
-                        <Check className="w-5 h-5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Header & Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1089,7 +953,9 @@ export const Leaves: React.FC = () => {
           {filteredOnLeaveEmployees
             .map(emp => {
               const leave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
-              const diffDays = leave ? Math.round((new Date(leave.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+              const end = leave?.endDate ? new Date(leave.endDate) : null;
+              const isValidEnd = end && !isNaN(end.getTime());
+              const diffDays = isValidEnd ? Math.round((end.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
               
               return (
                 <motion.div
@@ -1122,7 +988,7 @@ export const Leaves: React.FC = () => {
                           <Clock className="w-3.5 h-3.5" />
                           أيام العمل: {calculateActualWorkDays(emp.lastDirectDate)} يوم
                         </div>
-                        {leave && (
+                        {leave && isValidEnd && (
                           <div className={cn(
                             "px-5 py-2.5 rounded-2xl text-xs font-black shadow-inner backdrop-blur-md",
                             diffDays < 0 ? "bg-red-500/20 text-red-200 border border-red-500/30" : "bg-blue-500/30 text-blue-100 border border-blue-400/30"
@@ -1151,16 +1017,16 @@ export const Leaves: React.FC = () => {
                       <div className="pt-2">
                         <div className="flex items-center justify-between text-[10px] font-bold text-blue-300 mb-2 px-1">
                           <span>تقدم الإجازة</span>
-                          <span>{leave ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100))).toFixed(0)}%` : '0%'}</span>
+                          <span>{leave && isValidEnd ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100))).toFixed(0)}%` : '0%'}</span>
                         </div>
                         <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                           <motion.div 
                             initial={{ width: 0 }}
-                            animate={{ width: leave ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100)))}%` : '0%' }}
+                            animate={{ width: (leave && isValidEnd) ? `${Math.max(0, Math.min(100, 100 - (diffDays / 30 * 100)))}%` : '0%' }}
                             transition={{ duration: 1.5, ease: "easeOut" }}
                             className={cn(
                               "h-full rounded-full shadow-[0_0_8px_rgba(255,255,255,0.2)]",
-                              diffDays < 0 ? "bg-red-400" : "bg-blue-400"
+                              (isValidEnd && diffDays < 0) ? "bg-red-400" : "bg-blue-400"
                             )}
                           />
                         </div>
@@ -1168,32 +1034,33 @@ export const Leaves: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      {leave ? (
-                        <>
-                          <button
-                            onClick={() => handleConfirmReturn(leave)}
-                            className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-95 text-sm"
-                          >
-                            <CheckCircle2 className="w-5 h-5" />
-                            تأكيد المباشرة
-                          </button>
-                          <button
-                            onClick={() => handleEditLeave(leave)}
-                            className="px-6 py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 backdrop-blur-md border border-white/10 active:scale-95 text-sm"
-                          >
-                            <Edit2 className="w-5 h-5" />
-                            تعديل
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleConfirmReturn(emp)}
-                          className="col-span-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-95"
-                        >
-                          <CheckCircle2 className="w-5 h-5" />
-                          تأكيد المباشرة الآن
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleConfirmReturn(leave || emp)}
+                        className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 active:scale-95 text-sm"
+                      >
+                        <CheckCircle2 className="w-5 h-5" />
+                        تأكيد المباشرة
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (leave) {
+                            handleEditLeave(leave);
+                          } else {
+                            setSelectedLeave(null);
+                            setFormData({
+                              employeeId: emp.id,
+                              startDate: format(new Date(), 'yyyy-MM-dd'),
+                              endDate: ''
+                            });
+                            setEmployeeSearchTerm(emp.name);
+                            setIsModalOpen(true);
+                          }
+                        }}
+                        className="px-6 py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-2 backdrop-blur-md border border-white/10 active:scale-95 text-sm"
+                      >
+                        <Edit2 className="w-5 h-5" />
+                        تعديل
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -1230,7 +1097,7 @@ export const Leaves: React.FC = () => {
                   const diffDays = isValidDates ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1 : 0;
                   
                   const isOverdue = leave.status === 'Active' && isValidDates && end < new Date();
-                  const isEndingSoon = leave.status === 'Active' && !isOverdue && isValidDates && (end.getTime() - new Date().getTime()) <= (3 * 24 * 60 * 60 * 1000);
+                  const isEndingSoon = leave.status === 'Active' && !isOverdue && isValidDates && (end.getTime() - new Date().getTime()) <= 0;
 
                   return (
                     <motion.tr 

@@ -432,9 +432,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           </td>
           <td style="padding: 16px; font-weight: 800; color: #1e3a8a; text-align: center;">${emp.employeeId}</td>
           <td style="padding: 16px; font-weight: 600; color: #475569; text-align: center;">${emp.nationality || '---'}</td>
-          <td style="padding: 16px; font-size: 12px; color: #475569; text-align: right;">${emp.officialEmployer || '---'}</td>
-          <td style="padding: 16px; font-size: 12px; color: #475569; text-align: right;">${emp.sectors || '---'}</td>
-          <td style="padding: 16px; font-size: 11px; color: #64748b; text-align: right; max-width: 120px;">${emp.sectorManagement || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.sectorManagement || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.sectors || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.costCenterMain || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #64748b; text-align: right; max-width: 100px;">${emp.costCenterDept || '---'}</td>
           <td style="padding: 16px; text-align: center;">
             <span style="padding: 6px 12px; border-radius: 10px; font-size: 10px; font-weight: 900; background: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#f0fdf4' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#eff6ff' : '#fef2f2'}; color: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#15803d' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#1d4ed8' : '#b91c1c'}; border: 1px solid ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#dcfce7' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#dbeafe' : '#fee2e2'};">
               {emp.status === 'Active' ? 'نشط' : 
@@ -461,9 +462,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: right; border-bottom: 2px solid #e2e8f0; font-size: 12px; width: 220px;">الموظف / المهنة</th>
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">م</th>
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الجنسية</th>
-            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">صاحب العمل</th>
-            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">القطاع</th>
-            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">مركز التكلفة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">ادارة القطاع</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">القطاعات</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">مركز التكلفة / رئيسي</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">مركز التكلفة / قسم</th>
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الحالة</th>
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">آخر مباشرة</th>
             <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الأطاسي</th>
@@ -1110,6 +1112,22 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ادارة القطاع</label>
+                    <select 
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
+                      value={formData.sectorManagement || ''}
+                      onChange={(e) => setFormData({...formData, sectorManagement: e.target.value})}
+                    >
+                      <option value="">اختر ادارة القطاع</option>
+                      {managements.map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                      {!managements.some(m => m.name === formData.sectorManagement) && formData.sectorManagement && (
+                        <option value={formData.sectorManagement}>{formData.sectorManagement}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">القطاعات</label>
                     <select 
                       className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
@@ -1127,19 +1145,11 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">مركز التكلفة / رئيسي</label>
-                    <select 
-                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-right text-gray-900 dark:text-white appearance-none"
-                      value={formData.sectorManagement || ''}
-                      onChange={(e) => setFormData({...formData, sectorManagement: e.target.value})}
-                    >
-                      <option value="">اختر مركز التكلفة</option>
-                      {managements.map(m => (
-                        <option key={m.id} value={m.name}>{m.name}</option>
-                      ))}
-                      {!managements.some(m => m.name === formData.sectorManagement) && formData.sectorManagement && (
-                        <option value={formData.sectorManagement}>{formData.sectorManagement}</option>
-                      )}
-                    </select>
+                    <input 
+                      className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
+                      value={formData.costCenterMain || ''}
+                      onChange={(e) => setFormData({...formData, costCenterMain: e.target.value})}
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">مركز التكلفة / قسم</label>
@@ -1218,7 +1228,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white"
-                      value={formData.housingAllowance}
+                      value={formData.housingAllowance ?? 0}
                       onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})}
                     />
                   </div>
@@ -1227,7 +1237,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.transportAllowance}
+                      value={formData.transportAllowance ?? 0}
                       onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})}
                     />
                   </div>
@@ -1236,7 +1246,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.subsistenceAllowance}
+                      value={formData.subsistenceAllowance ?? 0}
                       onChange={(e) => setFormData({...formData, subsistenceAllowance: Number(e.target.value)})}
                     />
                   </div>
@@ -1245,7 +1255,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.mobileAllowance}
+                      value={formData.mobileAllowance ?? 0}
                       onChange={(e) => setFormData({...formData, mobileAllowance: Number(e.target.value)})}
                     />
                   </div>
@@ -1254,7 +1264,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.managementAllowance}
+                      value={formData.managementAllowance ?? 0}
                       onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})}
                     />
                   </div>
@@ -1279,7 +1289,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     <input 
                       type="number"
                       className="w-full px-5 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                      value={formData.otherAllowances}
+                      value={formData.otherAllowances ?? 0}
                       onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})}
                     />
                   </div>
@@ -1310,7 +1320,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                         <div key={allowance.id || index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                           <select 
                             className="flex-1 bg-white px-4 py-2 rounded-xl border border-gray-100 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
-                            value={allowance.type}
+                            value={allowance.type || ''}
                             onChange={(e) => handleAllowanceChange(index, 'type', e.target.value)}
                           >
                             <option value="">اختر نوع البدل...</option>
@@ -1322,7 +1332,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                             type="number"
                             placeholder="المبلغ"
                             className="w-32 bg-white px-4 py-2 rounded-xl border border-gray-100 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
-                            value={allowance.amount}
+                            value={allowance.amount ?? 0}
                             onChange={(e) => handleAllowanceChange(index, 'amount', Number(e.target.value))}
                           />
                           <button 
@@ -1448,8 +1458,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   <DetailItem label="الجنسية" value={viewingEmployee.nationality} />
                   <DetailItem label="تاريخ التعيين" value={viewingEmployee.joinDate} />
                   <DetailItem label="آخر مباشرة" value={viewingEmployee.lastDirectDate} />
-                  <DetailItem label="القطاع" value={viewingEmployee.sectors} />
-                  <DetailItem label="مركز التكلفة" value={viewingEmployee.sectorManagement} />
+                  <DetailItem label="ادارة القطاع" value={viewingEmployee.sectorManagement} />
+                  <DetailItem label="القطاعات" value={viewingEmployee.sectors} />
+                  <DetailItem label="مركز التكلفة / رئيسي" value={viewingEmployee.costCenterMain} />
+                  <DetailItem label="مركز التكلفة / قسم" value={viewingEmployee.costCenterDept} />
                   <DetailItem label="الموقع" value={viewingEmployee.location} />
                   <DetailItem label="طريقة الدفع" value={viewingEmployee.paymentMethod === 'Bank' ? 'بنك' : 'نقداً'} />
                   <DetailItem label="رصيد الإجازات الحالي" value={`${calculateBalance(viewingEmployee)} يوم`} />

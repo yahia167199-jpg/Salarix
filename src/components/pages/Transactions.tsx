@@ -133,6 +133,7 @@ export const Transactions: React.FC = () => {
 
       setFormData({
         ...formData,
+        id: undefined, // CRITICAL: Clear ID when changing employee to prevent overwriting
         employeeId: empId,
         actualWorkDays: suggestedDays,
         basicSalary: proRate(emp.basicSalary || 0),
@@ -146,7 +147,7 @@ export const Transactions: React.FC = () => {
         notes: initialNotes
       });
     } else {
-      setFormData({ ...formData, employeeId: empId });
+      setFormData({ ...formData, id: undefined, employeeId: empId });
     }
   };
 
@@ -249,6 +250,7 @@ export const Transactions: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
+      id: undefined,
       employeeId: '',
       month: selectedMonth,
       actualWorkDays: 30,
@@ -285,14 +287,33 @@ export const Transactions: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const totals = calculateTotals(formData);
-    const docRef = doc(collection(db, 'transactions'));
-    await setDoc(docRef, {
-      ...formData,
-      ...totals,
-      createdAt: new Date().toISOString()
-    });
-    setIsModalOpen(false);
-    resetForm();
+    
+    try {
+      setLoading(true);
+      const transactionData = {
+        ...formData,
+        ...totals,
+        updatedAt: serverTimestamp()
+      };
+
+      if (formData.id) {
+        // Update existing
+        await setDoc(doc(db, 'transactions', formData.id), transactionData);
+      } else {
+        // Create new
+        const docRef = doc(collection(db, 'transactions'));
+        await setDoc(docRef, {
+          ...transactionData,
+          createdAt: new Date().toISOString()
+        });
+      }
+      setIsModalOpen(false);
+      resetForm();
+    } catch (error) {
+      handleFirestoreError(error, formData.id ? OperationType.UPDATE : OperationType.CREATE, 'transactions');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Update form month when selectedMonth changes
@@ -709,6 +730,7 @@ export const Transactions: React.FC = () => {
     if (existing) {
       handleEdit(existing);
     } else {
+      resetForm();
       handleEmployeeChange(emp.id);
       setIsModalOpen(true);
     }
@@ -1107,7 +1129,13 @@ export const Transactions: React.FC = () => {
                             <span className="text-[10px] md:text-xs font-black">حالة: إجـــــازة (تأكيد المباشرة مطلوب)</span>
                           </div>
                         ) : isDone ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-4">
+                            <div className="hidden sm:flex flex-col items-end px-3 py-1 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100/50 dark:border-emerald-900/20">
+                              <span className="text-[9px] font-black text-emerald-600/60 dark:text-emerald-400/60 uppercase">صافي الراتب</span>
+                              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(transaction?.netSalary || 0)}
+                              </span>
+                            </div>
                             <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-xl group/reset">
                               <CheckCircle2 className="w-4 h-4" />
                               <span className="text-xs font-black">تـــــــم</span>
