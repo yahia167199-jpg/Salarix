@@ -670,7 +670,16 @@ export const Transactions: React.FC = () => {
 
         return true;
       })
-      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      .sort((a, b) => {
+        const empA = employees.find(e => e.id === a.employeeId);
+        const empB = employees.find(e => e.id === b.employeeId);
+        const idA = parseInt(empA?.employeeId || '0', 10);
+        const idB = parseInt(empB?.employeeId || '0', 10);
+        if (isNaN(idA) || isNaN(idB)) {
+          return (empA?.employeeId || '').localeCompare(empB?.employeeId || '');
+        }
+        return idA - idB;
+      });
   }, [transactions, employees, searchTerm, classificationFilter, selectedMonth]);
 
   const handleReturnFromLeave = (emp: Employee) => {
