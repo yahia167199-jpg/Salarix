@@ -156,7 +156,7 @@ export const Transactions: React.FC = () => {
     const emp = employees.find(e => e.id === formData.employeeId);
     if (!emp) return;
 
-    const days = formData.actualWorkDays || 30;
+    const days = typeof formData.actualWorkDays === 'number' ? formData.actualWorkDays : 30;
     const proRate = (val: number) => Number(((val / 30) * days).toFixed(2));
 
     const updatedBase = {
@@ -462,28 +462,6 @@ export const Transactions: React.FC = () => {
     }
   };
 
-  // One-time cleanup for specific employee as requested
-  useEffect(() => {
-    const runCleanup = async () => {
-      const targetName = "حبيب الله مد سليم مياه";
-      const targetMonth = "2026-03";
-      
-      const emp = employees.find(e => e.name?.trim() === targetName.trim());
-      if (emp) {
-        const txs = transactions.filter(t => t.employeeId === emp.id && t.month === targetMonth);
-        if (txs.length > 0) {
-          const batch = writeBatch(db);
-          txs.forEach(t => batch.delete(doc(db, 'transactions', t.id)));
-          await batch.commit();
-          console.log(`Cleaned up ${txs.length} transactions for ${targetName}`);
-        }
-      }
-    };
-    if (employees.length > 0 && transactions.length > 0) {
-      runCleanup();
-    }
-  }, [employees, transactions]);
-
   const deleteDrafts = async () => {
     const drafts = transactions.filter(t => t.status === 'Draft');
     if (drafts.length === 0) return alert('لا يوجد حركات مسودة لحذفها');
@@ -691,7 +669,7 @@ export const Transactions: React.FC = () => {
             id: transactionId,
             employeeId: emp.id,
             month: rowMonth,
-            actualWorkDays: Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) || 30,
+            actualWorkDays: typeof (row['عدد الايام العمل الفعلي'] || row['أيام العمل']) === 'number' ? Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) : 30,
             basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
             housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
             transportAllowance: Number(row['بدل نقل (حركة)'] || row['بدل نقل (ح حركة)'] || row['بدل نقل']) ?? emp.transportAllowance,
