@@ -406,26 +406,74 @@ export const Transactions: React.FC = () => {
   }, [employees, transactions, selectedMonth, monthlyCardFilter, gridStatusFilter, searchTerm, showIncompleteOnly]);
 
   const gridStats = useMemo(() => {
-    // 1. Get unique employees matching current filter
-    const total = employees.filter(e => {
-      if (gridStatusFilter === 'All') {
-        return ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(e.status);
+    // 1. Deduplicate employees first (same as in filtering logic)
+    const uniqueEmployeesMap = new Map();
+    employees.forEach(emp => {
+      const key = `${emp.employeeId}_${emp.name}`;
+      const existing = uniqueEmployeesMap.get(key);
+      if (existing) {
+        const hasTransactionNew = transactions.some(t => t.employeeId === emp.id && t.month === selectedMonth);
+        const hasTransactionOld = transactions.some(t => t.employeeId === existing.id && t.month === selectedMonth);
+        if (hasTransactionNew && !hasTransactionOld) uniqueEmployeesMap.set(key, emp);
+      } else {
+        uniqueEmployeesMap.set(key, emp);
       }
-      if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
-      if (gridStatusFilter === 'Leave') return (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
-      return e.status === gridStatusFilter;
-    }).length;
+    });
+    const uniqueEmployees = Array.from(uniqueEmployeesMap.values());
 
-    // 2. Count unique employees WHO HAVE at least one transaction this month
+    // 2. Filter unique employees by current status AND classification
+    const targetEmployees = uniqueEmployees.filter(e => {
+      // Status Filter
+      let statusMatch = false;
+      if (gridStatusFilter === 'All') {
+        statusMatch = ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(e.status);
+      } else if (gridStatusFilter === 'Active') {
+        statusMatch = (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+      } else if (gridStatusFilter === 'Leave') {
+        statusMatch = (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
+      } else {
+        statusMatch = e.status === gridStatusFilter;
+      }
+      if (!statusMatch) return false;
+
+      // Classification Filter
+      if (monthlyCardFilter === 'All') return true;
+      if (monthlyCardFilter === 'Standard') {
+        return e.classification !== 'Saudi' && e.classification !== 'Accounting';
+      }
+      return e.classification === monthlyCardFilter;
+    });
+
+    const total = targetEmployees.length;
+
+    // 3. Map of target unique IDs for quick lookup
+    const targetEmpIds = new Set(targetEmployees.map(e => e.id));
+
+    // 4. Filter transactions for the selected month
     const monthTx = transactions.filter(t => t.month === selectedMonth);
-    const uniqueEmpIds = new Set(monthTx.map(t => t.employeeId));
-    const finished = uniqueEmpIds.size;
     
-    // 3. Detect total records vs unique to identify duplicates
-    const duplicatesCount = monthTx.length - uniqueEmpIds.size;
+    // 5. Count unique employees WHO ARE in the filtered target list AND have a transaction
+    const uniqueFinishedEmpIds = new Set(
+      monthTx
+        .filter(t => targetEmpIds.has(t.employeeId))
+        .map(t => t.employeeId)
+    );
+    
+    const finished = uniqueFinishedEmpIds.size;
+    
+    // 6. Calculate total net salary for finished employees
+    let totalNetSalary = 0;
+    uniqueFinishedEmpIds.forEach(empId => {
+      const t = monthTx.find(tx => tx.employeeId === empId);
+      if (t) totalNetSalary += (t.netSalary || 0);
+    });
+    
+    // 7. Detect duplicates in the full monthly transaction list (total records vs unique emp IDs for THIS month)
+    const uniqueAllEmpIdsInMonth = new Set(monthTx.map(t => t.employeeId));
+    const duplicatesCount = monthTx.length - uniqueAllEmpIdsInMonth.size;
 
-    return { total, finished, remaining: Math.max(0, total - finished), duplicatesCount };
-  }, [employees, transactions, selectedMonth, gridStatusFilter]);
+    return { total, finished, remaining: Math.max(0, total - finished), duplicatesCount, totalNetSalary };
+  }, [employees, transactions, selectedMonth, gridStatusFilter, monthlyCardFilter]);
 
   const handleDelete = async (id: string) => {
     await deleteDoc(doc(db, 'transactions', id));
@@ -554,62 +602,110 @@ export const Transactions: React.FC = () => {
   };
 
   const handleExportFinalReport = () => {
-    const data = sortedTransactions.map((t, index) => {
-      const emp = employees.find(e => e.id === t.employeeId);
+    // 1. Get all unique employees and deduplicate (same logic as in grid)
+    const uniqueEmployeesMap = new Map();
+    employees.forEach(emp => {
+      const key = `${emp.employeeId}_${emp.name}`;
+      const existing = uniqueEmployeesMap.get(key);
+      if (existing) {
+        const hasTransactionNew = transactions.some(t => t.employeeId === emp.id && t.month === selectedMonth);
+        const hasTransactionOld = transactions.some(t => t.employeeId === existing.id && t.month === selectedMonth);
+        if (hasTransactionNew && !hasTransactionOld) uniqueEmployeesMap.set(key, emp);
+      } else {
+        uniqueEmployeesMap.set(key, emp);
+      }
+    });
+
+    const allEmployees = Array.from(uniqueEmployeesMap.values());
+
+    // 2. Filter for Export: Include Standard and Accounting, Exclude Saudi
+    // Filter by allowed active statuses (Active and Out of Sponsorship Active)
+    const targetEmployees = allEmployees
+      .filter(emp => {
+        // Must not be Saudi
+        if (emp.classification === 'Saudi') return false;
+        
+        // Strictly Active or Active Out of Sponsorship
+        const isTargetStatus = emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)';
+        if (!isTargetStatus) return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        const idA = parseInt(a.employeeId || '0', 10);
+        const idB = parseInt(b.employeeId || '0', 10);
+        if (isNaN(idA) || isNaN(idB)) {
+          return (a.employeeId || '').localeCompare(b.employeeId || '');
+        }
+        return idA - idB;
+      });
+
+    const data = targetEmployees.map((emp, index) => {
+      const t = transactions.find(tx => tx.employeeId === emp.id && tx.month === selectedMonth);
+      
+      // Values from transaction or defaults if not processed
+      const basicSalary = t ? t.basicSalary : (emp.basicSalary || 0);
+      const housing = t ? t.housingAllowance : (emp.housingAllowance || 0);
+      const transport = t ? t.transportAllowance : (emp.transportAllowance || 0);
+      const subsistence = t ? t.subsistenceAllowance : (emp.subsistenceAllowance || 0);
+      const other = t ? t.otherAllowances : (emp.otherAllowances || 0);
+      const mobile = t ? t.mobileAllowance : (emp.mobileAllowance || 0);
+      const management = t ? t.managementAllowance : (emp.managementAllowance || 0);
+
       return {
         'ت عام': index + 1,
         'ت': index + 1,
-        'الإسم': emp?.name || 'موظف محذوف',
-        'الجنسية': emp?.nationality || '',
-        'الوظيفة': emp?.jobTitle || '',
-        'الرقم الوظيفي': emp?.employeeId || '',
-        'بداية العمل': emp?.joinDate || '',
-        'آخر مباشرة': emp?.lastDirectDate || '',
-        'رقم الأقامة': emp?.iqamaNumber || '',
-        'ادارة القطاع': emp?.sectorManagement || '',
-        'القطاعات': emp?.sectors || '',
-        'مركز التكلفة / رئيسي': emp?.costCenterMain || '',
-        'مركز التكلفة / قسم': emp?.costCenterDept || '',
-        'الراتب الاساسي': emp?.basicSalary || 0,
-        'بدل سكن': emp?.housingAllowance || 0,
-        'بدل نقل': emp?.transportAllowance || 0,
-        'بدل إعاشه': emp?.subsistenceAllowance || 0,
-        'بدلات اخرى': emp?.otherAllowances || 0,
-        'بدل جوال': emp?.mobileAllowance || 0,
-        'بدل ادارة': emp?.managementAllowance || 0,
-        'المجموع': (emp?.basicSalary || 0) + (emp?.housingAllowance || 0) + (emp?.transportAllowance || 0) + (emp?.subsistenceAllowance || 0) + (emp?.otherAllowances || 0) + (emp?.mobileAllowance || 0) + (emp?.managementAllowance || 0),
-        'عدد الايام العمل الفعلي': t.actualWorkDays,
-        'بدل سكن (ح حركة)': t.housingAllowance,
-        'بدل نقل (ح حركة)': t.transportAllowance,
-        'بدل إعاشه (ح حركة)': t.subsistenceAllowance,
-        'بدلات اخرى (ح حركة)': t.otherAllowances,
-        'بدل جوال (ح حركة)': t.mobileAllowance,
-        'بدل ادارة (ح حركة)': t.managementAllowance,
-        'دخل آخر': t.otherIncome,
-        'عدد ساعات العمل الاضافي': t.overtimeHours,
-        'قيمة عمل اضافي': t.overtimeValue,
-        'مجموع الدخل': t.totalIncome,
-        'تامينات اجتماعية': t.socialInsurance,
-        'استلام الكاش': t.salaryReceived,
-        'سلف': t.loans,
-        'استلام بنك': t.bankReceived,
-        'اقتطاعات اخرى': t.otherDeductions,
-        'عدد الساعات': t.deductionHours,
-        'خصم المغادرات والتاخير': t.departureDelayDeduction,
-        'عدد ايام الغياب': t.absenceDays,
-        'خصم الغياب': t.absenceDeduction,
-        'مجموع الاقتطاعات': t.totalDeductions,
-        'صافي الراتب': t.netSalary,
-        'الحالة': t.status === 'Draft' ? 'مسودة' : 'معتمد',
-        'زيادة راتب': t.salaryIncrease || 0,
-        'ملاحظات': t.notes || ''
+        'الإسم': emp.name,
+        'الجنسية': emp.nationality || '',
+        'الوظيفة': emp.jobTitle || '',
+        'الرقم الوظيفي': emp.employeeId || '',
+        'بداية العمل': emp.joinDate || '',
+        'آخر مباشرة': emp.lastDirectDate || '',
+        'رقم الأقامة': emp.iqamaNumber || '',
+        'ادارة القطاع': emp.sectorManagement || '',
+        'القطاعات': emp.sectors || '',
+        'مركز التكلفة / رئيسي': emp.costCenterMain || '',
+        'مركز التكلفة / قسم': emp.costCenterDept || '',
+        'الراتب الاساسي': emp.basicSalary || 0,
+        'بدل سكن': emp.housingAllowance || 0,
+        'بدل نقل': emp.transportAllowance || 0,
+        'بدل إعاشه': emp.subsistenceAllowance || 0,
+        'بدلات اخرى': emp.otherAllowances || 0,
+        'بدل جوال': emp.mobileAllowance || 0,
+        'بدل ادارة': emp.managementAllowance || 0,
+        'المجموع': (emp.basicSalary || 0) + (emp.housingAllowance || 0) + (emp.transportAllowance || 0) + (emp.subsistenceAllowance || 0) + (emp.otherAllowances || 0) + (emp.mobileAllowance || 0) + (emp.managementAllowance || 0),
+        'عدد الايام العمل الفعلي': t ? t.actualWorkDays : 30,
+        'بدل سكن (ح حركة)': housing,
+        'بدل نقل (ح حركة)': transport,
+        'بدل إعاشه (ح حركة)': subsistence,
+        'بدلات اخرى (ح حركة)': other,
+        'بدل جوال (ح حركة)': mobile,
+        'بدل ادارة (ح حركة)': management,
+        'دخل آخر': t ? t.otherIncome : 0,
+        'عدد ساعات العمل الاضافي': t ? t.overtimeHours : 0,
+        'قيمة عمل اضافي': t ? t.overtimeValue : 0,
+        'مجموع الدخل': t ? t.totalIncome : (basicSalary + housing + transport + subsistence + other + mobile + management),
+        'تامينات اجتماعية': t ? t.socialInsurance : 0,
+        'استلام الكاش': t ? t.salaryReceived : 0,
+        'سلف': t ? t.loans : 0,
+        'استلام بنك': t ? t.bankReceived : 0,
+        'اقتطاعات اخرى': t ? t.otherDeductions : 0,
+        'عدد الساعات': t ? t.deductionHours : 0,
+        'خصم المغادرات والتاخير': t ? t.departureDelayDeduction : 0,
+        'عدد ايام الغياب': t ? t.absenceDays : 0,
+        'خصم الغياب': t ? t.absenceDeduction : 0,
+        'مجموع الاقتطاعات': t ? t.totalDeductions : 0,
+        'صافي الراتب': t ? t.netSalary : (basicSalary + housing + transport + subsistence + other + mobile + management),
+        'الحالة': t ? (t.status === 'Draft' ? 'مسودة' : 'معتمد') : 'غير مدخل',
+        'زيادة راتب': t ? (t.salaryIncrease || 0) : 0,
+        'ملاحظات': t ? (t.notes || '') : ''
       };
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Final_Payroll");
-    XLSX.writeFile(wb, `Final_Approved_Payroll_${new Date().toISOString().slice(0, 7)}.xlsx`);
+    XLSX.writeFile(wb, `Final_Approved_Payroll_${selectedMonth}.xlsx`);
   };
 
   const handleImportExcel = async () => {
@@ -1015,34 +1111,43 @@ export const Transactions: React.FC = () => {
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Progress Indicators */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center">
-              <LayoutGrid className="w-6 h-6" />
+              <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center">
+                <LayoutGrid className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500">إجمالي الموظفين</p>
+                <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.total}</h4>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">إجمالي الموظفين</p>
-              <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.total}</h4>
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500">تـــــــــم</p>
+                <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400">{gridStats.finished}</h4>
+              </div>
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" />
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-2xl flex items-center justify-center">
+                <UserMinus className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500">المتبقي</p>
+                <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.remaining}</h4>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">تـــــــــم</p>
-              <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400">{gridStats.finished}</h4>
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-[2rem] border border-blue-500 shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-4 text-white">
+              <div className="w-12 h-12 bg-white/20 text-white rounded-2xl flex items-center justify-center">
+                <ArrowUpRight className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-blue-100">إجمالي الصافي (بعد الخصومات والزيادات)</p>
+                <h4 className="text-xl font-black">{formatCurrency(gridStats.totalNetSalary)}</h4>
+              </div>
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 rounded-2xl flex items-center justify-center">
-              <UserMinus className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-gray-400 dark:text-gray-500">المتبقي</p>
-              <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.remaining}</h4>
-            </div>
-          </div>
           </div>
 
           {gridStats.duplicatesCount > 0 && (
