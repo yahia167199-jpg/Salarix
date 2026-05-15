@@ -38,6 +38,8 @@ export const Transactions: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'History' | 'MonthlyCard'>('History');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importMonth, setImportMonth] = useState(new Date().toISOString().slice(0, 7));
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,6 +48,7 @@ export const Transactions: React.FC = () => {
   const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave' | 'Out of Sponsorship (Active)' | 'Out of Sponsorship (Leave)'>('Active');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   // Return from leave modal state
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
@@ -596,70 +599,78 @@ export const Transactions: React.FC = () => {
     XLSX.writeFile(wb, `Final_Approved_Payroll_${new Date().toISOString().slice(0, 7)}.xlsx`);
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImportExcel = async () => {
+    if (!importFile) return;
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const dataArr = evt.target?.result;
-      const wb = XLSX.read(dataArr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws) as any[];
+      try {
+        setLoading(true);
+        const dataArr = evt.target?.result;
+        const wb = XLSX.read(dataArr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-      const batch = writeBatch(db);
-      for (const row of data) {
-        const emp = employees.find(e => 
-          String(e.name).trim() === String(row['الإسم'] || row['اسم الموظف'] || '').trim() || 
-          String(e.employeeId).trim() === String(row['الرقم الوظيفي'] || row['رقم الموظف'] || '').trim()
-        );
+        const batch = writeBatch(db);
+        for (const row of data) {
+          const emp = employees.find(e => 
+            String(e.name).trim() === String(row['الإسم'] || row['اسم الموظف'] || '').trim() || 
+            String(e.employeeId).trim() === String(row['الرقم الوظيفي'] || row['رقم الموظف'] || '').trim()
+          );
 
-        if (emp) {
-          const rowMonth = row['الشهر'] || new Date().toISOString().slice(0, 7);
-          const transactionId = `${emp.id}_${rowMonth}`;
-          const docRef = doc(db, 'transactions', transactionId);
-          
-          const rawData = {
-            id: transactionId,
-            employeeId: emp.id,
-            month: rowMonth,
-            actualWorkDays: Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) || 30,
-            basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
-            housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
-            transportAllowance: Number(row['بدل نقل (حركة)'] || row['بدل نقل (ح حركة)'] || row['بدل نقل']) ?? emp.transportAllowance,
-            subsistenceAllowance: Number(row['بدل إعاشه (حركة)'] || row['بدل إعاشه (ح حركة)'] || row['بدل إعاشه']) ?? emp.subsistenceAllowance,
-            otherAllowances: Number(row['بدلات اخرى (حركة)'] || row['بدلات اخرى (ح حركة)'] || row['بدلات اخرى']) ?? emp.otherAllowances,
-            mobileAllowance: Number(row['بدل جوال (حركة)'] || row['بدل جوال (ح حركة)'] || row['بدل جوال']) ?? emp.mobileAllowance,
-            managementAllowance: Number(row['بدل ادارة (حركة)'] || row['بدل ادارة (ح حركة)'] || row['بدل ادارة']) ?? emp.managementAllowance,
-            otherIncome: Number(row['دخل آخر']) || 0,
-            overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
-            overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
-            socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
-            salaryReceived: Number(row['استلام الكاش'] || row['استلام راتب']) || 0,
-            loans: Number(row['سلف']) || 0,
-            bankReceived: Number(row['استلام بنك']) || 0,
-            otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
-            deductionHours: Number(row['عدد الساعات'] || row['ساعات الخصم']) || 0,
-            departureDelayDeduction: Number(row['خصم المغادرات والتاخير']) || 0,
-            absenceDays: Number(row['عدد ايام الغياب'] || row['أيام الغياب']) || 0,
-            absenceDeduction: Number(row['خصم الغياب']) || 0,
-            salaryIncrease: Number(row['زيادة راتب']) || 0,
-            dailyWorkHours: Number(row['ساعات العمل اليومية'] || emp.dailyWorkHours) || 8,
-            notes: row['ملاحظات'] || '',
-            status: 'Draft'
-          };
+          if (emp) {
+            const rowMonth = importMonth;
+            const transactionId = `${emp.id}_${rowMonth}`;
+            const docRef = doc(db, 'transactions', transactionId);
+            
+            const rawData = {
+              id: transactionId,
+              employeeId: emp.id,
+              month: rowMonth,
+              actualWorkDays: Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) || 30,
+              basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
+              housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
+              transportAllowance: Number(row['بدل نقل (حركة)'] || row['بدل نقل (ح حركة)'] || row['بدل نقل']) ?? emp.transportAllowance,
+              subsistenceAllowance: Number(row['بدل إعاشه (حركة)'] || row['بدل إعاشه (ح حركة)'] || row['بدل إعاشه']) ?? emp.subsistenceAllowance,
+              otherAllowances: Number(row['بدلات اخرى (حركة)'] || row['بدلات اخرى (ح حركة)'] || row['بدلات اخرى']) ?? emp.otherAllowances,
+              mobileAllowance: Number(row['بدل جوال (حركة)'] || row['بدل جوال (ح حركة)'] || row['بدل جوال']) ?? emp.mobileAllowance,
+              managementAllowance: Number(row['بدل ادارة (حركة)'] || row['بدل ادارة (ح حركة)'] || row['بدل ادارة']) ?? emp.managementAllowance,
+              otherIncome: Number(row['دخل آخر']) || 0,
+              overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
+              overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
+              socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
+              salaryReceived: Number(row['استلام الكاش'] || row['استلام راتب']) || 0,
+              loans: Number(row['سلف']) || 0,
+              bankReceived: Number(row['استلام بنك']) || 0,
+              otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
+              deductionHours: Number(row['عدد الساعات'] || row['ساعات الخصم']) || 0,
+              departureDelayDeduction: Number(row['خصم المغادرات والتاخير']) || 0,
+              absenceDays: Number(row['عدد ايام الغياب'] || row['أيام الغياب']) || 0,
+              absenceDeduction: Number(row['خصم الغياب']) || 0,
+              salaryIncrease: Number(row['زيادة راتب']) || 0,
+              dailyWorkHours: Number(row['ساعات العمل اليومية'] || emp.dailyWorkHours) || 8,
+              notes: row['ملاحظات'] || '',
+              status: 'Draft'
+            };
 
-          const totals = calculateTotals(rawData as any);
-          batch.set(docRef, { ...rawData, ...totals, createdAt: new Date().toISOString() });
+            const totals = calculateTotals(rawData as any);
+            batch.set(docRef, { ...rawData, ...totals, createdAt: new Date().toISOString() });
+          }
         }
-      }
 
-      await batch.commit();
-      alert('تم استيراد الحركات بنجاح');
-      if (e.target) e.target.value = '';
+        await batch.commit();
+        alert('تم استيراد الحركات بنجاح');
+        setIsImportModalOpen(false);
+        setImportFile(null);
+      } catch (error) {
+        console.error('Error importing excel:', error);
+        alert('حدث خطأ أثناء استيراد البيانات');
+      } finally {
+        setLoading(false);
+      }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsBinaryString(importFile);
   };
 
   const sortedTransactions = useMemo(() => {
@@ -875,11 +886,16 @@ export const Transactions: React.FC = () => {
                   <span className="hidden md:inline">حذف المسودات</span>
                 </button>
               )}
-              <label className="cursor-pointer p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors shadow-sm flex items-center gap-2 font-bold">
+              <button 
+                onClick={() => {
+                  setImportMonth(selectedMonth);
+                  setIsImportModalOpen(true);
+                }}
+                className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors shadow-sm flex items-center gap-2 font-bold"
+              >
                 <Upload className="w-5 h-5" />
                 <span className="hidden md:inline">استيراد</span>
-                <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleImportExcel} />
-              </label>
+              </button>
               <button 
                 onClick={handleExportDataEntryTemplate}
                 className="p-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm flex items-center gap-2 font-bold"
@@ -1257,6 +1273,90 @@ export const Transactions: React.FC = () => {
           )}
         </motion.div>
       )}
+
+      {/* Import Modal */}
+      <AnimatePresence>
+        {isImportModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setIsImportModalOpen(false)} 
+              className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="relative bg-white dark:bg-gray-900 w-full max-w-md rounded-[2.5rem] shadow-2xl p-8 border border-gray-100 dark:border-gray-800"
+            >
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-[2rem] flex items-center justify-center mx-auto mb-4">
+                  <Upload className="w-10 h-10" />
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 dark:text-white">استيراد حركات الشهرية</h3>
+                <p className="text-gray-500 dark:text-gray-400 font-bold mt-2">يرجى اختيار الشهر والسنة واختيار ملف الإكسيل</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-black text-gray-700 dark:text-gray-300 mb-2">الشهر والسنة المستهدفين</label>
+                  <input 
+                    type="month" 
+                    value={importMonth}
+                    onChange={(e) => setImportMonth(e.target.value)}
+                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-black text-gray-700 dark:text-gray-300 mb-2">ملف الإكسيل</label>
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept=".xlsx, .xls"
+                      onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      className="hidden" 
+                      id="import-file-input"
+                    />
+                    <label 
+                      htmlFor="import-file-input"
+                      className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-2xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-all font-bold group"
+                    >
+                      <span className="text-gray-500 dark:text-gray-400 truncate">
+                        {importFile ? importFile.name : 'اختر الملف...'}
+                      </span>
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-8">
+                <button
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="px-6 py-4 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 font-black rounded-2xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleImportExcel}
+                  disabled={loading || !importFile}
+                  className="px-6 py-4 bg-blue-600 text-white font-black rounded-2xl enabled:hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'جاري الاستيراد...' : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>بدء الاستيراد</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Return from Leave Modal */}
       <AnimatePresence>
