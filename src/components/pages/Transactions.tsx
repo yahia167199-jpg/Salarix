@@ -43,8 +43,8 @@ export const Transactions: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All'>('Standard');
-  const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All'>('Standard');
+  const [classificationFilter, setClassificationFilter] = useState<EmployeeCategory | 'All' | 'OutofSponsorship'>('Standard');
+  const [monthlyCardFilter, setMonthlyCardFilter] = useState<EmployeeCategory | 'All' | 'OutofSponsorship'>('Standard');
   const [gridStatusFilter, setGridStatusFilter] = useState<'All' | 'Active' | 'Leave' | 'Out of Sponsorship (Active)' | 'Out of Sponsorship (Leave)'>('Active');
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -373,14 +373,18 @@ export const Transactions: React.FC = () => {
     return uniqueEmployees
       .filter(e => {
         if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
-        if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+        if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship');
         if (gridStatusFilter === 'Leave') return (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
         return e.status === gridStatusFilter;
       })
       .filter(e => {
         if (monthlyCardFilter === 'All') return true;
+        if (monthlyCardFilter === 'OutofSponsorship') {
+          return e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)';
+        }
         if (monthlyCardFilter === 'Standard') {
-          return e.classification !== 'Saudi' && e.classification !== 'Accounting';
+          return (e.classification !== 'Saudi' && e.classification !== 'Accounting') || 
+                 (e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
         }
         return e.classification === monthlyCardFilter;
       })
@@ -428,7 +432,7 @@ export const Transactions: React.FC = () => {
       if (gridStatusFilter === 'All') {
         statusMatch = ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(e.status);
       } else if (gridStatusFilter === 'Active') {
-        statusMatch = (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+        statusMatch = (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship');
       } else if (gridStatusFilter === 'Leave') {
         statusMatch = (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
       } else {
@@ -438,8 +442,12 @@ export const Transactions: React.FC = () => {
 
       // Classification Filter
       if (monthlyCardFilter === 'All') return true;
+      if (monthlyCardFilter === 'OutofSponsorship') {
+        return e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)';
+      }
       if (monthlyCardFilter === 'Standard') {
-        return e.classification !== 'Saudi' && e.classification !== 'Accounting';
+        return (e.classification !== 'Saudi' && e.classification !== 'Accounting') || 
+               (e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
       }
       return e.classification === monthlyCardFilter;
     });
@@ -626,7 +634,7 @@ export const Transactions: React.FC = () => {
         if (emp.classification === 'Saudi') return false;
         
         // Strictly Active or Active Out of Sponsorship
-        const isTargetStatus = emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)';
+        const isTargetStatus = emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)' || emp.status === 'Out of Sponsorship';
         if (!isTargetStatus) return false;
 
         return true;
@@ -813,8 +821,11 @@ export const Transactions: React.FC = () => {
 
         // Classification filter
         if (classificationFilter !== 'All') {
-          if (classificationFilter === 'Standard') {
-            if (emp?.classification === 'Saudi' || emp?.classification === 'Accounting') return false;
+          if (classificationFilter === 'OutofSponsorship') {
+            if (!(emp?.status === 'Out of Sponsorship' || emp?.status === 'Out of Sponsorship (Active)' || emp?.status === 'Out of Sponsorship (Leave)')) return false;
+          } else if (classificationFilter === 'Standard') {
+            const isOutOfSponsorship = emp?.status === 'Out of Sponsorship' || emp?.status === 'Out of Sponsorship (Active)' || emp?.status === 'Out of Sponsorship (Leave)';
+            if (!isOutOfSponsorship && (emp?.classification === 'Saudi' || emp?.classification === 'Accounting')) return false;
           } else {
             if (emp?.classification !== classificationFilter) return false;
           }
@@ -971,6 +982,7 @@ export const Transactions: React.FC = () => {
                   <option value="All">كل التصنيفات</option>
                   <option value="Standard">موظف عادي</option>
                   <option value="Saudi">السعوديين</option>
+                  <option value="OutofSponsorship">خارج الكفالة</option>
                   <option value="Accounting">رواتب المحاسبات</option>
                 </select>
                 <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none group-hover:text-gray-600" />
@@ -1194,6 +1206,7 @@ export const Transactions: React.FC = () => {
                   <option value="All">تصنيف الموظف (الكل)</option>
                   <option value="Standard">موظف عادي</option>
                   <option value="Saudi">السعوديين</option>
+                  <option value="OutofSponsorship">خارج الكفالة</option>
                   <option value="Accounting">رواتب المحاسبات</option>
                 </select>
                 <ChevronDown className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
