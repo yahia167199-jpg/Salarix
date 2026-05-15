@@ -243,7 +243,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const gosi = sum('socialInsurance');
       const cash = sum('salaryReceived');
       const loans = sum('loans');
-      const bank = sum('bankReceived');
       const otherDeductions = sum('otherDeductions');
       const delayDeduction = sum('delayDeduction');
       const absenceDeduction = sum('absenceDeduction');
@@ -268,7 +267,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         gosi,
         cash,
         loans,
-        bank,
         otherDeductions,
         deductionHours,
         delayDeduction,
@@ -306,7 +304,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       gosi: acc.gosi + curr.gosi,
       cash: acc.cash + curr.cash,
       loans: acc.loans + curr.loans,
-      bank: acc.bank + curr.bank,
       otherDeductions: acc.otherDeductions + curr.otherDeductions,
       deductionHours: acc.deductionHours + curr.deductionHours,
       delayDeduction: acc.delayDeduction + curr.delayDeduction,
@@ -317,7 +314,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     }), {
       basic: 0, housing: 0, transport: 0, subsistence: 0, otherAllowances: 0, mobile: 0, 
       management: 0, otherIncome: 0, otHours: 0, otAmount: 0, totalIncome: 0, gosi: 0, 
-      cash: 0, loans: 0, bank: 0, otherDeductions: 0, deductionHours: 0, delayDeduction: 0, 
+      cash: 0, loans: 0, otherDeductions: 0, deductionHours: 0, delayDeduction: 0, 
       absenceDays: 0, absenceDeduction: 0, totalDeductions: 0, netSalary: 0
     });
   }, [reportData]);
@@ -343,9 +340,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       'قيمة عمل اضافي', 
       'مجموع الدخل', 
       'تأمينات اجتماعية', 
-      'استلام الكاش', 
+      'استلام راتب', 
       'سلف', 
-      'استلام بنك', 
       'اقتطاعات اخرى', 
       'عدد الساعات', 
       'خصم المغادرات والتاخير', 
@@ -371,7 +367,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       s.gosi, 
       s.cash, 
       s.loans, 
-      s.bank, 
       s.otherDeductions, 
       s.deductionHours,
       s.delayDeduction, 
@@ -397,7 +392,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       totals.gosi, 
       totals.cash,
       totals.loans, 
-      totals.bank, 
       totals.otherDeductions, 
       totals.deductionHours,
       totals.delayDeduction, 
@@ -694,9 +688,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center bg-orange-50/50 dark:bg-orange-900/10">قيمة عمل اضافي</th>
                   <th className="p-2 font-black text-blue-800 dark:text-blue-300 border border-gray-300 dark:border-gray-700 text-center bg-blue-100 dark:bg-blue-900/30 font-bold">مجموع الدخل</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">تأمينات اجتماعية</th>
-                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام الكاش</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام راتب</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">سلف</th>
-                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام بنك</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">اقتطاعات اخرى</th>
                   <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">عدد الساعات</th>
                   <th className="p-2 font-black text-red-700 dark:text-red-400 border border-gray-300 dark:border-gray-700 text-center bg-red-50/50 dark:bg-red-900/10">خصم المغادرات والتاخير</th>
@@ -724,7 +717,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                     <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.gosi)}</td>
                     <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.cash)}</td>
                     <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.loans)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.bank)}</td>
                     <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.otherDeductions)}</td>
                     <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{s.deductionHours}</td>
                     <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{formatCurrency(s.delayDeduction)}</td>
@@ -752,7 +744,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.gosi)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.cash)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.loans)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.bank)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherDeductions)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{totals.deductionHours}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{formatCurrency(totals.delayDeduction)}</td>
@@ -778,7 +769,6 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.gosi)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.cash)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.loans)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.bank)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherDeductions)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">0.00</td>

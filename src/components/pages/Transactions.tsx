@@ -47,27 +47,6 @@ export const Transactions: React.FC = () => {
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Administrative Cleanup: Delete specific transaction as requested by user
-  useEffect(() => {
-    const cleanup = async () => {
-      const targetName = "حبيب الله مد سليم مياه";
-      const targetMonth = "2026-03";
-      const emp = employees.find(e => e.name?.trim() === targetName.trim());
-      if (emp) {
-        const txToDelete = transactions.filter(t => t.employeeId === emp.id && t.month === targetMonth);
-        if (txToDelete.length > 0) {
-          console.log(`Found ${txToDelete.length} transactions to delete for ${targetName}`);
-          for (const tx of txToDelete) {
-            await deleteDoc(doc(db, 'transactions', tx.id));
-          }
-        }
-      }
-    };
-    if (employees.length > 0 && transactions.length > 0) {
-      cleanup();
-    }
-  }, [employees, transactions]);
-
   // Return from leave modal state
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [selectedEmpForReturn, setSelectedEmpForReturn] = useState<Employee | null>(null);
@@ -92,7 +71,6 @@ export const Transactions: React.FC = () => {
     socialInsurance: 0,
     salaryReceived: 0,
     loans: 0,
-    bankReceived: 0,
     otherDeductions: 0,
     deductionHours: 0,
     departureDelayDeduction: 0,
@@ -289,7 +267,6 @@ export const Transactions: React.FC = () => {
       socialInsurance: 0,
       salaryReceived: 0,
       loans: 0,
-      bankReceived: 0,
       otherDeductions: 0,
       deductionHours: 0,
       departureDelayDeduction: 0,
@@ -424,18 +401,88 @@ export const Transactions: React.FC = () => {
   }, [employees, transactions, selectedMonth, monthlyCardFilter, gridStatusFilter, searchTerm, showIncompleteOnly]);
 
   const gridStats = useMemo(() => {
-    const total = employees.filter(e => {
+    // 1. Get deduplicated base list of employees matching the current filters (status and classification)
+    const uniqueEmployeesMap = new Map();
+    employees.forEach(emp => {
+      const key = `${emp.employeeId}_${emp.name}`;
+      const existing = uniqueEmployeesMap.get(key);
+      if (existing) {
+        const hasTxNew = transactions.some(t => t.employeeId === emp.id && t.month === selectedMonth);
+        const hasTxOld = transactions.some(t => t.employeeId === existing.id && t.month === selectedMonth);
+        if (hasTxNew && !hasTxOld) uniqueEmployeesMap.set(key, emp);
+      } else {
+        uniqueEmployeesMap.set(key, emp);
+      }
+    });
+
+    const baseEmployees = Array.from(uniqueEmployeesMap.values()).filter(e => {
       if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
+      if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+      if (gridStatusFilter === 'Leave') return (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
       return e.status === gridStatusFilter;
-    }).length;
-    const finished = transactions.filter(t => t.month === selectedMonth).length;
-    return { total, finished, remaining: total - finished };
-  }, [employees, transactions, selectedMonth, gridStatusFilter]);
+    }).filter(e => {
+      if (monthlyCardFilter === 'All') return true;
+      if (monthlyCardFilter === 'Standard') {
+        return e.classification !== 'Saudi' && e.classification !== 'Accounting';
+      }
+      return e.classification === monthlyCardFilter;
+    });
+
+    const total = baseEmployees.length;
+    
+    // 2. Count unique employees within this base list who have a transaction in the selected month
+    const finished = baseEmployees.filter(e => 
+      transactions.some(t => t.employeeId === e.id && t.month === selectedMonth)
+    ).length;
+
+    return { total, finished, remaining: Math.max(0, total - finished) };
+  }, [employees, transactions, selectedMonth, gridStatusFilter, monthlyCardFilter]);
 
   const handleDelete = async (id: string) => {
-    await deleteDoc(doc(db, 'transactions', id));
-    setDeleteConfirmId(null);
+    try {
+      setLoading(true);
+      const targetTx = transactions.find(t => t.id === id);
+      if (!targetTx) {
+        await deleteDoc(doc(db, 'transactions', id));
+      } else {
+        // Find all duplicates for this employee and month and delete them all
+        const dups = transactions.filter(t => t.employeeId === targetTx.employeeId && t.month === targetTx.month);
+        const batch = writeBatch(db);
+        dups.forEach(d => {
+          batch.delete(doc(db, 'transactions', d.id));
+        });
+        await batch.commit();
+      }
+      setDeleteConfirmId(null);
+    } catch (error) {
+      console.error('Error in handleDelete:', error);
+      alert('حدث خطأ أثناء الحذف');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // One-time cleanup for specific employee as requested
+  useEffect(() => {
+    const runCleanup = async () => {
+      const targetName = "حبيب الله مد سليم مياه";
+      const targetMonth = "2026-03";
+      
+      const emp = employees.find(e => e.name?.trim() === targetName.trim());
+      if (emp) {
+        const txs = transactions.filter(t => t.employeeId === emp.id && t.month === targetMonth);
+        if (txs.length > 0) {
+          const batch = writeBatch(db);
+          txs.forEach(t => batch.delete(doc(db, 'transactions', t.id)));
+          await batch.commit();
+          console.log(`Cleaned up ${txs.length} transactions for ${targetName}`);
+        }
+      }
+    };
+    if (employees.length > 0 && transactions.length > 0) {
+      runCleanup();
+    }
+  }, [employees, transactions]);
 
   const deleteDrafts = async () => {
     const drafts = transactions.filter(t => t.status === 'Draft');
@@ -595,9 +642,8 @@ export const Transactions: React.FC = () => {
         'قيمة عمل اضافي': t.overtimeValue,
         'مجموع الدخل': t.totalIncome,
         'تامينات اجتماعية': t.socialInsurance,
-        'استلام الكاش': t.salaryReceived,
+        'استلام راتب': t.salaryReceived,
         'سلف': t.loans,
-        'استلام بنك': t.bankReceived,
         'اقتطاعات اخرى': t.otherDeductions,
         'عدد الساعات': t.deductionHours,
         'خصم المغادرات والتاخير': t.departureDelayDeduction,
@@ -657,9 +703,8 @@ export const Transactions: React.FC = () => {
             overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
             overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
             socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
-            salaryReceived: Number(row['استلام الكاش'] || row['استلام راتب']) || 0,
+            salaryReceived: Number(row['استلام راتب'] || row['استلام الكاش']) || 0,
             loans: Number(row['سلف']) || 0,
-            bankReceived: Number(row['استلام بنك']) || 0,
             otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
             deductionHours: Number(row['عدد الساعات'] || row['ساعات الخصم']) || 0,
             departureDelayDeduction: Number(row['خصم المغادرات والتاخير']) || 0,
@@ -1468,12 +1513,8 @@ export const Transactions: React.FC = () => {
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام الكاش</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام راتب</label>
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام بنك</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.bankReceived ?? 0} onChange={(e) => setFormData({...formData, bankReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">سلف</label>
