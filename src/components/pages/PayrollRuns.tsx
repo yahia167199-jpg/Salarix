@@ -98,6 +98,7 @@ export const PayrollRuns: React.FC = () => {
         socialInsurance: details.socialInsurance,
         salaryReceived: details.salaryReceived,
         loans: details.loans,
+        bankReceived: details.bankReceived,
         otherDeductions: details.otherDeductions,
         deductionHours: details.deductionHours,
         delayDeduction: details.delayDeduction,

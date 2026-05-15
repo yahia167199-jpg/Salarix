@@ -45,6 +45,7 @@ export const calculatePayrollDetails = (data: Partial<Transaction> & { overtimeB
   // Deductions from Employee
   const socialInsurance = data.socialInsurance || 0;
   const salaryReceived = data.salaryReceived || 0;
+  const bankReceived = data.bankReceived || 0;
   const loans = data.loans || 0;
   const otherDeductions = data.otherDeductions || 0;
   const deductionHours = data.deductionHours || 0;
@@ -54,7 +55,7 @@ export const calculatePayrollDetails = (data: Partial<Transaction> & { overtimeB
   const hourDeductionValue = (deductionHours * (basicSalary / (30 * dailyWorkHours)));
 
   // Total Deductions: All negative impacts on net salary
-  const totalDeductions = socialInsurance + salaryReceived + loans + 
+  const totalDeductions = socialInsurance + salaryReceived + bankReceived + loans + 
                           otherDeductions + departureDelayDeduction + 
                           absenceDeduction + hourDeductionValue;
 
@@ -65,7 +66,7 @@ export const calculatePayrollDetails = (data: Partial<Transaction> & { overtimeB
   // bankExportAmount should reflect what is actually meant for the bank file
   // If the user provided a specific bankReceived amount, that's the primary target
   // If netSalary is remaining, it should be distributed based on paymentMethod
-  const bankExportAmount = data.paymentMethod === 'Bank' ? netSalary : 0;
+  const bankExportAmount = bankReceived + (data.paymentMethod === 'Bank' ? netSalary : 0);
   const cashExportAmount = salaryReceived + (data.paymentMethod === 'Cash' ? netSalary : 0);
 
   // Other Earnings = Total Income - Basic Salary - Housing Allowance
@@ -88,6 +89,7 @@ export const calculatePayrollDetails = (data: Partial<Transaction> & { overtimeB
     socialInsurance: Number(socialInsurance.toFixed(2)),
     salaryReceived: Number(salaryReceived.toFixed(2)),
     loans: Number(loans.toFixed(2)),
+    bankReceived: Number(bankReceived.toFixed(2)),
     otherDeductions: Number(otherDeductions.toFixed(2)),
     deductionHours: Number(deductionHours.toFixed(2)),
     delayDeduction: Number(departureDelayDeduction.toFixed(2)),
