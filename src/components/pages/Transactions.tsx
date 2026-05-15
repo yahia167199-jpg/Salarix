@@ -47,13 +47,34 @@ export const Transactions: React.FC = () => {
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Administrative Cleanup: Delete specific transaction as requested by user
+  useEffect(() => {
+    const cleanup = async () => {
+      const targetName = "حبيب الله مد سليم مياه";
+      const targetMonth = "2026-03";
+      const emp = employees.find(e => e.name?.trim() === targetName.trim());
+      if (emp) {
+        const txToDelete = transactions.filter(t => t.employeeId === emp.id && t.month === targetMonth);
+        if (txToDelete.length > 0) {
+          console.log(`Found ${txToDelete.length} transactions to delete for ${targetName}`);
+          for (const tx of txToDelete) {
+            await deleteDoc(doc(db, 'transactions', tx.id));
+          }
+        }
+      }
+    };
+    if (employees.length > 0 && transactions.length > 0) {
+      cleanup();
+    }
+  }, [employees, transactions]);
+
   // Return from leave modal state
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [selectedEmpForReturn, setSelectedEmpForReturn] = useState<Employee | null>(null);
   const [actualReturnDate, setActualReturnDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Form State
-  const [formData, setFormData] = useState<(Omit<Transaction, 'id' | 'createdAt'> & { id?: string })>({
+  const [formData, setFormData] = useState<(Omit<Transaction, 'id' | 'createdAt'> & { id?: string, createdAt?: string })>({
     employeeId: '',
     month: new Date().toISOString().slice(0, 7),
     actualWorkDays: 30,
@@ -296,17 +317,15 @@ export const Transactions: React.FC = () => {
         updatedAt: serverTimestamp()
       };
 
-      if (formData.id) {
-        // Update existing
-        await setDoc(doc(db, 'transactions', formData.id), transactionData);
-      } else {
-        // Create new
-        const docRef = doc(collection(db, 'transactions'));
-        await setDoc(docRef, {
-          ...transactionData,
-          createdAt: new Date().toISOString()
-        });
-      }
+      // Use deterministic ID to prevent duplicates (employeeId_month)
+      const transactionId = `${formData.employeeId}_${formData.month}`;
+      
+      await setDoc(doc(db, 'transactions', transactionId), {
+        ...transactionData,
+        id: transactionId, // Ensure ID is consistent
+        createdAt: formData.createdAt || new Date().toISOString()
+      });
+
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
@@ -324,26 +343,21 @@ export const Transactions: React.FC = () => {
   const handleSkip = async (employeeId: string) => {
     try {
       setLoading(true);
-      const existing = transactions.find(t => t.employeeId === employeeId && t.month === selectedMonth);
-      if (existing) {
-        await setDoc(doc(db, 'transactions', existing.id), {
-          ...existing,
-          status: 'Skipped',
-          updatedAt: serverTimestamp()
-        });
-      } else {
-        const docRef = doc(collection(db, 'transactions'));
-        await setDoc(docRef, {
-          employeeId,
-          month: selectedMonth,
-          status: 'Skipped',
-          actualWorkDays: 0,
-          totalIncome: 0,
-          totalDeductions: 0,
-          netSalary: 0,
-          createdAt: new Date().toISOString()
-        });
-      }
+      // Use deterministic ID
+      const transactionId = `${employeeId}_${selectedMonth}`;
+      
+      await setDoc(doc(db, 'transactions', transactionId), {
+        id: transactionId,
+        employeeId,
+        month: selectedMonth,
+        status: 'Skipped',
+        actualWorkDays: 0,
+        totalIncome: 0,
+        totalDeductions: 0,
+        netSalary: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: serverTimestamp()
+      });
     } catch (error) {
       console.error('Error skipping transaction:', error);
     } finally {
@@ -352,7 +366,29 @@ export const Transactions: React.FC = () => {
   };
 
   const filteredEmployeesForGrid = useMemo(() => {
-    return employees
+    // 1. Deduplicate employees by employeeId + name to avoid UI duplicates caused by accidental double entries
+    const uniqueEmployeesMap = new Map();
+    employees.forEach(emp => {
+      // Create a key that identifies duplicates (same official ID or same name)
+      const key = `${emp.employeeId}_${emp.name}`;
+      const existing = uniqueEmployeesMap.get(key);
+      
+      // If we found a duplicate, prefer the one that has a transaction in the current month
+      if (existing) {
+        const hasTransactionNew = transactions.some(t => t.employeeId === emp.id && t.month === selectedMonth);
+        const hasTransactionOld = transactions.some(t => t.employeeId === existing.id && t.month === selectedMonth);
+        
+        if (hasTransactionNew && !hasTransactionOld) {
+          uniqueEmployeesMap.set(key, emp);
+        }
+      } else {
+        uniqueEmployeesMap.set(key, emp);
+      }
+    });
+    
+    const uniqueEmployees = Array.from(uniqueEmployeesMap.values());
+
+    return uniqueEmployees
       .filter(e => {
         if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
         if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
@@ -559,7 +595,7 @@ export const Transactions: React.FC = () => {
         'قيمة عمل اضافي': t.overtimeValue,
         'مجموع الدخل': t.totalIncome,
         'تامينات اجتماعية': t.socialInsurance,
-        'استلام راتب': t.salaryReceived,
+        'استلام الكاش': t.salaryReceived,
         'سلف': t.loans,
         'استلام بنك': t.bankReceived,
         'اقتطاعات اخرى': t.otherDeductions,
@@ -601,11 +637,14 @@ export const Transactions: React.FC = () => {
         );
 
         if (emp) {
-          const docRef = doc(collection(db, 'transactions'));
+          const rowMonth = row['الشهر'] || new Date().toISOString().slice(0, 7);
+          const transactionId = `${emp.id}_${rowMonth}`;
+          const docRef = doc(db, 'transactions', transactionId);
           
           const rawData = {
+            id: transactionId,
             employeeId: emp.id,
-            month: row['الشهر'] || new Date().toISOString().slice(0, 7),
+            month: rowMonth,
             actualWorkDays: Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) || 30,
             basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
             housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
@@ -618,7 +657,7 @@ export const Transactions: React.FC = () => {
             overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
             overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
             socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
-            salaryReceived: Number(row['استلام راتب']) || 0,
+            salaryReceived: Number(row['استلام الكاش'] || row['استلام راتب']) || 0,
             loans: Number(row['سلف']) || 0,
             bankReceived: Number(row['استلام بنك']) || 0,
             otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
@@ -645,7 +684,21 @@ export const Transactions: React.FC = () => {
   };
 
   const sortedTransactions = useMemo(() => {
-    return [...transactions]
+    // 1. Deduplicate transactions by employeeId + month to handle legacy duplicate data
+    const uniqueTxMap = new Map();
+    transactions.forEach(t => {
+      const key = `${t.employeeId}_${t.month}`;
+      const existing = uniqueTxMap.get(key);
+      
+      // Prefer the most recently created or updated transaction
+      if (!existing || (t.createdAt || '') > (existing.createdAt || '')) {
+        uniqueTxMap.set(key, t);
+      }
+    });
+
+    const uniqueTransactions = Array.from(uniqueTxMap.values());
+
+    return uniqueTransactions
       .filter(t => {
         // Strict month filter
         if (t.month !== selectedMonth) return false;
@@ -1415,7 +1468,7 @@ export const Transactions: React.FC = () => {
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام راتب</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام الكاش</label>
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">

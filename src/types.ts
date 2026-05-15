@@ -21,7 +21,7 @@ export interface AppUser {
 }
 
 export type EmployeeStatus = 'Active' | 'Leave' | 'End of Service' | 'Out of Sponsorship' | 'Out of Sponsorship (Active)' | 'Out of Sponsorship (Leave)' | 'Inactive';
-export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام راتب
+export type PaymentMethod = 'Bank' | 'Cash'; // Bank: استلام بنك, Cash: استلام الكاش
 
 export type EmployeeCategory = 'Standard' | 'Saudi' | 'Accounting';
 
@@ -79,7 +79,7 @@ export interface Transaction {
   overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number; // مجموع الدخل
   socialInsurance: number; // تامينات اجتماعية
-  salaryReceived: number; // استلام راتب
+  salaryReceived: number; // استلام الكاش
   loans: number; // سلف
   bankReceived: number; // استلام بنك
   otherDeductions: number; // اقتطاعات اخرى
@@ -138,7 +138,7 @@ export interface PayrollResult {
   overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number;
   socialInsurance: number; // تامينات اجتماعية
-  salaryReceived: number; // استلام راتب (كاش)
+  salaryReceived: number; // استلام الكاش
   loans: number; // سلف
   bankReceived: number; // استلام بنك
   otherDeductions: number;

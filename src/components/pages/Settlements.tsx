@@ -299,7 +299,7 @@ export const Settlements: React.FC = () => {
             >
               <option value="all" className="dark:bg-gray-900">الكل</option>
               <option value="Bank" className="dark:bg-gray-900">استلام بنك</option>
-              <option value="Cash" className="dark:bg-gray-900">استلام راتب</option>
+              <option value="Cash" className="dark:bg-gray-900">استلام الكاش</option>
             </select>
           </div>
 

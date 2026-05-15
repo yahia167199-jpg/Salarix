@@ -343,7 +343,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       'قيمة عمل اضافي', 
       'مجموع الدخل', 
       'تأمينات اجتماعية', 
-      'استلام راتب (كاش)', 
+      'استلام الكاش', 
       'سلف', 
       'استلام بنك', 
       'اقتطاعات اخرى', 
@@ -694,7 +694,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center bg-orange-50/50 dark:bg-orange-900/10">قيمة عمل اضافي</th>
                   <th className="p-2 font-black text-blue-800 dark:text-blue-300 border border-gray-300 dark:border-gray-700 text-center bg-blue-100 dark:bg-blue-900/30 font-bold">مجموع الدخل</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">تأمينات اجتماعية</th>
-                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام راتب (كاش)</th>
+                  <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام الكاش</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">سلف</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">استلام بنك</th>
                   <th className="p-2 font-black text-gray-800 dark:text-gray-200 border border-gray-300 dark:border-gray-700 text-center">اقتطاعات اخرى</th>

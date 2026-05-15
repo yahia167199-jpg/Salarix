@@ -261,7 +261,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         'تصنيف التوظيف': emp.classification === 'Standard' ? 'موظف عادي' : 
                          emp.classification === 'Saudi' ? 'سعودي' : 
                          emp.classification === 'Accounting' ? 'محاسبات' : 'موظف عادي',
-        'نوع استلام الراتب': emp.paymentMethod === 'Bank' ? 'استلام البنك' : 'استلام راتب',
+        'نوع استلام الراتب': emp.paymentMethod === 'Bank' ? 'استلام البنك' : 'استلام الكاش',
         'حالة الموظف': emp.status === 'Active' ? 'نشط' : 
                       emp.status === 'Leave' ? 'إجازة' :
                       emp.status === 'End of Service' ? 'انهاء خدمات' :
@@ -543,7 +543,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         
         let paymentMethod: 'Bank' | 'Cash' = 'Bank';
         const pMethodRaw = String(row['نوع استلام الراتب'] || '').trim();
-        if (pMethodRaw === 'استلام راتب' || pMethodRaw.includes('Cash')) {
+        if (pMethodRaw === 'استلام الكاش' || pMethodRaw.includes('Cash')) {
           paymentMethod = 'Cash';
         }
 
@@ -1183,7 +1183,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       onChange={(e) => setFormData({...formData, paymentMethod: e.target.value as any})}
                     >
                       <option value="Bank">استلام بنك</option>
-                      <option value="Cash">استلام راتب</option>
+                      <option value="Cash">استلام الكاش</option>
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -1463,7 +1463,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   <DetailItem label="مركز التكلفة / رئيسي" value={viewingEmployee.costCenterMain} />
                   <DetailItem label="مركز التكلفة / قسم" value={viewingEmployee.costCenterDept} />
                   <DetailItem label="الموقع" value={viewingEmployee.location} />
-                  <DetailItem label="طريقة الدفع" value={viewingEmployee.paymentMethod === 'Bank' ? 'بنك' : 'نقداً'} />
+                  <DetailItem label="طريقة الدفع" value={viewingEmployee.paymentMethod === 'Bank' ? 'بنك' : 'الكاش'} />
                   <DetailItem label="رصيد الإجازات الحالي" value={`${calculateBalance(viewingEmployee)} يوم`} />
                   <DetailItem label="عدد ساعات العمل" value={`${viewingEmployee.dailyWorkHours || 8} ساعات`} />
                   <DetailItem label="البريد الإلكتروني" value={viewingEmployee.email} />
