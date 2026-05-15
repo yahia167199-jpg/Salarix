@@ -406,12 +406,25 @@ export const Transactions: React.FC = () => {
   }, [employees, transactions, selectedMonth, monthlyCardFilter, gridStatusFilter, searchTerm, showIncompleteOnly]);
 
   const gridStats = useMemo(() => {
+    // 1. Get unique employees matching current filter
     const total = employees.filter(e => {
-      if (gridStatusFilter === 'All') return (e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)' || e.status === 'Out of Sponsorship (Leave)');
+      if (gridStatusFilter === 'All') {
+        return ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(e.status);
+      }
+      if (gridStatusFilter === 'Active') return (e.status === 'Active' || e.status === 'Out of Sponsorship (Active)');
+      if (gridStatusFilter === 'Leave') return (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)');
       return e.status === gridStatusFilter;
     }).length;
-    const finished = transactions.filter(t => t.month === selectedMonth).length;
-    return { total, finished, remaining: total - finished };
+
+    // 2. Count unique employees WHO HAVE at least one transaction this month
+    const monthTx = transactions.filter(t => t.month === selectedMonth);
+    const uniqueEmpIds = new Set(monthTx.map(t => t.employeeId));
+    const finished = uniqueEmpIds.size;
+    
+    // 3. Detect total records vs unique to identify duplicates
+    const duplicatesCount = monthTx.length - uniqueEmpIds.size;
+
+    return { total, finished, remaining: Math.max(0, total - finished), duplicatesCount };
   }, [employees, transactions, selectedMonth, gridStatusFilter]);
 
   const handleDelete = async (id: string) => {
@@ -1031,6 +1044,28 @@ export const Transactions: React.FC = () => {
             </div>
           </div>
           </div>
+
+          {gridStats.duplicatesCount > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 p-4 rounded-2xl flex items-center justify-between gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 shrink-0" />
+                <p className="text-sm font-black text-red-900 dark:text-red-200">
+                  تنبيه: تم اكتشاف عدد ({gridStats.duplicatesCount}) حركات مكررة لنفس الموظفين في هذا الشهر. 
+                  الجدول أدناه يعرض أحدث نسخة فقط، ولكن ينصح بإعادة تعيين الشهر أو حذف المكرر يدوياً لضمان دقة التقارير.
+                </p>
+              </div>
+              <button 
+                onClick={handleResetMonth}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black shadow-sm shrink-0"
+              >
+                إعادة تعيين الشهر
+              </button>
+            </motion.div>
+          )}
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4 flex-1">
