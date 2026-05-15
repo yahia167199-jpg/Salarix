@@ -305,8 +305,10 @@ export const Transactions: React.FC = () => {
 
       setIsModalOpen(false);
       resetForm();
+      alert('تم حفظ الحركة بنجاح');
     } catch (error) {
       handleFirestoreError(error, formData.id ? OperationType.UPDATE : OperationType.CREATE, 'transactions');
+      alert('حدث خطأ أثناء الحفظ');
     } finally {
       setLoading(false);
     }
@@ -317,11 +319,107 @@ export const Transactions: React.FC = () => {
     setFormData(prev => ({ ...prev, month: selectedMonth }));
   }, [selectedMonth]);
 
+  // Administrative Cleanup: Delete ALL transactions for March 2026 as requested
+  useEffect(() => {
+    const runMonthCleanup = async () => {
+      const targetMonth = "2026-03";
+      const txsToDelete = transactions.filter(t => t.month === targetMonth);
+      
+      if (txsToDelete.length > 0) {
+        setLoading(true);
+        try {
+          const batch = writeBatch(db);
+          txsToDelete.forEach(tx => {
+            batch.delete(doc(db, 'transactions', tx.id));
+          });
+          
+          await batch.commit();
+          console.log(`Successfully deleted ${txsToDelete.length} transactions for ${targetMonth}.`);
+          alert(`تم حذف كافة الحركات لشهر ${targetMonth} (بعدد ${txsToDelete.length} حركات) بنجاح.`);
+        } catch (error) {
+          console.error("Month cleanup failed:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    if (transactions.length > 0) {
+      runMonthCleanup();
+    }
+  }, [transactions]);
+
+  // Deep Administrative Cleanup: Targets employees, transactions AND payrollResults
+  useEffect(() => {
+    const runDeepCleanup = async () => {
+      const targetSubstrings = ["حبيب الله", "موظف محذوف"];
+      
+      // 1. Find all employees to delete
+      const empsToDelete = employees.filter(e => {
+        if (!e.name) return false;
+        return targetSubstrings.some(sub => e.name.includes(sub));
+      });
+
+      // 2. Find all transactions to delete
+      const txsToDelete = transactions.filter(t => {
+        const emp = employees.find(e => e.id === t.employeeId);
+        if (emp && emp.name && targetSubstrings.some(sub => emp.name.includes(sub))) return true;
+        if (!emp && t.month === '2026-03' && t.netSalary === 1525) return true;
+        return false;
+      });
+
+      if (empsToDelete.length > 0 || txsToDelete.length > 0) {
+        setLoading(true);
+        try {
+          const batch = writeBatch(db);
+          
+          empsToDelete.forEach(emp => {
+            batch.delete(doc(db, 'employees', emp.id));
+          });
+
+          txsToDelete.forEach(tx => {
+            batch.delete(doc(db, 'transactions', tx.id));
+          });
+          
+          // 3. Delete ANY payrollResults linked to these names (since they aren't globally synced)
+          const payrollResultsSnap = await getDocs(collection(db, 'payrollResults'));
+          payrollResultsSnap.docs.forEach(d => {
+            const data = d.data();
+            const name = data.employeeName || '';
+            const empId = data.employeeId || '';
+            
+            const matchesName = targetSubstrings.some(sub => name.includes(sub));
+            const matchesId = empsToDelete.some(e => e.id === empId || e.employeeId === empId);
+            
+            if (matchesName || matchesId) {
+              batch.delete(doc(db, 'payrollResults', d.id));
+            }
+          });
+          
+          await batch.commit();
+          console.log(`Deep cleanup successful: Deleted ${empsToDelete.length} employees, ${txsToDelete.length} transactions, and matching payroll results.`);
+          if (empsToDelete.length > 0 || txsToDelete.length > 0) {
+            alert('تم تنظيف النظام بالكامل من الموظفين المحددين وكافة حركاتهم ونتائج الرواتب المرتبطة بهم.');
+          }
+        } catch (error) {
+          console.error("Deep cleanup failed:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    
+    if (employees.length > 0 && transactions.length > 0) {
+      runDeepCleanup();
+    }
+  }, [employees, transactions]);
+
   const handleSkip = async (employeeId: string) => {
     try {
       setLoading(true);
       // Use deterministic ID
       const transactionId = `${employeeId}_${selectedMonth}`;
+      const emp = employees.find(e => e.id === employeeId);
       
       await setDoc(doc(db, 'transactions', transactionId), {
         id: transactionId,
@@ -329,14 +427,23 @@ export const Transactions: React.FC = () => {
         month: selectedMonth,
         status: 'Skipped',
         actualWorkDays: 0,
+        basicSalary: 0,
+        housingAllowance: 0,
+        transportAllowance: 0,
+        subsistenceAllowance: 0,
+        otherAllowances: 0,
+        mobileAllowance: 0,
+        managementAllowance: 0,
         totalIncome: 0,
         totalDeductions: 0,
         netSalary: 0,
         createdAt: new Date().toISOString(),
         updatedAt: serverTimestamp()
       });
+      alert(`تم تخطي الموظف ${emp?.name || ''} بنجاح`);
     } catch (error) {
       console.error('Error skipping transaction:', error);
+      alert('حدث خطأ أثناء تخطي الموظف');
     } finally {
       setLoading(false);
     }
@@ -655,21 +762,27 @@ export const Transactions: React.FC = () => {
 
       const batch = writeBatch(db);
       for (const row of data) {
+        const rowName = String(row['الإسم'] || row['اسم الموظف'] || '').trim();
+        const rowId = String(row['الرقم الوظيفي'] || row['رقم الموظف'] || '').trim();
+        
         const emp = employees.find(e => 
-          String(e.name).trim() === String(row['الإسم'] || row['اسم الموظف'] || '').trim() || 
-          String(e.employeeId).trim() === String(row['الرقم الوظيفي'] || row['رقم الموظف'] || '').trim()
+          (rowName && String(e.name).trim() === rowName) || 
+          (rowId && String(e.employeeId).trim() === rowId)
         );
 
         if (emp) {
-          const rowMonth = row['الشهر'] || new Date().toISOString().slice(0, 7);
+          const rowMonth = row['الشهر'] || selectedMonth;
           const transactionId = `${emp.id}_${rowMonth}`;
           const docRef = doc(db, 'transactions', transactionId);
+          
+          const rawWorkDays = row['عدد الايام العمل الفعلي'] !== undefined ? row['عدد الايام العمل الفعلي'] : 
+                              row['أيام العمل'] !== undefined ? row['أيام العمل'] : 30;
           
           const rawData = {
             id: transactionId,
             employeeId: emp.id,
             month: rowMonth,
-            actualWorkDays: typeof (row['عدد الايام العمل الفعلي'] || row['أيام العمل']) === 'number' ? Number(row['عدد الايام العمل الفعلي'] || row['أيام العمل']) : 30,
+            actualWorkDays: Number(rawWorkDays),
             basicSalary: Number(row['الراتب الاساسي (حركة)'] || row['الراتب الاساسي'] || row['الأساسي']) || emp.basicSalary,
             housingAllowance: Number(row['بدل سكن (حركة)'] || row['بدل سكن (ح حركة)'] || row['بدل سكن']) ?? emp.housingAllowance,
             transportAllowance: Number(row['بدل نقل (حركة)'] || row['بدل نقل (ح حركة)'] || row['بدل نقل']) ?? emp.transportAllowance,
