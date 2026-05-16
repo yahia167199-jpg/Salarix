@@ -35,43 +35,90 @@ export const PayrollRuns: React.FC = () => {
     const runDocRef = doc(collection(db, 'payrollRuns'));
     const runId = runDocRef.id;
     
-    // Use data from global context to avoid redundant Firestore reads
-    // Requirement: Include both 'Active' and 'Out of Sponsorship' employees in payroll
-    const employees = allEmployees.filter(e => e.status === 'Active' || e.status === 'Out of Sponsorship');
-    const transactions = allTransactions.filter(t => t.month === month);
+    // 1. Deduplicate employees (Standard logic used in Transactions Final Report)
+    const uniqueEmployeesMap = new Map();
+    allEmployees.forEach(emp => {
+      const key = `${emp.employeeId}_${emp.name}`;
+      const existing = uniqueEmployeesMap.get(key);
+      if (existing) {
+        const hasTransactionNew = allTransactions.some(t => t.employeeId === emp.id && t.month === month);
+        const hasTransactionOld = allTransactions.some(t => t.employeeId === existing.id && t.month === month);
+        if (hasTransactionNew && !hasTransactionOld) uniqueEmployeesMap.set(key, emp);
+      } else {
+        uniqueEmployeesMap.set(key, emp);
+      }
+    });
 
+    // 2. Filter employees for payroll calculation
+    // Include Standard, Saudi, and Accounting classifications
+    // Requirement: Must have an active status (Active or Out of Sponsorship variants)
+    const targetEmployees = Array.from(uniqueEmployeesMap.values())
+      .filter(emp => {
+        const isTargetStatus = ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(emp.status);
+        if (!isTargetStatus) return false;
+        
+        // Include all classifications now as requested
+        return true; 
+      })
+      .sort((a, b) => {
+        const idA = parseInt(a.employeeId || '0', 10);
+        const idB = parseInt(b.employeeId || '0', 10);
+        if (isNaN(idA) || isNaN(idB)) return (a.employeeId || '').localeCompare(b.employeeId || '');
+        return idA - idB;
+      });
+
+    const monthTransactions = allTransactions.filter(t => t.month === month);
     const batch = writeBatch(db);
     let totalNet = 0;
 
-    const results: PayrollResult[] = employees
-      .filter(emp => emp.status === 'Active' || emp.status === 'Out of Sponsorship')
-      .map(emp => {
-        // Find transaction for this employee this month
-        const empTrans = transactions.find(t => t.employeeId === emp.id);
-        
-        // Use consolidated calculation utility for all financial fields
-        // Requirement: Overtime calculation must use original basic salary from employee profile
-        const details = calculatePayrollDetails({
-          ...(empTrans || {
-            basicSalary: emp.basicSalary,
-            housingAllowance: emp.housingAllowance,
-            transportAllowance: emp.transportAllowance,
-            subsistenceAllowance: emp.subsistenceAllowance,
-            otherAllowances: emp.otherAllowances,
-            mobileAllowance: emp.mobileAllowance,
-            managementAllowance: emp.managementAllowance,
-            dailyWorkHours: emp.dailyWorkHours || 8,
-          }),
-          overtimeBaseSalary: emp.basicSalary 
-        });
+    const results: PayrollResult[] = targetEmployees.map(emp => {
+      // Find transaction for this employee this month
+      const empTrans = monthTransactions.find(t => t.employeeId === emp.id);
       
-      totalNet += details.netSalary;
+      // Use values from transaction or defaults if not processed
+      const basicSalary = empTrans ? empTrans.basicSalary : (emp.basicSalary || 0);
+      const housing = empTrans ? empTrans.housingAllowance : (emp.housingAllowance || 0);
+      const transport = empTrans ? empTrans.transportAllowance : (emp.transportAllowance || 0);
+      const subsistence = empTrans ? empTrans.subsistenceAllowance : (emp.subsistenceAllowance || 0);
+      const other = empTrans ? empTrans.otherAllowances : (emp.otherAllowances || 0);
+      const mobile = empTrans ? empTrans.mobileAllowance : (emp.mobileAllowance || 0);
+      const management = empTrans ? empTrans.managementAllowance : (emp.managementAllowance || 0);
 
+      const details = calculatePayrollDetails({
+        ...(empTrans || {
+          actualWorkDays: 30,
+          otherIncome: 0,
+          overtimeHours: 0,
+          overtimeValue: 0,
+          socialInsurance: 0,
+          salaryReceived: 0,
+          loans: 0,
+          otherDeductions: 0,
+          deductionHours: 0,
+          departureDelayDeduction: 0,
+          absenceDays: 0,
+          absenceDeduction: 0,
+          salaryIncrease: 0,
+          dailyWorkHours: emp.dailyWorkHours || 8,
+          notes: ''
+        }),
+        basicSalary,
+        housingAllowance: housing,
+        transportAllowance: transport,
+        subsistenceAllowance: subsistence,
+        otherAllowances: other,
+        mobileAllowance: mobile,
+        managementAllowance: management,
+        overtimeBaseSalary: emp.basicSalary // Always use base for OT
+      });
+    
       const resultDocRef = doc(collection(db, 'payrollResults'));
+      const roundedNet = Math.round(details.netSalary);
+      
       const result: PayrollResult = {
         id: resultDocRef.id,
         payrollRunId: runId,
-        employeeId: emp.employeeId || emp.id,
+        employeeId: emp.id, // Internal ID for relationship
         employeeName: emp.name,
         iqamaNumber: emp.iqamaNumber,
         officialEmployer: emp.officialEmployer,
@@ -98,15 +145,14 @@ export const PayrollRuns: React.FC = () => {
         socialInsurance: details.socialInsurance,
         salaryReceived: details.salaryReceived,
         loans: details.loans,
-        bankReceived: details.bankReceived,
         otherDeductions: details.otherDeductions,
         deductionHours: details.deductionHours,
         delayDeduction: details.delayDeduction,
         absenceDays: details.absenceDays,
         absenceDeduction: details.absenceDeduction,
         totalDeductions: details.totalDeductions,
-        netSalary: Math.round(details.netSalary),
-        roundingDiff: Number((Math.round(details.netSalary) - details.netSalary).toFixed(2)),
+        netSalary: roundedNet,
+        roundingDiff: Number((roundedNet - details.netSalary).toFixed(2)),
         
         // Legacy/Computed
         grossBase: details.grossBase,
@@ -116,7 +162,7 @@ export const PayrollRuns: React.FC = () => {
       };
 
       batch.set(resultDocRef, result);
-      totalNet += result.netSalary;
+      totalNet += roundedNet;
       return result;
     });
 
@@ -125,7 +171,7 @@ export const PayrollRuns: React.FC = () => {
       month,
       status: 'Draft',
       totalNet,
-      employeeCount: employees.length,
+      employeeCount: targetEmployees.length,
       updatedAt: new Date().toISOString()
     };
 
@@ -233,25 +279,42 @@ export const PayrollRuns: React.FC = () => {
 
     // 4. Branch Summary
     const branchMap = bankEmployees.reduce((acc: any, curr) => {
-      const b = curr.officialEmployer || 'غير محدد';
+      // Rule: If status is Out of Sponsorship, group under "خارج الكفالة"
+      const emp = allEmployees.find(e => e.id === curr.employeeId);
+      const isOutOfSponsorship = emp?.status === 'Out of Sponsorship' || emp?.status === 'Out of Sponsorship (Active)' || emp?.status === 'Out of Sponsorship (Leave)';
+      
+      const b = isOutOfSponsorship ? 'خارج الكفالة' : (curr.officialEmployer || 'غير محدد');
       acc[b] = (acc[b] || 0) + curr.netSalary;
       return acc;
     }, {});
-    const branchRows = Object.entries(branchMap).map(([name, amount]) => [name, amount]);
+    
+    const branchNames = [
+      'مصنع إيفاء لتعبئة المياه',
+      'شركة صالح سعيد طيشان و اولادة',
+      'شركة نهضه الصناعية',
+      'شركة صالح سعيد طيشان و اولادة - فرع الرياض',
+      'شركة صالح سعيد طيشان واولادة',
+      'بيتنا الافضل',
+      'خارج الكفالة',
+      'جملا',
+      'غير محدد'
+    ];
+
+    const branchRows = branchNames.map(name => [name, branchMap[name] || 0]);
     const branchGrandTotal = Object.values(branchMap).reduce((sum: any, val: any) => sum + val, 0);
 
     // 5. Reconciliation (Certified = Standard Employees only)
-    const getIsStandard = (empId: string) => {
-      const emp = allEmployees.find(e => (e.employeeId === empId || e.id === empId));
-      return !emp?.classification || emp.classification === 'Standard';
+    const getIsStandard = (r: PayrollResult) => {
+      const emp = allEmployees.find(e => (e.id === r.employeeId));
+      return emp?.classification !== 'Saudi' && emp?.classification !== 'Accounting';
     };
 
     const certifiedBankAmount = results
-      .filter(r => r.paymentMethod === 'Bank' && getIsStandard(r.employeeId))
+      .filter(r => r.paymentMethod === 'Bank' && getIsStandard(r))
       .reduce((sum, r) => sum + r.netSalary, 0);
     
     const certifiedCashAmount = results
-      .filter(r => r.paymentMethod === 'Cash' && getIsStandard(r.employeeId))
+      .filter(r => r.paymentMethod === 'Cash' && getIsStandard(r))
       .reduce((sum, r) => sum + r.netSalary, 0);
 
     const bankCount = results.filter(r => r.paymentMethod === 'Bank').length;
@@ -263,16 +326,17 @@ export const PayrollRuns: React.FC = () => {
 
     // 6. Difference Breakdown
     const accountingTotal = results.reduce((sum, r) => {
-      const emp = allEmployees.find(e => (e.employeeId === r.employeeId || e.id === r.employeeId));
-      return emp?.classification === 'Accounting' ? sum + r.netSalary : sum;
+      const emp = allEmployees.find(e => (e.id === r.employeeId));
+      return (emp?.classification === 'Accounting' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
     }, 0);
 
     const saudiTotal = results.reduce((sum, r) => {
-      const emp = allEmployees.find(e => (e.employeeId === r.employeeId || e.id === r.employeeId));
-      return emp?.classification === 'Saudi' ? sum + r.netSalary : sum;
+      const emp = allEmployees.find(e => (e.id === r.employeeId));
+      return (emp?.classification === 'Saudi' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
     }, 0);
 
     const breakdownSum = Number((accountingTotal + saudiTotal).toFixed(2));
+    // The final rounding difference is what's left of the excess after accounting/saudi
     const finalRoundingDiff = Number((excessDiff - breakdownSum).toFixed(2));
 
     // 7. Consolidating the final AOA
@@ -288,9 +352,7 @@ export const PayrollRuns: React.FC = () => {
       ['إجمالي Other Earnings', sumOtherEarnings],
       ['إجمالي Deductions', sumDeductions],
       [],
-      ['3. صافي الرواتب المحسوب', calculatedNet],
-      ['4. فرق النظام', systemDiff],
-      ['5. إجمالي فرق جبر الكسور العشرية', sumRoundingDiff],
+      ['* إجمالي فرق جبر الكسور العشرية', sumRoundingDiff],
       [],
       ['🏢 ملخص الفروع (Branch Summary)'],
       ['الفرع', 'مجموع Total Salary'],
@@ -301,6 +363,7 @@ export const PayrollRuns: React.FC = () => {
       ['رواتب موظفين البنك (المعتمد)', certifiedBankAmount],
       ['رواتب موظفين الكاش', certifiedCashAmount],
       ['إجمالي الموظفين (عدد)', totalEmployeesCount],
+      ['(النشطين - سعودين - خارج الكفالة -محاسبات)'],
       ['عدد موظفي البنك', bankCount],
       ['عدد موظفي الكاش', cashCount],
       [],

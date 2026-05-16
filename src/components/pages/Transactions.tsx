@@ -20,7 +20,9 @@ import {
   LayoutGrid,
   ClipboardList,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  Building2,
+  Wallet
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -74,7 +76,6 @@ export const Transactions: React.FC = () => {
     socialInsurance: 0,
     salaryReceived: 0,
     loans: 0,
-    bankReceived: 0,
     otherDeductions: 0,
     deductionHours: 0,
     departureDelayDeduction: 0,
@@ -271,7 +272,6 @@ export const Transactions: React.FC = () => {
       socialInsurance: 0,
       salaryReceived: 0,
       loans: 0,
-      bankReceived: 0,
       otherDeductions: 0,
       deductionHours: 0,
       departureDelayDeduction: 0,
@@ -469,18 +469,66 @@ export const Transactions: React.FC = () => {
     
     const finished = uniqueFinishedEmpIds.size;
     
-    // 6. Calculate total net salary for finished employees
+    // 6. Calculate totals for finished employees
     let totalNetSalary = 0;
+    let totalEarnings = 0;
+    let totalDeductions = 0;
+    let totalBankSalaries = 0;
+    let totalCashSalaries = 0;
+
     uniqueFinishedEmpIds.forEach(empId => {
       const t = monthTx.find(tx => tx.employeeId === empId);
-      if (t) totalNetSalary += (t.netSalary || 0);
+      const emp = employees.find(e => e.id === empId);
+      if (t) {
+        totalNetSalary += (t.netSalary || 0);
+
+        if (emp?.paymentMethod === 'Bank') {
+          totalBankSalaries += (t.netSalary || 0);
+        } else {
+          totalCashSalaries += (t.netSalary || 0);
+        }
+        
+        // Earnings: Basic, Housing, Transport, Subsistence, Mobile, Management, Other, Overtime, Increase, Other Income
+        totalEarnings += (
+          (t.basicSalary || 0) + 
+          (t.housingAllowance || 0) + 
+          (t.transportAllowance || 0) + 
+          (t.subsistenceAllowance || 0) + 
+          (t.mobileAllowance || 0) + 
+          (t.managementAllowance || 0) + 
+          (t.otherAllowances || 0) + 
+          (t.overtimeValue || 0) + 
+          (t.salaryIncrease || 0) + 
+          (t.otherIncome || 0)
+        );
+
+        // Deductions: Social Insurance, Salary Received, Loans, Absence, Delay/Departure, Other
+        totalDeductions += (
+          (t.socialInsurance || 0) + 
+          (t.salaryReceived || 0) + 
+          (t.loans || 0) + 
+          (t.absenceDeduction || 0) + 
+          (t.departureDelayDeduction || 0) + 
+          (t.otherDeductions || 0)
+        );
+      }
     });
     
     // 7. Detect duplicates in the full monthly transaction list (total records vs unique emp IDs for THIS month)
     const uniqueAllEmpIdsInMonth = new Set(monthTx.map(t => t.employeeId));
     const duplicatesCount = monthTx.length - uniqueAllEmpIdsInMonth.size;
 
-    return { total, finished, remaining: Math.max(0, total - finished), duplicatesCount, totalNetSalary };
+    return { 
+      total, 
+      finished, 
+      remaining: Math.max(0, total - finished), 
+      duplicatesCount, 
+      totalNetSalary,
+      totalEarnings,
+      totalDeductions,
+      totalBankSalaries,
+      totalCashSalaries
+    };
   }, [employees, transactions, selectedMonth, gridStatusFilter, monthlyCardFilter]);
 
   const handleDelete = async (id: string) => {
@@ -626,14 +674,12 @@ export const Transactions: React.FC = () => {
 
     const allEmployees = Array.from(uniqueEmployeesMap.values());
 
-    // 2. Filter for Export: Include Standard and Accounting, Exclude Saudi
-    // Filter by allowed active statuses (Active and Out of Sponsorship Active)
+    // 2. Filter for Export: Include Standard, Accounting, and Saudi
+    // Filter by allowed active statuses
     const targetEmployees = allEmployees
       .filter(emp => {
-        // Must not be Saudi
-        if (emp.classification === 'Saudi') return false;
-        
-        // Strictly Active or Active Out of Sponsorship
+        // Include Saudis, Standard, and Accounting
+        // Requirement: Must have a target active status
         const isTargetStatus = emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)' || emp.status === 'Out of Sponsorship';
         if (!isTargetStatus) return false;
 
@@ -694,9 +740,8 @@ export const Transactions: React.FC = () => {
         'قيمة عمل اضافي': t ? t.overtimeValue : 0,
         'مجموع الدخل': t ? t.totalIncome : (basicSalary + housing + transport + subsistence + other + mobile + management),
         'تامينات اجتماعية': t ? t.socialInsurance : 0,
-        'استلام الكاش': t ? t.salaryReceived : 0,
+        'استلام راتب': t ? t.salaryReceived : 0,
         'سلف': t ? t.loans : 0,
-        'استلام بنك': t ? t.bankReceived : 0,
         'اقتطاعات اخرى': t ? t.otherDeductions : 0,
         'عدد الساعات': t ? t.deductionHours : 0,
         'خصم المغادرات والتاخير': t ? t.departureDelayDeduction : 0,
@@ -757,9 +802,8 @@ export const Transactions: React.FC = () => {
               overtimeHours: Number(row['عدد ساعات العمل الاضافي'] || row['ساعات الإضافي']) || 0,
               overtimeValue: Number(row['قيمة عمل اضافي'] || row['قيمة الإضافي']) || 0,
               socialInsurance: Number(row['تامينات اجتماعية'] || row['تأمين اجتماعي']) || 0,
-              salaryReceived: Number(row['استلام الكاش'] || row['استلام راتب']) || 0,
+              salaryReceived: Number(row['استلام راتب'] || row['استلام الكاش']) || 0,
               loans: Number(row['سلف']) || 0,
-              bankReceived: Number(row['استلام بنك']) || 0,
               otherDeductions: Number(row['اقتطاعات اخرى'] || row['خصومات أخرى']) || 0,
               deductionHours: Number(row['عدد الساعات'] || row['ساعات الخصم']) || 0,
               departureDelayDeduction: Number(row['خصم المغادرات والتاخير']) || 0,
@@ -950,6 +994,73 @@ export const Transactions: React.FC = () => {
         </div>
       </div>
 
+      {/* Summary Filter / Alerts */}
+      <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 p-8 shadow-sm">
+        {!selectedMonth ? (
+          <div className="flex flex-col items-center justify-center py-6 text-amber-600 dark:text-amber-400">
+            <AlertCircle className="w-12 h-12 mb-3 opacity-50" />
+            <h3 className="text-xl font-black">لابد من اختيار الشهر أولاً</h3>
+          </div>
+        ) : transactions.filter(t => t.month === selectedMonth).length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 text-blue-600 dark:text-blue-400">
+            <AlertCircle className="w-12 h-12 mb-3 opacity-50" />
+            <h3 className="text-xl font-black">لا يوجد حركات في هذا الشهر الجاري ({selectedMonth})</h3>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-blue-50/50 dark:bg-blue-900/20 p-5 rounded-[2rem] border border-blue-100/50 dark:border-blue-900/30 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                <ArrowUpRight className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">إجمالي المستحقات</span>
+              </div>
+              <h4 className="text-lg font-black text-gray-900 dark:text-white">
+                {formatCurrency(gridStats.totalEarnings)}
+              </h4>
+            </div>
+
+            <div className="bg-red-50/50 dark:bg-red-900/20 p-5 rounded-[2rem] border border-red-100/50 dark:border-red-900/30 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <ArrowDownRight className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">إجمالي الخصومات</span>
+              </div>
+              <h4 className="text-lg font-black text-gray-900 dark:text-white">
+                {formatCurrency(gridStats.totalDeductions)}
+              </h4>
+            </div>
+
+            <div className="bg-emerald-50/50 dark:bg-emerald-900/20 p-5 rounded-[2rem] border border-emerald-100/50 dark:border-emerald-900/30 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">إجمالي الصافي للمصفى</span>
+              </div>
+              <h4 className="text-lg font-black text-gray-900 dark:text-white">
+                {formatCurrency(gridStats.totalNetSalary)}
+              </h4>
+            </div>
+
+            <div className="bg-indigo-50/50 dark:bg-indigo-900/20 p-5 rounded-[2rem] border border-indigo-100/50 dark:border-indigo-900/30 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                <Building2 className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">رواتب البنك</span>
+              </div>
+              <h4 className="text-lg font-black text-gray-900 dark:text-white">
+                {formatCurrency(gridStats.totalBankSalaries)}
+              </h4>
+            </div>
+
+            <div className="bg-amber-50/50 dark:bg-amber-900/20 p-5 rounded-[2rem] border border-amber-100/50 dark:border-amber-900/30 flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <Wallet className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-widest">رواتب الكاش</span>
+              </div>
+              <h4 className="text-lg font-black text-gray-900 dark:text-white">
+                {formatCurrency(gridStats.totalCashSalaries)}
+              </h4>
+            </div>
+          </div>
+        )}
+      </div>
+
       {activeTab === 'History' ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1123,7 +1234,7 @@ export const Transactions: React.FC = () => {
       ) : (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {/* Progress Indicators */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center">
                 <LayoutGrid className="w-6 h-6" />
@@ -1149,15 +1260,6 @@ export const Transactions: React.FC = () => {
               <div>
                 <p className="text-xs font-bold text-gray-400 dark:text-gray-500">المتبقي</p>
                 <h4 className="text-xl font-black text-gray-900 dark:text-white">{gridStats.remaining}</h4>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-6 rounded-[2rem] border border-blue-500 shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-4 text-white">
-              <div className="w-12 h-12 bg-white/20 text-white rounded-2xl flex items-center justify-center">
-                <ArrowUpRight className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-blue-100">إجمالي الصافي (بعد الخصومات والزيادات)</p>
-                <h4 className="text-xl font-black">{formatCurrency(gridStats.totalNetSalary)}</h4>
               </div>
             </div>
           </div>
@@ -1700,12 +1802,8 @@ export const Transactions: React.FC = () => {
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام الكاش</label>
+                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام راتب</label>
                     <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام بنك</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.bankReceived ?? 0} onChange={(e) => setFormData({...formData, bankReceived: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">سلف</label>

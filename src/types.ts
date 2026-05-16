@@ -79,9 +79,8 @@ export interface Transaction {
   overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number; // مجموع الدخل
   socialInsurance: number; // تامينات اجتماعية
-  salaryReceived: number; // استلام الكاش
+  salaryReceived: number; // استلام راتب
   loans: number; // سلف
-  bankReceived: number; // استلام بنك
   otherDeductions: number; // اقتطاعات اخرى
   deductionHours: number; // عدد الساعات
   departureDelayDeduction: number; // خصم المغادرات والتاخير
@@ -138,9 +137,8 @@ export interface PayrollResult {
   overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number;
   socialInsurance: number; // تامينات اجتماعية
-  salaryReceived: number; // استلام الكاش
+  salaryReceived: number; // استلام راتب
   loans: number; // سلف
-  bankReceived: number; // استلام بنك
   otherDeductions: number;
   deductionHours: number;
   delayDeduction: number; // خصم المغادرات والتاخير
