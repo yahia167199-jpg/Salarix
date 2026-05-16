@@ -44,7 +44,7 @@ export const IqamaRenewal: React.FC = () => {
         // Exclude Saudis and Husbands of Citizens
         const nat = emp.nationality?.toLowerCase() || '';
         const isSaudi = nat.includes('saudi') || nat.includes('سعودي') || nat.includes('سعودية');
-        if (isSaudi || emp.isCitizenHusband) return false;
+        if (isSaudi) return false;
 
         // Only include Active, Out of Sponsorship, or Leave (On Vacation)
         // Exclude End of Service (EOS) or any other inactive status

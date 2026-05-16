@@ -55,7 +55,6 @@ export interface Employee {
   dailyWorkHours: number; // عدد ساعات يوم العمل
   usedLeaveDays?: number; // أيام الإجازة المستهلكة
   iqamaExpiryDate?: string; // تاريخ انتهاء الإقامة
-  isCitizenHusband?: boolean; // زوج مواطنة
   status: EmployeeStatus;
   allowances: Allowance[]; // Dynamic allowances from DDL
   role?: UserRole;

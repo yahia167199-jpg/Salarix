@@ -69,8 +69,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     paymentMethod: 'Bank',
     allowances: [],
     email: '',
-    iqamaExpiryDate: '',
-    isCitizenHusband: false
+    iqamaExpiryDate: ''
   });
 
   // Handle auto-sector mapping
@@ -123,8 +122,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       paymentMethod: 'Bank',
       allowances: [],
       email: '',
-      iqamaExpiryDate: '',
-      isCitizenHusband: false
+      iqamaExpiryDate: ''
     });
   };
 
@@ -265,8 +263,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         'حالة الموظف': emp.status === 'Active' ? 'نشط' : 
                       emp.status === 'Leave' ? 'إجازة' :
                       emp.status === 'End of Service' ? 'انهاء خدمات' :
-                      emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط',
-        'زوج مواطنة': emp.isCitizenHusband ? 'نعم' : 'لا'
+                      emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 'نشط'
       };
     });
 
@@ -288,12 +285,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     });
 
     const data = sortedEmployees.map(emp => ({
-      'الإسم': emp.name,
-      'الرقم الوظيفي': emp.employeeId || '',
-      'ادارة القطاع': emp.sectorManagement || '',
-      'القطاعات': emp.sectors || '',
-      'مركز التكلفة / رئيسي': emp.costCenterMain || '',
-      'مركز التكلفة / قسم': emp.costCenterDept || ''
+      'رقم الموظف': emp.employeeId || '',
+      'اسم الموظف': emp.name,
+      'طريقه استلام الراتب': emp.paymentMethod === 'Bank' ? 'بنك' : 'كاش'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -319,21 +313,30 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         let updatedCount = 0;
 
         data.forEach((row) => {
-          const empId = String(row['الرقم الوظيفي'] || '');
+          const empId = String(row['رقم الموظف'] || row['الرقم الوظيفي'] || '');
           if (!empId) return;
 
           // Find existing employee by employeeId
           const existingEmp = employees.find(e => e.employeeId === empId);
           if (existingEmp) {
             const docRef = firestoreDoc(db, 'employees', existingEmp.id);
-            batch.update(docRef, {
-              name: row['الإسم'] || existingEmp.name,
-              sectorManagement: row['ادارة القطاع'] || existingEmp.sectorManagement,
-              sectors: row['القطاعات'] || existingEmp.sectors,
-              costCenterMain: row['مركز التكلفة / رئيسي'] || existingEmp.costCenterMain,
-              costCenterDept: row['مركز التكلفة / قسم'] || existingEmp.costCenterDept
-            });
-            updatedCount++;
+            
+            const updates: any = {};
+            if (row['اسم الموظف'] || row['الإسم']) {
+              updates.name = row['اسم الموظف'] || row['الإسم'];
+            }
+            
+            const pMethodRaw = String(row['طريقه استلام الراتب'] || '').trim();
+            if (pMethodRaw === 'كاش' || pMethodRaw.toLowerCase() === 'cash') {
+              updates.paymentMethod = 'Cash';
+            } else if (pMethodRaw === 'بنك' || pMethodRaw.toLowerCase() === 'bank') {
+              updates.paymentMethod = 'Bank';
+            }
+
+            if (Object.keys(updates).length > 0) {
+              batch.update(docRef, updates);
+              updatedCount++;
+            }
           }
         });
 
@@ -589,7 +592,6 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           managementAllowance: Number(row['بدل ادارة']) || 0,
           dailyWorkHours: Number(row['عدد ساعات العمل'] || 8) || 8,
           status: status,
-          isCitizenHusband: row['زوج مواطنة'] === 'نعم' || row['isCitizenHusband'] === true,
           allowances: [],
           email: ''
         });
@@ -641,11 +643,11 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     let result = employees;
     if (classificationFilter !== 'All') {
       if (classificationFilter === 'Standard') {
-        result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting' && !e.isCitizenHusband);
+        result = result.filter(e => e.classification !== 'Saudi' && e.classification !== 'Accounting');
       } else if (classificationFilter === 'Out of Sponsorship') {
-        result = result.filter(e => e.status === 'Out of Sponsorship' && !e.isCitizenHusband);
+        result = result.filter(e => e.status === 'Out of Sponsorship');
       } else if (classificationFilter === 'Saudi') {
-        result = result.filter(e => e.classification === 'Saudi' || e.isCitizenHusband);
+        result = result.filter(e => e.classification === 'Saudi');
       } else {
         result = result.filter(e => e.classification === (classificationFilter as EmployeeCategory));
       }
@@ -1293,16 +1295,6 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})}
                     />
                   </div>
-                  <div className="space-y-2 flex items-center gap-3 pt-6">
-                    <input 
-                      type="checkbox"
-                      id="isCitizenHusband"
-                      className="w-6 h-6 rounded-lg border-gray-100 bg-gray-50 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      checked={formData.isCitizenHusband || false}
-                      onChange={(e) => setFormData({...formData, isCitizenHusband: e.target.checked})}
-                    />
-                    <label htmlFor="isCitizenHusband" className="text-sm font-black text-gray-700 dark:text-gray-200 cursor-pointer select-none">زوج مواطنة (يعامل كالسعودي)</label>
-                  </div>
                   <div className="space-y-2 md:col-span-2">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-bold text-gray-500 mr-2">بدلات إضافية (مخصصة)</label>
@@ -1467,9 +1459,6 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                   <DetailItem label="رصيد الإجازات الحالي" value={`${calculateBalance(viewingEmployee)} يوم`} />
                   <DetailItem label="عدد ساعات العمل" value={`${viewingEmployee.dailyWorkHours || 8} ساعات`} />
                   <DetailItem label="البريد الإلكتروني" value={viewingEmployee.email} />
-                  {viewingEmployee.isCitizenHusband && (
-                    <DetailItem label="زوج مواطنة" value="نعم" highlight />
-                  )}
                 </div>
 
                 <div className="p-8 bg-blue-50/30 rounded-[2.5rem] border border-blue-100/50">
