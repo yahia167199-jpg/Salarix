@@ -116,6 +116,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     });
   }, [leaves]);
 
+  const lastRunSummary = useMemo(() => {
+    if (!lastRun) return null;
+    
+    const bankTotal = lastResults.reduce((acc, r) => acc + (Number(r.netSalary) || 0), 0);
+    
+    // Calculate Cash from transactions for that same month
+    const cashTotal = transactions
+      .filter(t => t.month === lastRun.month)
+      .reduce((acc, t) => {
+        const emp = employees.find(e => e.id === t.employeeId);
+        if (emp?.paymentMethod === 'Cash' || (emp?.paymentMethod as any) === 'كاش') {
+          return acc + (Number(t.netSalary) || 0);
+        }
+        return acc;
+      }, 0);
+    
+    return {
+      month: lastRun.month,
+      totalBank: bankTotal,
+      totalCash: cashTotal,
+      totalGlobal: bankTotal + cashTotal,
+      employeeCount: lastResults.length,
+    };
+  }, [lastRun, lastResults, employees, transactions]);
+
   return (
     <div className="space-y-10">
       {/* Header Section */}
@@ -172,6 +197,82 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               <Check className="w-6 h-6" />
               تأكيد عودة الجميع
             </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Last Payroll Run Indicator */}
+      {lastRunSummary && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-900 rounded-[3rem] p-1 border border-gray-100 dark:border-gray-800 shadow-xl shadow-blue-500/5 relative overflow-hidden"
+        >
+          <div className="p-8 flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="flex items-center gap-6">
+              <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white shadow-2xl shadow-blue-500/40 relative">
+                <div className="absolute inset-0 bg-white/20 animate-ping rounded-[2rem] opacity-20" />
+                <TrendingUp className="w-10 h-10" />
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">آخر مسير تم اعتماده</p>
+                </div>
+                <h3 className="text-3xl font-black text-gray-900 dark:text-white mb-1">
+                  شهر {lastRunSummary.month}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 font-bold">
+                  تمت معالجة رواتب {lastRunSummary.employeeCount} موظفاً بنجاح
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center gap-6 lg:gap-12">
+              <div className="grid grid-cols-2 md:flex gap-6 lg:gap-10">
+                <div className="text-center md:text-right">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-1">صافي البنك</p>
+                  <p className="text-lg font-black text-blue-600 dark:text-blue-400 tabular-nums">
+                    {formatCurrency(lastRunSummary.totalBank)}
+                  </p>
+                </div>
+                <div className="text-center md:text-right">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-1">صافي الكاش</p>
+                  <p className="text-lg font-black text-amber-600 dark:text-amber-400 tabular-nums">
+                    {formatCurrency(lastRunSummary.totalCash)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="h-10 w-px bg-gray-100 dark:bg-gray-800 hidden md:block" />
+
+              <div className="text-center md:text-right">
+                <p className="text-xs font-bold text-gray-400 dark:text-gray-500 mb-1">الإجمالي الكلي</p>
+                <div className="flex items-baseline justify-center md:justify-end gap-1">
+                  <span className="text-3xl font-black text-gray-900 dark:text-white tabular-nums tracking-tighter">
+                    {formatCurrency(lastRunSummary.totalGlobal).split(' ')[0]}
+                  </span>
+                  <span className="text-xs font-black text-gray-400">ر.س.</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => onNavigate?.('summary-report')}
+                className="px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-xs flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-xl shadow-gray-900/10 dark:shadow-none group whitespace-nowrap"
+              >
+                التفاصيل
+                <ArrowRight className="w-4 h-4 rotate-180" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="h-2 w-full bg-gray-50 dark:bg-gray-800">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: '100%' }}
+              transition={{ duration: 2, ease: "easeOut" }}
+              className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600"
+            />
           </div>
         </motion.div>
       )}

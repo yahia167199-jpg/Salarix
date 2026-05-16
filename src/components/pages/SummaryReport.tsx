@@ -187,7 +187,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const rawSector = (r.sectors || emp?.sectors || r.sector || '').trim();
       const sectorName = getNormalizedSector(rawSector, dept);
       
-      const isSaudi = sectorName === 'السعوديين' || emp?.classification === 'رواتب السعوديين' || emp?.classification === 'Saudi Salaries';
+      const isSaudi = sectorName === 'السعوديين' || (emp?.classification as any) === 'رواتب السعوديين' || (emp?.classification as any) === 'Saudi Salaries';
 
       if (isSaudi) {
         saudiTotal += Number(r.netSalary) || 0;
@@ -241,7 +241,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
     monthTransactions.forEach(t => {
       const emp = employees.find(e => e.id === t.employeeId);
-      if (emp?.paymentMethod === 'Cash') {
+      if (emp?.paymentMethod === 'Cash' || (emp?.paymentMethod as any) === 'كاش') {
         cash += (Number(t.netSalary) || 0);
       }
     });
@@ -258,7 +258,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
     monthTransactions.forEach(t => {
       const emp = employees.find(e => e.id === t.employeeId);
-      if (emp?.paymentMethod === 'Cash' || emp?.paymentMethod === 'كاش') {
+      if (emp?.paymentMethod === 'Cash' || (emp?.paymentMethod as any) === 'كاش') {
         combinedData.push({ ...t });
       }
     });
@@ -316,7 +316,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const cashSalaries = sectorResults.reduce((acc, curr) => {
         const emp = employees.find(e => e.id === curr.employeeId);
         const pm = curr.paymentMethod || emp?.paymentMethod;
-        return acc + (pm === 'Cash' || pm === 'كاش' ? (Number(curr.netSalary) || 0) : 0);
+        return acc + (pm === 'Cash' || (pm as any) === 'كاش' ? (Number(curr.netSalary) || 0) : 0);
       }, 0);
 
       return {
