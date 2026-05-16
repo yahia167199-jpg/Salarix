@@ -502,14 +502,16 @@ export const Transactions: React.FC = () => {
           (t.otherIncome || 0)
         );
 
-        // Deductions: Social Insurance, Salary Received, Loans, Absence, Delay/Departure, Other
+        // Deductions: Social Insurance, Salary Received, Loans, Absence, Delay/Departure, Other + Hour Deduction Value
+        const hourDeductionValue = (t.deductionHours || 0) * ((t.basicSalary || 0) / (30 * (emp?.dailyWorkHours || 8)));
         totalDeductions += (
           (t.socialInsurance || 0) + 
           (t.salaryReceived || 0) + 
           (t.loans || 0) + 
           (t.absenceDeduction || 0) + 
           (t.departureDelayDeduction || 0) + 
-          (t.otherDeductions || 0)
+          (t.otherDeductions || 0) +
+          hourDeductionValue
         );
       }
     });

@@ -675,7 +675,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
       (e.employeeId?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.iqamaNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (e.jobTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      (e.sectorManagement?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (e.sectors?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
   }, [employees, searchTerm, classificationFilter, statusFilter]);
 
@@ -688,7 +689,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input 
               type="text" 
-              placeholder="ابحث بالاسم، الرقم الوظيفي، أو الإقامة..."
+              placeholder="ابحث بالاسم، الرقم، الإقامة، أو القطاع..."
               className="w-full pr-12 pl-4 py-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium shadow-sm text-gray-900 dark:text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

@@ -21,7 +21,7 @@ interface SummaryReportProps {
 }
 
 const sectorOrder = [
-  'الادارة العامة',
+  'الإدارة العامة',
   'قطاع ص المقاولات والمقاولات',
   'ادارة العقار والاملاك',
   'قطاع الصناعة',
@@ -30,7 +30,7 @@ const sectorOrder = [
 ];
 
 export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
-  const { payrollRuns, employees, sectors, companySettings, costCenterDepts } = useData();
+  const { payrollRuns, employees, sectors, companySettings, costCenterDepts, transactions: allTransactions } = useData();
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<PayrollResult[]>([]);
@@ -93,9 +93,9 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     'ادارة العقار': 'ادارة العقار والاملاك',
     'ادارة العقار والاملاك': 'ادارة العقار والاملاك',
     // الادارة العامة
-    'ادارة الباحة': 'الادارة العامة',
-    'الإدارة العامة': 'الادارة العامة',
-    'الادارة العامة': 'الادارة العامة'
+    'ادارة الباحة': 'الإدارة العامة',
+    'الإدارة العامة': 'الإدارة العامة',
+    'الادارة العامة': 'الإدارة العامة'
   };
 
   const normalizeArabic = (text: string) => {
@@ -113,6 +113,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     // Priority 1: Dynamic Mapping from Settings (costCenterDepts)
     const dynamicMapping = costCenterDepts.find(ccd => normalizeArabic(ccd.name) === dNormalized);
     if (dynamicMapping) {
+      if (normalizeArabic(dynamicMapping.sectorName).includes('اداره عامه')) return 'الإدارة العامة';
       return dynamicMapping.sectorName;
     }
 
@@ -126,8 +127,19 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     const s = (sector || '').trim();
     if (!s) return 'غير محدد';
     
-    if (s === 'السعوديين' || s.includes('سعودي') || s.includes('سعودي') || s === 'سعوديين') {
+    if (s === 'السعوديين' || s.includes('سعودي') || s.includes('سعوديين')) {
       return 'السعوديين';
+    }
+
+    if (
+      s.includes('ادارة عامة') || 
+      s.includes('إدارة عامة') || 
+      s.includes('الادارة العامة') || 
+      s.includes('الإدارة العامة') ||
+      normalizeArabic(s).includes('اداره عامه') ||
+      normalizeArabic(s) === 'الاداره العامه'
+    ) {
+      return 'الإدارة العامة';
     }
 
     if (
@@ -142,24 +154,29 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     return s;
   };
 
+  const selectedRun = payrollRuns.find(r => r.id === selectedRunId);
+
   // Detailed report data logic
   const detailedReportData = useMemo(() => {
-    if (!results.length) return { sectors: [], totalBasic: 0, totalNet: 0, saudiTotal: 0 };
+    if (!results.length || !selectedRun) return { sectors: [], totalBasic: 0, totalNet: 0, saudiTotal: 0 };
+
+    // Use all results from the run
+    const filteredResults = results;
 
     const grouped: Record<string, Record<string, { basic: number; net: number; mainCC: string; dept: string }>> = {};
     let totalBasic = 0;
     let totalNet = 0;
     let saudiTotal = 0;
 
-    results.forEach(r => {
+    filteredResults.forEach(r => {
       const emp = employees.find(e => e.id === r.employeeId);
       
-      // Use the actual current employee department if available, otherwise fallback to stored one
-      const dept = (emp?.costCenterDept || r.costCenterDept || (r as any).department || 'غير محدد').trim();
-      const mainCC = (emp?.costCenterMain || r.costCenterMain || 'غير محدد').trim();
+      // Prefer stored data from the result for historical consistency
+      const dept = (r.costCenterDept || emp?.costCenterDept || (r as any).department || 'غير محدد').trim();
+      const mainCC = (r.costCenterMain || emp?.costCenterMain || 'غير محدد').trim();
       
       // Get the sector - prioritize the dynamic mapping from the department
-      const rawSector = (emp?.sectors || r.sectors || (r as any).sector || '').trim();
+      const rawSector = (r.sectors || emp?.sectors || (r as any).sector || '').trim();
       const sectorName = getNormalizedSector(rawSector, dept);
       
       const isSaudi = sectorName === 'السعوديين' || emp?.nationality === 'سعودي' || emp?.nationality === 'Saudi' || emp?.classification === 'Saudi';
@@ -200,19 +217,39 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     });
 
     return { sectors: sectorsArray, totalBasic, totalNet, saudiTotal };
-  }, [results, employees, costCenterDepts]);
+  }, [results, employees, costCenterDepts, allTransactions, selectedRun]);
 
-  const selectedRun = payrollRuns.find(r => r.id === selectedRunId);
+  const globalTotals = useMemo(() => {
+    if (!results.length || !selectedRun) return { bankSalaries: 0, cashSalaries: 0 };
+    
+    let bank = 0;
+    let cash = 0;
+    
+    results.forEach(r => {
+      const pm = r.paymentMethod;
+      if (pm === 'Bank') {
+        bank += (Number(r.netSalary) || 0);
+      } else {
+        cash += (Number(r.netSalary) || 0);
+      }
+    });
+
+    return { bankSalaries: Number(bank.toFixed(2)), cashSalaries: Number(cash.toFixed(2)) };
+  }, [results, employees, allTransactions, selectedRun]);
 
   const reportData = useMemo(() => {
-    if (!results.length) return [];
+    if (!results.length || !selectedRun) return [];
+
+    // Use all results from the run
+    const filteredResults = results;
 
     // Group results by normalized sector name
     const groupedResults: Record<string, PayrollResult[]> = {};
-    results.forEach(r => {
+    filteredResults.forEach(r => {
+      // Use the stored data from the result for historical accuracy, fallback to current emp
       const emp = employees.find(e => e.id === r.employeeId);
-      const dept = (emp?.costCenterDept || (r as any).department || '').trim();
-      const rawSectorValue = emp?.sectors || r.sectors || (r as any).sector || '';
+      const dept = (r.costCenterDept || emp?.costCenterDept || (r as any).department || '').trim();
+      const rawSectorValue = r.sectors || emp?.sectors || (r as any).sector || '';
       const sectorName = getNormalizedSector(rawSectorValue, dept);
 
       // Filter out Saudi sector from the main list as requested
@@ -235,7 +272,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const otherAllowances = sum('otherAllowances');
       const mobile = sum('mobileAllowance');
       const management = sum('managementAllowance');
-      const otherIncome = sum('otherIncome');
+      const otherIncome = sum('otherIncome') + sum('salaryIncrease' as any);
       const otHours = sum('overtimeHours');
       const otAmount = sum('overtimeValue');
       const totalIncome = sum('totalIncome');
@@ -250,6 +287,18 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const netSalary = sum('netSalary');
       const absenceDays = sum('absenceDays');
       const deductionHours = sum('deductionHours');
+
+      const bankSalaries = sectorResults.reduce((acc, curr) => {
+        const emp = employees.find(e => e.id === curr.employeeId);
+        const pm = curr.paymentMethod || emp?.paymentMethod;
+        return acc + (pm === 'Bank' ? (Number(curr.netSalary) || 0) : 0);
+      }, 0);
+
+      const cashSalaries = sectorResults.reduce((acc, curr) => {
+        const emp = employees.find(e => e.id === curr.employeeId);
+        const pm = curr.paymentMethod || emp?.paymentMethod;
+        return acc + (pm !== 'Bank' ? (Number(curr.netSalary) || 0) : 0);
+      }, 0);
 
       return {
         sectorName,
@@ -273,7 +322,9 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         absenceDays,
         absenceDeduction,
         totalDeductions,
-        netSalary
+        netSalary,
+        bankSalaries,
+        cashSalaries
       };
     }).filter(s => s.totalIncome > 0 || s.totalDeductions > 0)
       .sort((a, b) => {
@@ -311,11 +362,14 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       absenceDeduction: acc.absenceDeduction + curr.absenceDeduction,
       totalDeductions: acc.totalDeductions + curr.totalDeductions,
       netSalary: acc.netSalary + curr.netSalary,
+      bankSalaries: acc.bankSalaries + curr.bankSalaries,
+      cashSalaries: acc.cashSalaries + curr.cashSalaries,
     }), {
       basic: 0, housing: 0, transport: 0, subsistence: 0, otherAllowances: 0, mobile: 0, 
       management: 0, otherIncome: 0, otHours: 0, otAmount: 0, totalIncome: 0, gosi: 0, 
       cash: 0, loans: 0, otherDeductions: 0, deductionHours: 0, delayDeduction: 0, 
-      absenceDays: 0, absenceDeduction: 0, totalDeductions: 0, netSalary: 0
+      absenceDays: 0, absenceDeduction: 0, totalDeductions: 0, netSalary: 0,
+      bankSalaries: 0, cashSalaries: 0
     });
   }, [reportData]);
 
@@ -323,7 +377,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     if (!selectedRun) return;
 
     // Prepare header info
-    const reportTitle = [['ملخص رواتب شهر ' + selectedRun.month + ' م لمجموعة ' + (companySettings?.companyName || '')]];
+    const reportTitle = [['ملخص العام رواتب شهر ' + selectedRun.month + ' م لمجموعة شركة صالح سعيد طيشان واولاده']];
     
     // Header for the table
     const headers = [[
@@ -553,10 +607,29 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
-          <div className="p-12 text-center border-b-2 border-gray-50 dark:border-gray-800">
+          <div className="p-12 text-center border-b-2 border-gray-50 dark:border-gray-800 flex flex-col gap-6">
+            {/* Print Only Header */}
+            <div className="hidden print:flex items-center justify-between w-full mb-8">
+              <div className="text-right">
+                <h1 className="text-xl font-black text-gray-900">شركة صالح سعيد طيشان واولاده</h1>
+                <p className="text-xs font-bold text-gray-500">للتجارة والمقاولات</p>
+                <div className="mt-2 text-[10px] text-gray-400 font-medium">
+                  المملكة العربية السعودية - الباحة
+                </div>
+              </div>
+              <div className="w-24 h-24 flex items-center justify-center">
+                <img 
+                  src="/src/assets/images/company_logo_placeholder_1778968862348.png" 
+                  alt="Logo" 
+                  className="max-w-full max-h-full object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+
             <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2">التقرير التفصيلي لرواتب المجموعة - {selectedRun.month} م</h2>
-            <p className="text-gray-400 dark:text-gray-500 font-bold">مجموعة {companySettings?.companyName}</p>
-            <div className="w-32 h-1.5 bg-blue-600 mx-auto rounded-full mt-4"></div>
+            <p className="text-gray-400 dark:text-gray-500 font-bold">مجموعة شركة صالح سعيد طيشان واولاده</p>
+            <div className="w-32 h-1.5 bg-blue-600 mx-auto rounded-full mt-4 print:hidden"></div>
           </div>
 
           <div className="p-8 overflow-x-auto">
@@ -658,17 +731,38 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
-          <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
-            <div className="text-center flex-1">
-               <h2 className="text-2xl font-black text-gray-900 dark:text-white">ملخص رواتب شهر {selectedRun.month} م لمجموعة {companySettings?.companyName}</h2>
+          <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex flex-col gap-6">
+            {/* Print Only Header */}
+            <div className="hidden print:flex items-center justify-between w-full mb-8">
+              <div className="text-right">
+                <h1 className="text-xl font-black text-gray-900">شركة صالح سعيد طيشان واولاده</h1>
+                <p className="text-xs font-bold text-gray-500">للتجارة والمقاولات</p>
+                <div className="mt-2 text-[10px] text-gray-400 font-medium">
+                  المملكة العربية السعودية - الباحة
+                </div>
+              </div>
+              <div className="w-24 h-24 flex items-center justify-center">
+                <img 
+                  src="/src/assets/images/company_logo_placeholder_1778968862348.png" 
+                  alt="Logo" 
+                  className="max-w-full max-h-full object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
             </div>
-            <button 
-              onClick={() => window.print()}
-              className="p-3 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20 print:hidden" 
-              title="طباعة"
-            >
-              <Printer className="w-5 h-5" />
-            </button>
+
+            <div className="text-center flex-1">
+               <h2 className="text-2xl font-black text-gray-900 dark:text-white">ملخص العام رواتب شهر {selectedRun.month} م لمجموعة شركة صالح سعيد طيشان واولاده</h2>
+            </div>
+            <div className="flex justify-end print:hidden">
+              <button 
+                onClick={() => window.print()}
+                className="p-3 bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-xl transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20" 
+                title="طباعة"
+              >
+                <Printer className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto print:overflow-visible">
@@ -782,6 +876,21 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
           </div>
 
           <div className="p-12 bg-white dark:bg-gray-900 flex flex-col items-center gap-8 print:p-4">
+            <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2">
+              <div className="bg-indigo-50/50 dark:bg-indigo-900/20 p-5 rounded-3xl border border-indigo-100/50 dark:border-indigo-900/30 flex flex-col gap-1 items-center text-center">
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400">إجمالي رواتب البنك</span>
+                <h4 className="text-xl font-black text-gray-900 dark:text-white">
+                  {formatCurrency(globalTotals.bankSalaries)}
+                </h4>
+              </div>
+              <div className="bg-amber-50/50 dark:bg-amber-900/20 p-5 rounded-3xl border border-amber-100/50 dark:border-amber-900/30 flex flex-col gap-1 items-center text-center">
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">إجمالي رواتب الكاش</span>
+                <h4 className="text-xl font-black text-gray-900 dark:text-white">
+                  {formatCurrency(globalTotals.cashSalaries)}
+                </h4>
+              </div>
+            </div>
+
             <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-none border-2 border-black dark:border-gray-700 overflow-hidden print:w-64">
                <table className="w-full text-xs border-collapse">
                  <thead>

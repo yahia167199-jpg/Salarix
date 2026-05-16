@@ -135,6 +135,7 @@ export interface PayrollResult {
   overtimeHours: number;
   overtimeValue: number; // قيمة عمل اضافي
   totalIncome: number;
+  salaryIncrease?: number; // زيادة راتب
   socialInsurance: number; // تامينات اجتماعية
   salaryReceived: number; // استلام راتب
   loans: number; // سلف

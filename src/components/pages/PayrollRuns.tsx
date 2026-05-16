@@ -57,8 +57,8 @@ export const PayrollRuns: React.FC = () => {
         const isTargetStatus = ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(emp.status);
         if (!isTargetStatus) return false;
         
-        // Include all classifications now as requested
-        return true; 
+        const hasMovement = allTransactions.some(t => t.employeeId === emp.id && t.month === month);
+        return emp.paymentMethod === 'Bank' && hasMovement;
       })
       .sort((a, b) => {
         const idA = parseInt(a.employeeId || '0', 10);
@@ -76,32 +76,15 @@ export const PayrollRuns: React.FC = () => {
       const empTrans = monthTransactions.find(t => t.employeeId === emp.id);
       
       // Use values from transaction or defaults if not processed
-      const basicSalary = empTrans ? empTrans.basicSalary : (emp.basicSalary || 0);
-      const housing = empTrans ? empTrans.housingAllowance : (emp.housingAllowance || 0);
-      const transport = empTrans ? empTrans.transportAllowance : (emp.transportAllowance || 0);
-      const subsistence = empTrans ? empTrans.subsistenceAllowance : (emp.subsistenceAllowance || 0);
-      const other = empTrans ? empTrans.otherAllowances : (emp.otherAllowances || 0);
-      const mobile = empTrans ? empTrans.mobileAllowance : (emp.mobileAllowance || 0);
-      const management = empTrans ? empTrans.managementAllowance : (emp.managementAllowance || 0);
+      const basicSalary = empTrans ? Number(empTrans.basicSalary) : (emp.basicSalary || 0);
+      const housing = empTrans ? Number(empTrans.housingAllowance) : (emp.housingAllowance || 0);
+      const transport = empTrans ? Number(empTrans.transportAllowance) : (emp.transportAllowance || 0);
+      const subsistence = empTrans ? Number(empTrans.subsistenceAllowance) : (emp.subsistenceAllowance || 0);
+      const other = empTrans ? Number(empTrans.otherAllowances) : (emp.otherAllowances || 0);
+      const mobile = empTrans ? Number(empTrans.mobileAllowance) : (emp.mobileAllowance || 0);
+      const management = empTrans ? Number(empTrans.managementAllowance) : (emp.managementAllowance || 0);
 
       const details = calculatePayrollDetails({
-        ...(empTrans || {
-          actualWorkDays: 30,
-          otherIncome: 0,
-          overtimeHours: 0,
-          overtimeValue: 0,
-          socialInsurance: 0,
-          salaryReceived: 0,
-          loans: 0,
-          otherDeductions: 0,
-          deductionHours: 0,
-          departureDelayDeduction: 0,
-          absenceDays: 0,
-          absenceDeduction: 0,
-          salaryIncrease: 0,
-          dailyWorkHours: emp.dailyWorkHours || 8,
-          notes: ''
-        }),
         basicSalary,
         housingAllowance: housing,
         transportAllowance: transport,
@@ -109,11 +92,26 @@ export const PayrollRuns: React.FC = () => {
         otherAllowances: other,
         mobileAllowance: mobile,
         managementAllowance: management,
-        overtimeBaseSalary: emp.basicSalary // Always use base for OT
+        otherIncome: empTrans ? Number(empTrans.otherIncome || 0) : 0,
+        overtimeHours: empTrans ? Number(empTrans.overtimeHours || 0) : 0,
+        overtimeValue: empTrans ? Number(empTrans.overtimeValue || 0) : 0,
+        salaryIncrease: empTrans ? Number(empTrans.salaryIncrease || 0) : 0,
+        socialInsurance: empTrans ? Number(empTrans.socialInsurance || 0) : 0,
+        salaryReceived: empTrans ? Number(empTrans.salaryReceived || 0) : 0,
+        loans: empTrans ? Number(empTrans.loans || 0) : 0,
+        otherDeductions: empTrans ? Number(empTrans.otherDeductions || 0) : 0,
+        deductionHours: empTrans ? Number(empTrans.deductionHours || 0) : 0,
+        departureDelayDeduction: empTrans ? Number(empTrans.departureDelayDeduction || 0) : 0,
+        absenceDays: empTrans ? Number(empTrans.absenceDays || 0) : 0,
+        absenceDeduction: empTrans ? Number(empTrans.absenceDeduction || 0) : 0,
+        dailyWorkHours: emp.dailyWorkHours || 8,
+        overtimeBaseSalary: emp.basicSalary,
+        paymentMethod: emp.paymentMethod,
+        notes: empTrans?.notes || ''
       });
     
       const resultDocRef = doc(collection(db, 'payrollResults'));
-      const roundedNet = Math.round(details.netSalary);
+      const netSalary = Number(details.netSalary.toFixed(2));
       
       const result: PayrollResult = {
         id: resultDocRef.id,
@@ -139,6 +137,7 @@ export const PayrollRuns: React.FC = () => {
         mobileAllowance: details.mobileAllowance,
         managementAllowance: details.managementAllowance,
         otherIncome: details.otherIncome,
+        salaryIncrease: details.salaryIncrease,
         overtimeHours: details.overtimeHours,
         overtimeValue: details.overtimeValue,
         totalIncome: details.totalIncome,
@@ -151,8 +150,8 @@ export const PayrollRuns: React.FC = () => {
         absenceDays: details.absenceDays,
         absenceDeduction: details.absenceDeduction,
         totalDeductions: details.totalDeductions,
-        netSalary: roundedNet,
-        roundingDiff: Number((roundedNet - details.netSalary).toFixed(2)),
+        netSalary: netSalary,
+        roundingDiff: 0,
         
         // Legacy/Computed
         grossBase: details.grossBase,
@@ -162,7 +161,7 @@ export const PayrollRuns: React.FC = () => {
       };
 
       batch.set(resultDocRef, result);
-      totalNet += roundedNet;
+      totalNet += netSalary;
       return result;
     });
 
@@ -170,7 +169,7 @@ export const PayrollRuns: React.FC = () => {
       id: runId,
       month,
       status: 'Draft',
-      totalNet,
+      totalNet: Number(totalNet.toFixed(2)),
       employeeCount: targetEmployees.length,
       updatedAt: new Date().toISOString()
     };
@@ -229,10 +228,16 @@ export const PayrollRuns: React.FC = () => {
   };
 
   const exportToExcel = (run: PayrollRun, results: PayrollResult[]) => {
-    // 1. Inclusion Rule: Total Salary > 0 AND Payment Method === 'Bank'
-    const bankEmployees = results.filter(r => r.paymentMethod === 'Bank' && r.netSalary > 0);
+    // 1. Inclusion Rule: Total Salary > 0 AND Payment Method === 'Bank' AND Has Movement this month
+    const bankEmployees = results.filter(r => {
+      const hasMovement = allTransactions.some(t => t.employeeId === r.employeeId && t.month === run.month);
+      return r.paymentMethod === 'Bank' && r.netSalary > 0 && hasMovement;
+    });
     
-    // 2. Prepare Row Data
+    // Create an active subset of results for correct reconciliations
+    const activeResults = results.filter(r => 
+      allTransactions.some(t => t.employeeId === r.employeeId && t.month === run.month)
+    );
     const [year, monthNum] = run.month.split('-');
     const formattedDate = `${monthNum}/${year}`;
 
@@ -309,28 +314,28 @@ export const PayrollRuns: React.FC = () => {
       return emp?.classification !== 'Saudi' && emp?.classification !== 'Accounting';
     };
 
-    const certifiedBankAmount = results
+    const certifiedBankAmount = activeResults
       .filter(r => r.paymentMethod === 'Bank' && getIsStandard(r))
       .reduce((sum, r) => sum + r.netSalary, 0);
     
-    const certifiedCashAmount = results
+    const certifiedCashAmount = activeResults
       .filter(r => r.paymentMethod === 'Cash' && getIsStandard(r))
       .reduce((sum, r) => sum + r.netSalary, 0);
 
-    const bankCount = results.filter(r => r.paymentMethod === 'Bank').length;
-    const cashCount = results.filter(r => r.paymentMethod === 'Cash').length;
-    const totalEmployeesCount = results.length;
+    const bankCount = activeResults.filter(r => r.paymentMethod === 'Bank').length;
+    const cashCount = activeResults.filter(r => r.paymentMethod === 'Cash').length;
+    const totalEmployeesCount = activeResults.length;
     
     // الفرق بالزيادة = إجمالي Total Salary (من شيت البنك) – رواتب موظفين البنك (من المعتمد)
     const excessDiff = Number((sumTotalSalary - certifiedBankAmount).toFixed(2));
 
     // 6. Difference Breakdown
-    const accountingTotal = results.reduce((sum, r) => {
+    const accountingTotal = activeResults.reduce((sum, r) => {
       const emp = allEmployees.find(e => (e.id === r.employeeId));
       return (emp?.classification === 'Accounting' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
     }, 0);
 
-    const saudiTotal = results.reduce((sum, r) => {
+    const saudiTotal = activeResults.reduce((sum, r) => {
       const emp = allEmployees.find(e => (e.id === r.employeeId));
       return (emp?.classification === 'Saudi' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
     }, 0);
@@ -357,23 +362,7 @@ export const PayrollRuns: React.FC = () => {
       ['🏢 ملخص الفروع (Branch Summary)'],
       ['الفرع', 'مجموع Total Salary'],
       ...branchRows,
-      ['إجمالي كل الفروع', branchGrandTotal],
-      [],
-      ['🔗 قسم المطابقة (Reconciliation)'],
-      ['رواتب موظفين البنك (المعتمد)', certifiedBankAmount],
-      ['رواتب موظفين الكاش', certifiedCashAmount],
-      ['إجمالي الموظفين (عدد)', totalEmployeesCount],
-      ['(النشطين - سعودين - خارج الكفالة -محاسبات)'],
-      ['عدد موظفي البنك', bankCount],
-      ['عدد موظفي الكاش', cashCount],
-      [],
-      ['الفرق بالزيادة (Bank Sheet vs Certified Base)', excessDiff],
-      [],
-      ['📊 تحليل الفروقات (Difference Breakdown)'],
-      ['المحاسبات', accountingTotal],
-      ['السعودين', saudiTotal],
-      ['إجماليهم', breakdownSum],
-      ['فرق جبر الكسور', finalRoundingDiff]
+      ['إجمالي كل الفروع', branchGrandTotal]
     ];
 
     // 8. Generate and Download
