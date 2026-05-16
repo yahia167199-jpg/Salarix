@@ -54,11 +54,14 @@ export const PayrollRuns: React.FC = () => {
     // Requirement: Must have an active status (Active or Out of Sponsorship variants)
     const targetEmployees = Array.from(uniqueEmployeesMap.values())
       .filter(emp => {
-        const isTargetStatus = ['Active', 'Leave', 'Out of Sponsorship', 'Out of Sponsorship (Active)', 'Out of Sponsorship (Leave)'].includes(emp.status);
-        if (!isTargetStatus) return false;
-        
+        // Updated Requirement: Bank only, Active only (no Leave), and must have Transactions
+        const isActive = emp.status === 'Active' || 
+                        emp.status === 'Out of Sponsorship (Active)' || 
+                        emp.status === 'Out of Sponsorship';
+        const isBank = emp.paymentMethod === 'Bank';
         const hasMovement = allTransactions.some(t => t.employeeId === emp.id && t.month === month);
-        return emp.paymentMethod === 'Bank' && hasMovement;
+        
+        return isActive && isBank && hasMovement;
       })
       .sort((a, b) => {
         const idA = parseInt(a.employeeId || '0', 10);
@@ -75,14 +78,63 @@ export const PayrollRuns: React.FC = () => {
       // Find transaction for this employee this month
       const empTrans = monthTransactions.find(t => t.employeeId === emp.id);
       
+      // If skipped, net is 0
+      if (empTrans?.status === 'Skipped') {
+        const resultDocRef = doc(collection(db, 'payrollResults'));
+        const result: PayrollResult = {
+          id: resultDocRef.id,
+          payrollRunId: runId,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          iqamaNumber: emp.iqamaNumber,
+          officialEmployer: emp.officialEmployer,
+          location: emp.location,
+          sectors: emp.sectors,
+          costCenterMain: emp.costCenterMain,
+          costCenterDept: emp.costCenterDept,
+          paymentMethod: emp.paymentMethod,
+          bankAccount: emp.bankAccount,
+          bankCode: emp.bankCode,
+          basicSalary: 0,
+          housingAllowance: 0,
+          transportAllowance: 0,
+          subsistenceAllowance: 0,
+          otherAllowances: 0,
+          mobileAllowance: 0,
+          managementAllowance: 0,
+          otherIncome: 0,
+          salaryIncrease: 0,
+          overtimeHours: 0,
+          overtimeValue: 0,
+          totalIncome: 0,
+          socialInsurance: 0,
+          salaryReceived: 0,
+          loans: 0,
+          otherDeductions: 0,
+          deductionHours: 0,
+          delayDeduction: 0,
+          absenceDays: 0,
+          absenceDeduction: 0,
+          totalDeductions: 0,
+          netSalary: 0,
+          roundingDiff: 0,
+          grossBase: 0,
+          otherEarnings: 0,
+          bankExportAmount: 0,
+          cashExportAmount: 0
+        };
+        batch.set(resultDocRef, result);
+        return result;
+      }
+
       // Use values from transaction or defaults if not processed
-      const basicSalary = empTrans ? Number(empTrans.basicSalary) : (emp.basicSalary || 0);
-      const housing = empTrans ? Number(empTrans.housingAllowance) : (emp.housingAllowance || 0);
-      const transport = empTrans ? Number(empTrans.transportAllowance) : (emp.transportAllowance || 0);
-      const subsistence = empTrans ? Number(empTrans.subsistenceAllowance) : (emp.subsistenceAllowance || 0);
-      const other = empTrans ? Number(empTrans.otherAllowances) : (emp.otherAllowances || 0);
-      const mobile = empTrans ? Number(empTrans.mobileAllowance) : (emp.mobileAllowance || 0);
-      const management = empTrans ? Number(empTrans.managementAllowance) : (emp.managementAllowance || 0);
+      const basicSalary = empTrans ? Number(empTrans.basicSalary || 0) : (emp.basicSalary || 0);
+      const housing = empTrans ? Number(empTrans.housingAllowance || 0) : (emp.housingAllowance || 0);
+      const transport = empTrans ? Number(empTrans.transportAllowance || 0) : (emp.transportAllowance || 0);
+      const subsistence = empTrans ? Number(empTrans.subsistenceAllowance || 0) : (emp.subsistenceAllowance || 0);
+      const other = empTrans ? Number(empTrans.otherAllowances || 0) : (emp.otherAllowances || 0);
+      const mobile = empTrans ? Number(empTrans.mobileAllowance || 0) : (emp.mobileAllowance || 0);
+      const management = empTrans ? Number(empTrans.managementAllowance || 0) : (emp.managementAllowance || 0);
 
       const details = calculatePayrollDetails({
         basicSalary,

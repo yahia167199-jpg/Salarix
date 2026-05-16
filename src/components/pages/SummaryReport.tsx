@@ -110,82 +110,89 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     const dTrim = (dept || '').trim();
     const dNormalized = normalizeArabic(dTrim);
 
+    let s = (sector || '').trim();
+
     // Priority 1: Dynamic Mapping from Settings (costCenterDepts)
     const dynamicMapping = costCenterDepts.find(ccd => normalizeArabic(ccd.name) === dNormalized);
     if (dynamicMapping) {
-      if (normalizeArabic(dynamicMapping.sectorName).includes('اداره عامه')) return 'الإدارة العامة';
-      return dynamicMapping.sectorName;
+      s = dynamicMapping.sectorName.trim();
+    } else {
+      // Priority 2: Fallback to the hardcoded mapping (normalized)
+      const hardcodedMatch = Object.entries(departmentToSectorMap).find(([key]) => normalizeArabic(key) === dNormalized);
+      if (hardcodedMatch) {
+        s = hardcodedMatch[1].trim();
+      }
     }
 
-    // Priority 2: Fallback to the hardcoded mapping (normalized)
-    const hardcodedMatch = Object.entries(departmentToSectorMap).find(([key]) => normalizeArabic(key) === dNormalized);
-    if (hardcodedMatch) {
-      return hardcodedMatch[1];
-    }
+    const sNormalized = normalizeArabic(s);
 
-    // Priority 3: Normalize Sector Name if provided directly
-    const s = (sector || '').trim();
-    if (!s) return 'غير محدد';
-    
-    if (s === 'السعوديين' || s.includes('سعودي') || s.includes('سعوديين')) {
+    if (sNormalized.includes('سعودي') || sNormalized.includes('سعوديين') || sNormalized === 'رواتب السعوديين') {
       return 'السعوديين';
     }
 
-    if (
-      s.includes('ادارة عامة') || 
-      s.includes('إدارة عامة') || 
-      s.includes('الادارة العامة') || 
-      s.includes('الإدارة العامة') ||
-      normalizeArabic(s).includes('اداره عامه') ||
-      normalizeArabic(s) === 'الاداره العامه'
-    ) {
+    if (sNormalized.includes('اداره عامه')) {
       return 'الإدارة العامة';
     }
 
-    if (
-      s.includes('مقاولات') || 
-      s.includes('ص مقاولات') || 
-      normalizeArabic(s).includes('مقاولات') ||
-      s === 'قطاع ص المقاولات والمقاولات'
-    ) {
+    if (sNormalized.includes('مقاولات')) {
       return 'قطاع ص المقاولات والمقاولات';
     }
-    
-    return s;
+
+    if (sNormalized.includes('عقار')) {
+      return 'ادارة العقار والاملاك';
+    }
+
+    if (sNormalized.includes('صناعه')) {
+      return 'قطاع الصناعة';
+    }
+
+    if (sNormalized.includes('كماليه')) {
+      return 'قطاع السلع الكماليه';
+    }
+
+    if (sNormalized.includes('ورشه')) {
+      return 'قطاع ورش الصيانه و التصنيع';
+    }
+
+    return s || 'غير محدد';
   };
 
   const selectedRun = payrollRuns.find(r => r.id === selectedRunId);
 
   // Detailed report data logic
   const detailedReportData = useMemo(() => {
-    if (!results.length || !selectedRun) return { sectors: [], totalBasic: 0, totalNet: 0, saudiTotal: 0 };
+    if (!selectedRun) return { sectors: [], totalBasic: 0, totalNet: 0, saudiTotal: 0 };
 
-    // Use all results from the run
-    const filteredResults = results;
+    // Combine results (Bank) and transactions for (Cash)
+    const combinedData: any[] = results.map(r => ({ ...r }));
+    
+    const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
+    monthTransactions.forEach(t => {
+      const emp = employees.find(e => e.id === t.employeeId);
+      if (emp?.paymentMethod === 'Cash') {
+        combinedData.push({ ...t });
+      }
+    });
 
     const grouped: Record<string, Record<string, { basic: number; net: number; mainCC: string; dept: string }>> = {};
     let totalBasic = 0;
     let totalNet = 0;
     let saudiTotal = 0;
 
-    filteredResults.forEach(r => {
+    combinedData.forEach(r => {
       const emp = employees.find(e => e.id === r.employeeId);
       
-      // Prefer stored data from the result for historical consistency
-      const dept = (r.costCenterDept || emp?.costCenterDept || (r as any).department || 'غير محدد').trim();
+      const dept = (r.costCenterDept || emp?.costCenterDept || r.department || 'غير محدد').trim();
       const mainCC = (r.costCenterMain || emp?.costCenterMain || 'غير محدد').trim();
-      
-      // Get the sector - prioritize the dynamic mapping from the department
-      const rawSector = (r.sectors || emp?.sectors || (r as any).sector || '').trim();
+      const rawSector = (r.sectors || emp?.sectors || r.sector || '').trim();
       const sectorName = getNormalizedSector(rawSector, dept);
       
-      const isSaudi = sectorName === 'السعوديين' || emp?.nationality === 'سعودي' || emp?.nationality === 'Saudi' || emp?.classification === 'Saudi';
+      const isSaudi = sectorName === 'السعوديين' || emp?.classification === 'رواتب السعوديين' || emp?.classification === 'Saudi Salaries';
 
       if (isSaudi) {
         saudiTotal += Number(r.netSalary) || 0;
       } else {
         if (!grouped[sectorName]) grouped[sectorName] = {};
-        // Use a composite key for grouping to include mainCC
         const groupKey = `${mainCC} - ${dept}`;
         if (!grouped[sectorName][groupKey]) grouped[sectorName][groupKey] = { basic: 0, net: 0, mainCC, dept };
         
@@ -220,17 +227,22 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
   }, [results, employees, costCenterDepts, allTransactions, selectedRun]);
 
   const globalTotals = useMemo(() => {
-    if (!results.length || !selectedRun) return { bankSalaries: 0, cashSalaries: 0 };
+    if (!selectedRun) return { bankSalaries: 0, cashSalaries: 0 };
     
     let bank = 0;
     let cash = 0;
     
+    // Bank salaries come from the run results
     results.forEach(r => {
-      const pm = r.paymentMethod;
-      if (pm === 'Bank') {
-        bank += (Number(r.netSalary) || 0);
-      } else {
-        cash += (Number(r.netSalary) || 0);
+      bank += (Number(r.netSalary) || 0);
+    });
+
+    // Cash salaries come from all transactions for that month for Cash employees
+    const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
+    monthTransactions.forEach(t => {
+      const emp = employees.find(e => e.id === t.employeeId);
+      if (emp?.paymentMethod === 'Cash') {
+        cash += (Number(t.netSalary) || 0);
       }
     });
 
@@ -238,18 +250,25 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
   }, [results, employees, allTransactions, selectedRun]);
 
   const reportData = useMemo(() => {
-    if (!results.length || !selectedRun) return [];
+    if (!selectedRun) return [];
 
-    // Use all results from the run
-    const filteredResults = results;
+    // Combine results (Bank) and transactions for (Cash)
+    const combinedData: any[] = results.map(r => ({ ...r }));
+    
+    const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
+    monthTransactions.forEach(t => {
+      const emp = employees.find(e => e.id === t.employeeId);
+      if (emp?.paymentMethod === 'Cash' || emp?.paymentMethod === 'كاش') {
+        combinedData.push({ ...t });
+      }
+    });
 
-    // Group results by normalized sector name
-    const groupedResults: Record<string, PayrollResult[]> = {};
-    filteredResults.forEach(r => {
-      // Use the stored data from the result for historical accuracy, fallback to current emp
+    // Group items by normalized sector name
+    const groupedResults: Record<string, any[]> = {};
+    combinedData.forEach(r => {
       const emp = employees.find(e => e.id === r.employeeId);
-      const dept = (r.costCenterDept || emp?.costCenterDept || (r as any).department || '').trim();
-      const rawSectorValue = r.sectors || emp?.sectors || (r as any).sector || '';
+      const dept = (r.costCenterDept || emp?.costCenterDept || r.department || '').trim();
+      const rawSectorValue = r.sectors || emp?.sectors || r.sector || '';
       const sectorName = getNormalizedSector(rawSectorValue, dept);
 
       // Filter out Saudi sector from the main list as requested
@@ -262,7 +281,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     });
 
     const sectorStats = Object.entries(groupedResults).map(([sectorName, sectorResults]) => {
-      const sum = (field: keyof PayrollResult) => 
+      const sum = (field: string) => 
         sectorResults.reduce((acc, curr) => acc + (Number(curr[field]) || 0), 0);
 
       const basic = sum('basicSalary');
@@ -272,7 +291,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const otherAllowances = sum('otherAllowances');
       const mobile = sum('mobileAllowance');
       const management = sum('managementAllowance');
-      const otherIncome = sum('otherIncome') + sum('salaryIncrease' as any);
+      const otherIncome = sum('otherIncome') + sum('salaryIncrease');
       const otHours = sum('overtimeHours');
       const otAmount = sum('overtimeValue');
       const totalIncome = sum('totalIncome');
@@ -297,7 +316,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       const cashSalaries = sectorResults.reduce((acc, curr) => {
         const emp = employees.find(e => e.id === curr.employeeId);
         const pm = curr.paymentMethod || emp?.paymentMethod;
-        return acc + (pm !== 'Bank' ? (Number(curr.netSalary) || 0) : 0);
+        return acc + (pm === 'Cash' || pm === 'كاش' ? (Number(curr.netSalary) || 0) : 0);
       }, 0);
 
       return {
@@ -337,7 +356,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       });
 
     return sectorStats;
-  }, [results, employees, costCenterDepts]);
+  }, [results, employees, allTransactions, selectedRun, costCenterDepts]);
 
   const totals = useMemo(() => {
     return reportData.reduce((acc, curr) => ({

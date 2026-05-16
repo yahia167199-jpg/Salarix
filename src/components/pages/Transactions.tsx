@@ -1018,6 +1018,7 @@ export const Transactions: React.FC = () => {
               <h4 className="text-lg font-black text-gray-900 dark:text-white">
                 {formatCurrency(gridStats.totalEarnings)}
               </h4>
+              <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">للموظفين المختارين بالتصفية</p>
             </div>
 
             <div className="bg-red-50/50 dark:bg-red-900/20 p-5 rounded-[2rem] border border-red-100/50 dark:border-red-900/30 flex flex-col gap-1">
@@ -1028,6 +1029,7 @@ export const Transactions: React.FC = () => {
               <h4 className="text-lg font-black text-gray-900 dark:text-white">
                 {formatCurrency(gridStats.totalDeductions)}
               </h4>
+              <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">للموظفين المختارين بالتصفية</p>
             </div>
 
             <div className="bg-emerald-50/50 dark:bg-emerald-900/20 p-5 rounded-[2rem] border border-emerald-100/50 dark:border-emerald-900/30 flex flex-col gap-1">
@@ -1038,6 +1040,7 @@ export const Transactions: React.FC = () => {
               <h4 className="text-lg font-black text-gray-900 dark:text-white">
                 {formatCurrency(gridStats.totalNetSalary)}
               </h4>
+              <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">صافي الموظفين المختارين</p>
             </div>
 
             <div className="bg-indigo-50/50 dark:bg-indigo-900/20 p-5 rounded-[2rem] border border-indigo-100/50 dark:border-indigo-900/30 flex flex-col gap-1">
@@ -1048,6 +1051,7 @@ export const Transactions: React.FC = () => {
               <h4 className="text-lg font-black text-gray-900 dark:text-white">
                 {formatCurrency(gridStats.totalBankSalaries)}
               </h4>
+              <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">المحولين للبنوك (حسب التصفية)</p>
             </div>
 
             <div className="bg-amber-50/50 dark:bg-amber-900/20 p-5 rounded-[2rem] border border-amber-100/50 dark:border-amber-900/30 flex flex-col gap-1">
@@ -1058,6 +1062,7 @@ export const Transactions: React.FC = () => {
               <h4 className="text-lg font-black text-gray-900 dark:text-white">
                 {formatCurrency(gridStats.totalCashSalaries)}
               </h4>
+              <p className="text-[9px] text-gray-400 dark:text-gray-500 font-bold">المستلمين كاش (حسب التصفية)</p>
             </div>
           </div>
         )}
