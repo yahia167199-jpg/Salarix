@@ -318,163 +318,7 @@ export const Leaves: React.FC = () => {
   };
 
   const handlePrintOnLeave = () => {
-    const [year, month] = selectedPrintMonth.split('-').map(Number);
-    const monthLongAr = new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    const companyName = companySettings?.companyName || 'اسم الشركة الخاص بك';
-    const logoUrl = companySettings?.logoUrl;
-
-    const printContent = document.createElement('div');
-    printContent.dir = 'rtl';
-    printContent.className = 'p-6 bg-white';
-    
-    const header = `
-      <div style="background: linear-gradient(135deg, #0f172a, #1e3a8a); border-radius: 12px; padding: 20px 30px; color: white; margin-bottom: 25px; position: relative; overflow: hidden; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);">
-        <div style="position: relative; z-index: 10; display: flex; justify-content: space-between; align-items: center;">
-          <div style="text-align: right;">
-            <h2 style="font-size: 14px; font-weight: 700; margin: 0; color: #93c5fd; opacity: 0.9;">${companyName}</h2>
-            <h1 style="font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: -0.5px;">تقرير الموظفين المتواجدون في إجازة</h1>
-            <p style="font-size: 12px; font-weight: 700; margin: 0; opacity: 0.8; color: #93c5fd;">لشهر: ${monthLongAr}</p>
-          </div>
-          <div style="display: flex; gap: 20px; align-items: center;">
-            <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 10px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);">
-              <p style="font-size: 9px; font-weight: 900; color: rgba(255,255,255,0.6); margin: 0;">إجمالي الحالات</p>
-              <p style="font-size: 18px; font-weight: 900; margin: 0;">${filteredOnLeaveEmployees.length}</p>
-            </div>
-            ${logoUrl ? 
-              `<img src="${logoUrl}" style="width: 55px; height: 55px; object-fit: contain; background: white; border-radius: 10px; padding: 4px;" alt="Logo" />` :
-              `<div style="width: 55px; height: 55px; background: rgba(255,255,255,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; border: 1px dashed rgba(255,255,255,0.2);">
-                <span style="font-size: 12px; font-weight: 900; color: white;">LOGO</span>
-              </div>`
-            }
-          </div>
-        </div>
-        <div style="position: absolute; top: -50%; left: -10%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%); border-radius: 50%;"></div>
-      </div>
-    `;
-
-    let totalIncomeSum = 0;
-    let salaryReceptionSum = 0;
-    let deductionsSum = 0;
-    let netSum = 0;
-
-    const tableRows = filteredOnLeaveEmployees.map(emp => {
-      const allowancesTotal = (emp.housingAllowance || 0) + 
-        (emp.transportAllowance || 0) + 
-        (emp.subsistenceAllowance || 0) + 
-        (emp.mobileAllowance || 0) + 
-        (emp.managementAllowance || 0) + 
-        (emp.otherAllowances || 0) +
-        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
-      
-      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
-      const workDays = calculateWorkDaysForReport(emp, year, month);
-      const netSalary = calculateNetSalaryForReport(emp, year, month);
-      
-      // Estimate GOSI if Saudi
-      const isSaudi = emp.nationality?.includes('سعودي') || emp.classification === 'Saudi';
-      const gosi = isSaudi ? (emp.basicSalary + (emp.housingAllowance || 0)) * 0.1 : 0;
-      const totalDeductions = gosi;
-      const netAmount = Math.round(netSalary - totalDeductions);
-
-      totalIncomeSum += totalSalary;
-      salaryReceptionSum += Math.round(netSalary);
-      deductionsSum += Math.round(totalDeductions);
-      netSum += netAmount;
-
-      return `
-        <tr style="border-bottom: 1px solid #f1f5f9; page-break-inside: avoid;">
-          <td style="padding: 10px 6px; border-right: 3px solid #3b82f6; width: 140px;">
-            <div style="font-size: 10px; font-weight: 900; color: #0f172a;">${emp.name}</div>
-          </td>
-          <td style="padding: 10px 6px; font-weight: 700; color: #475569; text-align: center; font-size: 9px; width: 80px;">${emp.nationality || '---'}</td>
-          <td style="padding: 10px 6px; font-size: 9px; color: #64748b; text-align: right; width: 100px;">${emp.jobTitle || '---'}</td>
-          <td style="padding: 10px 6px; font-weight: 800; color: #3b82f6; text-align: center; font-size: 9px; width: 60px;">${emp.employeeId}</td>
-          <td style="padding: 10px 6px; font-size: 9px; text-align: right; color: #475569;">${emp.sectors || '---'}</td>
-          <td style="padding: 10px 6px; font-size: 8px; text-align: right; color: #64748b;">${emp.costCenterMain || emp.sectorManagement || '---'}</td>
-          <td style="padding: 10px 6px; font-size: 10px; text-align: center; font-weight: 900; color: #1e3a8a;">${workDays}</td>
-          <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #1e293b;">${totalSalary}</td>
-          <td style="padding: 10px 6px; font-size: 9px; text-align: center; color: #475569;">${Math.round(netSalary)}</td>
-          <td style="padding: 10px 6px; font-size: 9px; text-align: center; font-weight: 700; color: #dc2626;">${Math.round(totalDeductions)}</td>
-          <td style="padding: 10px 6px; font-size: 11px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${netAmount}</td>
-          <td style="padding: 10px 6px; text-align: center;">
-            <span style="font-size: 8px; font-weight: 900; color: #1d4ed8; background: #eff6ff; padding: 2px 6px; border-radius: 4px; border: 1px solid #dbeafe;">إجازة</span>
-          </td>
-          <td style="padding: 10px 6px; font-size: 8px; text-align: center; color: #64748b; font-weight: bold;">${emp.lastDirectDate || '---'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    const table = `
-      <table style="width: 100%; border-collapse: separate; border-spacing: 0; direction: rtl; text-align: right; table-layout: fixed;">
-        <thead>
-          <tr style="background: #f8fafc;">
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 140px;">اسم الموظف</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 80px;">الجنسية</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right; width: 100px;">الوظيفة</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center; width: 60px;">الرقم</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right;">القطاع</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: right;">مركز التكلفة/رئيسي</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">أيام العمل</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">مجموع الدخل</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">استلام الراتب</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">الإقتطاعات</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #1e3a8a; text-align: center; background: #f1f5f9;">الصافي</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 10px; color: #64748b; text-align: center;">الحالة</th>
-            <th style="padding: 12px 6px; border-bottom: 2px solid #e2e8f0; font-weight: 900; font-size: 9px; color: #64748b; text-align: center; width: 80px;">ملاحظات</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows}
-          <tr style="background: #eff6ff; border-top: 2px solid #3b82f6; page-break-inside: avoid;">
-            <td colspan="7" style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 11px;">الاجمالي العام للموظفين المتواجدين في إجازة</td>
-            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 10px;">${totalIncomeSum.toLocaleString()}</td>
-            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 10px;">${salaryReceptionSum.toLocaleString()}</td>
-            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #dc2626; font-size: 10px;">${deductionsSum.toLocaleString()}</td>
-            <td style="padding: 12px 6px; text-align: center; font-weight: 900; color: #1e4ed8; font-size: 11px; background: #dbeafe;">${netSum.toLocaleString()}</td>
-            <td colspan="2" style="background: #f8fafc;"></td>
-          </tr>
-        </tbody>
-      </table>
-    `;
-
-    printContent.innerHTML = header + table;
-    
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>تقرير الموظفين المتواجدون في إجازة - ${monthLongAr}</title>
-            <style>
-              @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
-              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 15px; background: white; -webkit-print-color-adjust: exact; }
-              @media print {
-                body { padding: 0.5cm; margin: 0; }
-                @page { size: landscape; margin: 0; }
-                tr { page-break-inside: avoid !important; }
-                thead { display: table-header-group; }
-                table { border: 1px solid #e2e8f0; }
-              }
-            </style>
-          </head>
-          <body dir="rtl">
-            ${printContent.outerHTML}
-            <script>
-              window.onload = () => {
-                setTimeout(() => {
-                  window.print();
-                  window.close();
-                }, 500);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
-    setIsPrintModalOpen(false);
+    window.print();
   };
 
   const handleImportOnLeave = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -725,7 +569,16 @@ export const Leaves: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 relative">
+    <div className="space-y-8 relative printable-area">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+          body * { visibility: hidden !important; }
+          .printable-area, .printable-area * { visibility: visible !important; }
+          .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
+          .no-print { display: none !important; }
+        }
+      `}} />
 
 
       {/* Header & Stats */}

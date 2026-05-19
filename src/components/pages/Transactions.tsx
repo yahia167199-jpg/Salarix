@@ -2245,8 +2245,17 @@ export const Transactions: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="relative bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800"
+              className="relative bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 printable-area"
             >
+              <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                  @page { size: portrait; margin: 10mm; }
+                  body * { visibility: hidden !important; }
+                  .printable-area, .printable-area * { visibility: visible !important; }
+                  .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
+                  .no-print { display: none !important; }
+                }
+              `}} />
               <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between no-print">
                 <h3 className="text-xl font-black text-gray-900 dark:text-white">تفاصيل كارت العمل الشهري</h3>
                 <div className="flex items-center gap-2">
@@ -2425,7 +2434,7 @@ export const Transactions: React.FC = () => {
         {isVarianceModalOpen && varianceResults && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsVarianceModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm no-print" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print:h-auto print:static print:rounded-none print:shadow-none print:border-none print:bg-white print-content-root">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print:static print:h-auto print:rounded-none print:shadow-none print:border-none print:bg-white printable-area">
               
               {/* Header */}
               <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm bg-white dark:bg-gray-900 no-print">
@@ -2453,18 +2462,16 @@ export const Transactions: React.FC = () => {
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-auto p-10 space-y-12 custom-scrollbar rtl text-right print:p-0 print:overflow-visible modal-scroll-area">
+              <div className="flex-1 overflow-auto p-10 space-y-12 custom-scrollbar rtl text-right print:p-0 print:overflow-visible">
                 
                 {/* Print Orientation & Fixes */}
                 <style dangerouslySetInnerHTML={{ __html: `
                   @media print {
                     @page { size: portrait; margin: 10mm; }
-                    body { visibility: hidden; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                    .print-content-root { visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; overflow: visible !important; display: block !important; }
-                    .modal-scroll-area { overflow: visible !important; height: auto !important; max-height: none !important; }
+                    body * { visibility: hidden !important; }
+                    .printable-area, .printable-area * { visibility: visible !important; }
+                    .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
                     .no-print { display: none !important; }
-                    div[role="dialog"], .fixed { position: absolute !important; overflow: visible !important; height: auto !important; }
-                    .custom-scrollbar { overflow: visible !important; }
                   }
                 `}} />
                 

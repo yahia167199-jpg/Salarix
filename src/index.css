@@ -39,21 +39,30 @@ body {
 }
 
 @media print {
-  body * {
-    visibility: hidden;
-  }
-  #printable-card, #printable-card * {
-    visibility: visible;
-  }
-  #printable-card {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 20px;
-  }
   .no-print {
     display: none !important;
+  }
+  body {
+    background-color: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* If a printable area exists, hide everything else */
+  body:has(.printable-area) > *:not(.printable-area):not(script) {
+    display: none !important;
+  }
+  .printable-area {
+    visibility: visible !important;
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

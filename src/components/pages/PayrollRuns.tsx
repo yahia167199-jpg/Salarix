@@ -650,17 +650,16 @@ export const PayrollRuns: React.FC = () => {
         {selectedRun && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRun(null)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white dark:bg-gray-900 w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print-content-root print:static print:h-auto print:rounded-none print:shadow-none print:border-none">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white dark:bg-gray-900 w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 printable-area print:static print:h-auto print:rounded-none print:shadow-none print:border-none">
               
               {/* Print Orientation & Fixes */}
               <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                   @page { size: portrait; margin: 10mm; }
-                  body { visibility: hidden; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                  .print-content-root { visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; overflow: visible !important; display: block !important; }
-                  .modal-scroll-area { overflow: visible !important; height: auto !important; max-height: none !important; }
+                  body * { visibility: hidden !important; }
+                  .printable-area, .printable-area * { visibility: visible !important; }
+                  .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
                   .no-print { display: none !important; }
-                  div[role="dialog"], .fixed { position: absolute !important; overflow: visible !important; height: auto !important; }
                 }
               `}} />
 
@@ -702,7 +701,7 @@ export const PayrollRuns: React.FC = () => {
                   <button onClick={() => setSelectedRun(null)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400 dark:text-gray-500" /></button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-8 modal-scroll-area">
+              <div className="flex-1 overflow-auto p-8">
                 
                 {/* Print Only Header */}
                 <div className="hidden print:flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10 rtl">

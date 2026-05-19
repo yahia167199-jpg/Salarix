@@ -116,9 +116,18 @@ export const Settlements: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 printable-area">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+          body * { visibility: hidden !important; }
+          .printable-area, .printable-area * { visibility: visible !important; }
+          .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
+          .no-print { display: none !important; }
+        }
+      `}} />
       {/* Search & Main Filter Card */}
-      <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm">
+      <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm no-print">
         <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between mb-8">
           <div className="space-y-1">
             <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
