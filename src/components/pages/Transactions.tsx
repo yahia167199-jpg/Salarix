@@ -2425,7 +2425,7 @@ export const Transactions: React.FC = () => {
         {isVarianceModalOpen && varianceResults && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsVarianceModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm no-print" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print:h-auto print:static print:rounded-none print:shadow-none print:border-none print:bg-white">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print:h-auto print:static print:rounded-none print:shadow-none print:border-none print:bg-white print-content-root">
               
               {/* Header */}
               <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm bg-white dark:bg-gray-900 no-print">
@@ -2453,7 +2453,20 @@ export const Transactions: React.FC = () => {
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-auto p-10 space-y-12 custom-scrollbar rtl text-right print:p-0 print:overflow-visible">
+              <div className="flex-1 overflow-auto p-10 space-y-12 custom-scrollbar rtl text-right print:p-0 print:overflow-visible modal-scroll-area">
+                
+                {/* Print Orientation & Fixes */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media print {
+                    @page { size: portrait; margin: 10mm; }
+                    body { visibility: hidden; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    .print-content-root { visibility: visible !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; overflow: visible !important; display: block !important; }
+                    .modal-scroll-area { overflow: visible !important; height: auto !important; max-height: none !important; }
+                    .no-print { display: none !important; }
+                    div[role="dialog"], .fixed { position: absolute !important; overflow: visible !important; height: auto !important; }
+                    .custom-scrollbar { overflow: visible !important; }
+                  }
+                `}} />
                 
                 {/* Print Only Header (Logo & Company Name) */}
                 <div className="hidden print:flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10 rtl">
@@ -2469,15 +2482,6 @@ export const Transactions: React.FC = () => {
                     <img src={companySettings.logoUrl} alt="Logo" className="h-24 w-auto object-contain" referrerPolicy="no-referrer" />
                   )}
                 </div>
-
-                {/* Print Orientation Hack */}
-                <style dangerouslySetInnerHTML={{ __html: `
-                  @media print {
-                    @page { size: portrait; margin: 15mm; }
-                    body { -webkit-print-color-adjust: exact; }
-                    .no-print { display: none !important; }
-                  }
-                `}} />
                 
                 {/* Visual Summary Bento */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
