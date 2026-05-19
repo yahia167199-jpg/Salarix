@@ -285,15 +285,30 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
     });
 
     const data = sortedEmployees.map(emp => ({
-      'رقم الموظف': emp.employeeId || '',
+      'الرقم الوظيفي': emp.employeeId || '',
       'اسم الموظف': emp.name,
+      'القطاع': emp.sectors || '',
+      'مركز التكلفة الرئيسي': emp.sectorManagement || '',
+      'مركز التكلفة القسم': emp.costCenterDept || '',
       'طريقه استلام الراتب': emp.paymentMethod === 'Bank' ? 'بنك' : 'كاش'
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
+    
+    // Set column widths for better excel experience
+    const wscols = [
+      { wch: 15 }, // ID
+      { wch: 30 }, // Name
+      { wch: 25 }, // Sector
+      { wch: 25 }, // Main CC
+      { wch: 25 }, // Dept CC
+      { wch: 15 }, // Payment
+    ];
+    ws['!cols'] = wscols;
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Employees Update");
-    XLSX.writeFile(wb, "Employees_Full_Update.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "تحديث الموظفين");
+    XLSX.writeFile(wb, "تحديث_بيانات_الموظفين.xlsx");
   };
 
   const handleImportUpdatedData = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,22 +326,38 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
 
         const batch = writeBatch(db);
         let updatedCount = 0;
+        let skippedCount = 0;
 
         data.forEach((row) => {
-          const empId = String(row['رقم الموظف'] || row['الرقم الوظيفي'] || '');
-          if (!empId) return;
+          const empId = String(row['الرقم الوظيفي'] || row['رقم الموظف'] || row['Employee ID'] || '').trim();
+          if (!empId) {
+            skippedCount++;
+            return;
+          }
 
           // Find existing employee by employeeId
-          const existingEmp = employees.find(e => e.employeeId === empId);
+          const existingEmp = employees.find(e => String(e.employeeId).trim() === empId);
           if (existingEmp) {
             const docRef = firestoreDoc(db, 'employees', existingEmp.id);
             
             const updates: any = {};
-            if (row['اسم الموظف'] || row['الإسم']) {
-              updates.name = row['اسم الموظف'] || row['الإسم'];
+            if (row['اسم الموظف'] || row['الإسم'] || row['Name']) {
+              updates.name = (row['اسم الموظف'] || row['الإسم'] || row['Name']).trim();
+            }
+
+            if (row['القطاع'] || row['Sector']) {
+              updates.sectors = (row['القطاع'] || row['Sector']).trim();
+            }
+
+            if (row['مركز التكلفة الرئيسي'] || row['Main Cost Center']) {
+              updates.sectorManagement = (row['مركز التكلفة الرئيسي'] || row['Main Cost Center']).trim();
+            }
+
+            if (row['مركز التكلفة القسم'] || row['Department']) {
+              updates.costCenterDept = (row['مركز التكلفة القسم'] || row['Department']).trim();
             }
             
-            const pMethodRaw = String(row['طريقه استلام الراتب'] || '').trim();
+            const pMethodRaw = String(row['طريقه استلام الراتب'] || row['Payment Method'] || '').trim();
             if (pMethodRaw === 'كاش' || pMethodRaw.toLowerCase() === 'cash') {
               updates.paymentMethod = 'Cash';
             } else if (pMethodRaw === 'بنك' || pMethodRaw.toLowerCase() === 'bank') {
@@ -337,22 +368,25 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
               batch.update(docRef, updates);
               updatedCount++;
             }
+          } else {
+            skippedCount++;
           }
         });
 
         if (updatedCount > 0) {
           await batch.commit();
-          alert(`تم تحديث ${updatedCount} موظف بنجاح`);
+          alert(`تم تحديث ${updatedCount} موظف بنجاح. (تم تخطي ${skippedCount} سجلات غير مطابقة)`);
         } else {
-          alert('لم يتم العثور على موظفين مطابقين للتحديث');
+          alert('لم يتم العثور على موظفين مطابقين للتحديث في هذا الملف');
         }
         setIsUpdateModalOpen(false);
       } catch (error) {
         console.error('Import error:', error);
-        alert('حدث خطأ أثناء استيراد البيانات');
+        alert('حدث خطأ أثناء استيراد البيانات: تأكد من صياغة الملف بشكل صحيح');
       }
     };
     reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset input
   };
 
   const handlePrintPDF = () => {
@@ -797,9 +831,10 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                     onChange={toggleSelectAll}
                   />
                 </th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">الرقم الوظيفي</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">اسم الموظف</th>
-                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">الجنسية</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">القطاع</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">الجنسية</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">رقم الإقامة</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">تاريخ آخر مباشرة</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">المرتب الأساسي</th>
@@ -848,6 +883,12 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       />
                     </td>
                     <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-black text-sm tabular-nums",
+                        (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white" : "text-blue-600 dark:text-blue-400"
+                      )}>{emp.employeeId || '---'}</span>
+                    </td>
+                    <td className="px-6 py-5">
                       <div className="flex items-center gap-3 text-right">
                         <div className={cn(
                           "w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0",
@@ -862,22 +903,8 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                             "font-black truncate max-w-[180px]",
                             (emp.status === 'Leave' || emp.status === 'End of Service') ? "text-white" : "text-gray-900 dark:text-white"
                           )}>{emp.name}</p>
-                          <p className={cn(
-                            "text-[10px] font-bold tracking-wider",
-                            emp.status === 'Leave' ? "text-blue-300" : 
-                            emp.status === 'End of Service' ? "text-red-300" : 
-                            "text-gray-400 dark:text-gray-500"
-                          )}>#{emp.employeeId || '---'}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className={cn(
-                        "font-bold text-sm",
-                        emp.status === 'Leave' ? "text-blue-100" : 
-                        emp.status === 'End of Service' ? "text-red-100" : 
-                        "text-gray-600 dark:text-gray-400"
-                      )}>{emp.nationality || '---'}</span>
                     </td>
                     <td className="px-6 py-5">
                       <span className={cn(
@@ -888,6 +915,14 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                       )}>
                         {emp.sectors || 'غير محدد'}
                       </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className={cn(
+                        "font-bold text-sm",
+                        emp.status === 'Leave' ? "text-blue-100" : 
+                        emp.status === 'End of Service' ? "text-red-100" : 
+                        "text-gray-600 dark:text-gray-400"
+                      )}>{emp.nationality || '---'}</span>
                     </td>
                     <td className="px-6 py-5">
                       <span className={cn(

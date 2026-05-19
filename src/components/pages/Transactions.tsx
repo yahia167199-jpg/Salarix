@@ -22,7 +22,17 @@ import {
   AlertCircle,
   RotateCcw,
   Building2,
-  Wallet
+  Wallet,
+  TrendingUp,
+  TrendingDown,
+  Edit2,
+  ShieldCheck,
+  TrendingUpDown,
+  Receipt,
+  Banknote,
+  Users,
+  CalendarX,
+  Printer
 } from 'lucide-react';
 import { db, collection, setDoc, doc, deleteDoc, serverTimestamp, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -36,11 +46,13 @@ import * as XLSX from 'xlsx';
 import { useMemo } from 'react';
 
 export const Transactions: React.FC = () => {
-  const { transactions, employees } = useData();
+  const { transactions, employees, payrollRuns, companySettings } = useData();
   const [activeTab, setActiveTab] = useState<'History' | 'MonthlyCard'>('History');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isViewCardOpen, setIsViewCardOpen] = useState(false);
+  const [selectedTxForView, setSelectedTxForView] = useState<Transaction | null>(null);
   const [importMonth, setImportMonth] = useState(new Date().toISOString().slice(0, 7));
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [empSearch, setEmpSearch] = useState('');
@@ -51,6 +63,10 @@ export const Transactions: React.FC = () => {
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+
+  const [isVarianceModalOpen, setIsVarianceModalOpen] = useState(false);
+  const [varianceResults, setVarianceResults] = useState<any>(null);
+  const [loadingVariance, setLoadingVariance] = useState(false);
 
   // Return from leave modal state
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
@@ -607,6 +623,62 @@ export const Transactions: React.FC = () => {
     }
   };
 
+  const handleCopyFromLastMonth = async () => {
+    if (!selectedMonth) return;
+    
+    // Calculate last month string (YYYY-MM)
+    const [year, month] = selectedMonth.split('-').map(Number);
+    let prevYear = year;
+    let prevMonth = month - 1;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear--;
+    }
+    const lastMonthStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+    
+    const lastMonthTx = transactions.filter(t => t.month === lastMonthStr);
+    if (lastMonthTx.length === 0) {
+      return alert(`لا توجد حركات مسجلة في الشهر السابق (${lastMonthStr}) لنسخها.`);
+    }
+    
+    const currentMonthTx = transactions.filter(t => t.month === selectedMonth);
+    const existingEmpIds = new Set(currentMonthTx.map(t => t.employeeId));
+    
+    const toCopy = lastMonthTx.filter(t => !existingEmpIds.has(t.employeeId));
+    
+    if (toCopy.length === 0) {
+      return alert('كل موظفي الشهر السابق لديهم حركات مسجلة بالفعل في هذا الشهر.');
+    }
+    
+    if (!window.confirm(`هل أنت متأكد من نسخ عدد (${toCopy.length}) حركة من شهر ${lastMonthStr} إلى شهر ${selectedMonth}؟ سيتم نسخ كافة البيانات (أيام العمل، البدلات، الإضافي، إلخ).`)) return;
+    
+    try {
+      setLoading(true);
+      const batch = writeBatch(db);
+      
+      toCopy.forEach(t => {
+        const newId = `${t.employeeId}_${selectedMonth}`;
+        const newTx = {
+          ...t,
+          id: newId,
+          month: selectedMonth,
+          createdAt: new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+          status: 'Draft' // Reset to draft status
+        };
+        batch.set(doc(db, 'transactions', newId), newTx);
+      });
+      
+      await batch.commit();
+      alert(`تم نسخ ${toCopy.length} حركة بنجاح.`);
+    } catch (error) {
+      console.error('Error copying transactions:', error);
+      alert('حدث خطأ أثناء نسخ الحركات');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExportDataEntryTemplate = () => {
     const targetEmployees = employees.filter(emp => 
       (emp.status === 'Active' || emp.status === 'Leave' || emp.status === 'Out of Sponsorship' || emp.status === 'Out of Sponsorship (Active)' || emp.status === 'Out of Sponsorship (Leave)') && 
@@ -939,6 +1011,123 @@ export const Transactions: React.FC = () => {
     }
   };
 
+  const getPreviousMonth = (currentMonthStr: string) => {
+    const [year, month] = currentMonthStr.split('-').map(Number);
+    const date = new Date(year, month - 2, 1);
+    return date.toISOString().slice(0, 7);
+  };
+
+  const handleVarianceAnalysis = async () => {
+    setLoadingVariance(true);
+    try {
+      const prevMonth = getPreviousMonth(selectedMonth);
+      const prevRun = payrollRuns.find(r => r.month === prevMonth);
+      
+      let prevResults: any[] = [];
+      if (prevRun) {
+        const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', prevRun.id));
+        const snap = await getDocs(q);
+        prevResults = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+
+      const currentTransactions = transactions.filter(t => t.month === selectedMonth);
+      
+      // Map current transactions to a result-like structure
+      const currentResults = currentTransactions.map(t => {
+        const emp = employees.find(e => e.id === t.employeeId);
+        return {
+          ...t,
+          employeeName: emp?.name || '---',
+          paymentMethod: emp?.paymentMethod || 'Bank',
+          totalIncome: t.totalIncome || 0,
+          totalDeductions: t.totalDeductions || 0,
+          netSalary: t.netSalary || 0
+        };
+      });
+
+      // Comparison Summary
+      const summary = {
+        earnings: {
+          current: currentResults.reduce((sum, r) => sum + r.totalIncome, 0),
+          prev: prevResults.reduce((sum, r: any) => sum + r.totalIncome, 0),
+        },
+        deductions: {
+          current: currentResults.reduce((sum, r) => sum + r.totalDeductions, 0),
+          prev: prevResults.reduce((sum, r: any) => sum + r.totalDeductions, 0),
+        },
+        net: {
+          current: currentResults.reduce((sum, r) => sum + r.netSalary, 0),
+          prev: prevResults.reduce((sum, r: any) => sum + r.netSalary, 0),
+        },
+        paymentBank: {
+          current: currentResults.filter(r => r.paymentMethod === 'Bank').reduce((sum, r) => sum + r.netSalary, 0),
+          prev: prevResults.filter((r: any) => r.paymentMethod === 'Bank').reduce((sum, r: any) => sum + r.netSalary, 0),
+          count: currentResults.filter(r => r.paymentMethod === 'Bank').length,
+          prevCount: prevResults.filter((r: any) => r.paymentMethod === 'Bank').length
+        },
+        paymentCash: {
+          current: currentResults.filter(r => r.paymentMethod === 'Cash').reduce((sum, r) => sum + r.netSalary, 0),
+          prev: prevResults.filter((r: any) => r.paymentMethod === 'Cash').reduce((sum, r: any) => sum + r.netSalary, 0),
+          count: currentResults.filter(r => r.paymentMethod === 'Cash').length,
+          prevCount: prevResults.filter((r: any) => r.paymentMethod === 'Cash').length
+        },
+        employeeCount: {
+          current: currentResults.length,
+          prev: prevResults.length,
+        },
+        leaves: {
+          current: employees.filter(e => (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)')).length,
+          prev: 0,
+        }
+      };
+
+      // Employee level comparison
+      const allEmpIds = Array.from(new Set([
+        ...currentResults.map(r => r.employeeId),
+        ...prevResults.map((r: any) => r.employeeId)
+      ]));
+
+      const comparisons = allEmpIds.map(empId => {
+        const curr = currentResults.find(r => r.employeeId === empId);
+        const prev = prevResults.find((r: any) => r.employeeId === empId);
+        const emp = employees.find(e => e.id === empId);
+
+        let note = 'مستقر';
+        if (!prev && curr) note = 'موظف جديد';
+        else if (prev && !curr) note = 'مستبعد / في إجازة';
+        else if (prev && curr) {
+          const diff = curr.netSalary - prev.netSalary;
+          if (Math.abs(diff) < 0.01) note = 'لا يوجد تغيير';
+          else {
+            const reasons = [];
+            if (curr.basicSalary !== prev.basicSalary) reasons.push('تغير في الأساسي');
+            if (curr.absenceDays > (prev.absenceDays || 0)) reasons.push('زيادة أيام غياب');
+            if (curr.overtimeValue > (prev.overtimeValue || 0)) reasons.push('إضافة عمل إضافي');
+            if (curr.loans > (prev.loans || 0)) reasons.push('تحصيل سلف');
+            if (curr.otherIncome > (prev.otherIncome || 0)) reasons.push('بدلات إضافية');
+            
+            note = reasons.length > 0 ? reasons.join(' + ') : (diff > 0 ? 'زيادة في الصافي' : 'نقص في الصافي');
+          }
+        }
+
+        return {
+          name: curr?.employeeName || prev?.employeeName || emp?.name || '---',
+          prevNet: prev?.netSalary || 0,
+          currNet: curr?.netSalary || 0,
+          diff: (curr?.netSalary || 0) - (prev?.netSalary || 0),
+          note
+        };
+      }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+      setVarianceResults({ summary, comparisons, prevMonth });
+      setIsVarianceModalOpen(true);
+    } catch (error) {
+      console.error('Error calculating variance:', error);
+    } finally {
+      setLoadingVariance(false);
+    }
+  };
+
   const handleMonthlyCardSelection = (emp: Employee) => {
     if (emp.status === 'Leave') {
       alert('برجاء تأكيد تاريخ المباشرة أولاً ثم أعد إدخال الكارت الشهري');
@@ -1069,7 +1258,21 @@ export const Transactions: React.FC = () => {
       </div>
 
       {activeTab === 'History' ? (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                <History className="w-8 h-8 text-blue-600" />
+                سجل الحركات الشهرية
+              </h1>
+              <p className="text-gray-400 font-bold mr-11">مراقبة واعتماد مسيرات الرواتب والسلف والبدلات</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Button removed as per request */}
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-4 flex-1">
               <div className="relative flex-1 max-w-md">
@@ -1185,48 +1388,68 @@ export const Transactions: React.FC = () => {
                     const isJoiningThisMonth = (emp?.lastDirectDate && emp.lastDirectDate.startsWith(t.month)) || 
                                                 (emp?.joinDate && emp.joinDate.startsWith(t.month));
                     return (
-                      <tr key={t.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors group">
-                        <td className="px-8 py-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/40 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                      <tr key={t.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all group border-b border-gray-50 dark:border-gray-800/50">
+                        <td className="px-8 py-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-300">
                               {emp?.name?.[0] || '?'}
                             </div>
-                            <div>
-                              <p className="font-black text-gray-900 dark:text-white">{emp?.name || 'موظف محذوف'}</p>
-                              {isJoiningThisMonth && (
-                                <span className="inline-flex items-center gap-1 text-[8px] font-black bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-lg mt-0.5">
-                                  <Calendar className="w-2.5 h-2.5" />
-                                  مباشرة: {emp?.lastDirectDate || emp?.joinDate}
-                                </span>
-                              )}
+                            <div className="flex flex-col gap-0.5">
+                              <p className="font-black text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">{emp?.name || 'موظف محذوف'}</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-black text-gray-400">ID: {emp?.employeeId || '---'}</span>
+                                {isJoiningThisMonth && (
+                                  <span className="inline-flex items-center gap-1 text-[8px] font-black bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-lg">
+                                    <Calendar className="w-2.5 h-2.5" />
+                                    مباشرة جديدة
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-8 py-5 font-bold text-gray-600 dark:text-gray-400">{t.month}</td>
-                        <td className="px-8 py-5 font-black text-blue-600 dark:text-blue-400 text-center">{formatCurrency(t.netSalary)}</td>
-                        <td className="px-8 py-5 text-xs font-bold text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={t.notes}>{t.notes || '---'}</td>
-                        <td className="px-8 py-5 text-center">
-                          <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
-                            تـــــــم
-                          </span>
+                        <td className="px-8 py-6 font-bold text-gray-600 dark:text-gray-400 tabular-nums">{t.month}</td>
+                        <td className="px-8 py-6 text-center">
+                          <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-xl inline-block border border-blue-100 dark:border-blue-900/30">
+                            <span className="text-lg font-black text-blue-700 dark:text-blue-400 tabular-nums tracking-tighter">{formatCurrency(t.netSalary)}</span>
+                          </div>
                         </td>
-                        <td className="px-8 py-5">
-                          <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <td className="px-8 py-6 text-xs font-bold text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={t.notes}>
+                          {t.notes || '---'}
+                        </td>
+                        <td className="px-8 py-6 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">
+                              Approved
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6">
+                          <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                            <button 
+                              onClick={() => {
+                                setSelectedTxForView(t);
+                                setIsViewCardOpen(true);
+                              }}
+                              className="p-2.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm"
+                              title="عرض كارت العمل"
+                            >
+                              <FileSpreadsheet className="w-5 h-5" />
+                            </button>
                             <button 
                               onClick={() => handleEdit(t)} 
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-xl transition-all"
-                              title="تعديل الكارت"
+                              className="p-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-sm"
+                              title="تعديل"
                             >
-                              <ClipboardList className="w-4 h-4" />
-                              <span className="text-[10px] font-black">تعديل</span>
+                              <Edit2 className="w-5 h-5" />
                             </button>
                             <button 
                               onClick={() => setDeleteConfirmId(t.id)} 
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-xl transition-all"
+                              className="p-2.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white rounded-xl transition-all shadow-sm"
                               title="إعادة تعيين"
                             >
-                              <RotateCcw className="w-4 h-4" />
-                              <span className="text-[10px] font-black">إعادة تعيين</span>
+                              <RotateCcw className="w-5 h-5" />
                             </button>
                           </div>
                         </td>
@@ -1239,7 +1462,33 @@ export const Transactions: React.FC = () => {
           </div>
         </motion.div>
       ) : (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                <LayoutGrid className="w-8 h-8 text-indigo-600" />
+                كارت العمل الشهري
+              </h1>
+              <p className="text-gray-400 font-bold mr-11">إدخال ومراجعة الحركات اليومية والبدلات لكل موقع</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleVarianceAnalysis}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
+              >
+                <TrendingUpDown className="w-5 h-5" />
+                <span>تحليل الفروقات (Variance)</span>
+              </button>
+              <button 
+                onClick={handleResetMonth}
+                className="px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl font-black text-sm hover:bg-red-600 hover:text-white transition-all border border-red-100 dark:border-red-900/30 shadow-sm flex items-center gap-2 active:scale-95"
+              >
+                <RotateCcw className="w-5 h-5" />
+                <span>تصفير الشهر</span>
+              </button>
+            </div>
+          </div>
+
           {/* Progress Indicators */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-gray-900 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
@@ -1366,43 +1615,43 @@ export const Transactions: React.FC = () => {
                   key={emp.id}
                   onClick={() => handleMonthlyCardSelection(emp)}
                   className={cn(
-                    "relative p-4 md:p-6 rounded-3xl border-2 transition-all cursor-pointer hover:shadow-xl active:scale-[0.98] group flex flex-col md:flex-row md:items-center justify-between gap-4 overflow-hidden",
+                    "relative p-5 md:p-7 rounded-[2.5rem] border-2 transition-all cursor-pointer hover:shadow-2xl active:scale-[0.98] group flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden",
                     emp.status === 'Leave' 
-                      ? "bg-gradient-to-br from-blue-900 to-blue-950 border-blue-800 text-white shadow-lg shadow-blue-900/40" 
+                      ? "bg-gradient-to-br from-blue-900 to-blue-950 border-blue-800 text-white shadow-xl shadow-blue-900/40" 
                       : isDone 
-                        ? "bg-emerald-50/40 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20" 
-                        : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-blue-400 dark:hover:border-blue-700 shadow-sm"
+                        ? "bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20" 
+                        : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-blue-400 dark:hover:border-blue-700 shadow-xl shadow-gray-100/50 dark:shadow-none"
                   )}
                 >
-                  <div className="flex items-center gap-4 flex-1">
+                  <div className="flex items-center gap-5 flex-1">
                     <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 shadow-sm relative",
+                      "w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-2xl font-black shrink-0 shadow-lg relative transition-transform group-hover:scale-110",
                       emp.status === 'Leave'
-                        ? "bg-blue-800 text-white border border-blue-700"
+                        ? "bg-blue-800 text-white border-2 border-blue-700 shadow-blue-900/50"
                         : isDone 
-                          ? "bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400" 
-                          : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
+                          ? "bg-emerald-600 text-white shadow-emerald-500/20" 
+                          : "bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-blue-500/20"
                     )}>
                       {emp.name.charAt(0)}
                       <div className={cn(
-                        "absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-gray-950 bg-emerald-500",
+                        "absolute -top-1 -right-1 w-5 h-5 rounded-full border-4 border-white dark:border-gray-950 bg-emerald-500",
                         emp.status === 'Leave' && "bg-blue-400",
                         emp.status === 'End of Service' && "bg-red-500",
                         emp.status === 'Inactive' && "bg-gray-500"
                       )} />
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-8 flex-1">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-10 flex-1">
                       <div>
                         <h5 className={cn(
-                          "font-black transition-colors text-lg",
+                          "font-black transition-colors text-xl tracking-tight",
                           emp.status === 'Leave' ? "text-white" : "text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400"
                         )}>{emp.name}</h5>
-                          <div className="flex flex-wrap items-center gap-3 mt-1">
+                          <div className="flex flex-wrap items-center gap-4 mt-2">
                             <p className={cn(
-                              "text-[10px] font-bold",
-                              emp.status === 'Leave' ? "text-blue-200" : "text-gray-400 dark:text-gray-500"
-                            )}>الرقم الوظيفي: {emp.employeeId || '---'}</p>
+                              "text-xs font-bold px-2 py-0.5 rounded-lg",
+                              emp.status === 'Leave' ? "bg-white/10 text-blue-200" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                            )}>ID: {emp.employeeId || '---'}</p>
                             
                             {isJoiningThisMonth && (
                               <motion.div 
@@ -1687,167 +1936,259 @@ export const Transactions: React.FC = () => {
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
-              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-                <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none">
-                    <ClipboardList className="w-6 h-6" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl rounded-[3rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800">
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-gray-50/50 via-white to-gray-50/50 dark:from-gray-800/30 dark:via-gray-900 dark:to-gray-800/30">
+                <div className="flex items-center gap-6">
+                   <div className="w-16 h-16 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/30 transform -rotate-3">
+                    <ClipboardList className="w-8 h-8" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900 dark:text-white">كارت العمل الشهري</h3>
-                    <p className="text-sm font-bold text-gray-400 dark:text-gray-500">إدخال حركات الموظف لشهر {selectedMonth}</p>
+                    <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">كارت العمل الشهري</h3>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 rounded-full text-xs font-black border border-blue-100 dark:border-blue-800">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>كشف شهر {formData.month}</span>
+                      </div>
+                      <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
+                      <span className="text-gray-400 dark:text-gray-500 text-xs font-bold tracking-wide italic">نظام إدارة الرواتب والتدقيق المالي الذكي</span>
+                    </div>
                   </div>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white dark:hover:bg-gray-800 rounded-xl transition-colors"><X className="w-6 h-6 text-gray-400 dark:text-gray-500" /></button>
+                <button onClick={() => setIsModalOpen(false)} className="p-4 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-3xl transition-all active:scale-95 group">
+                  <X className="w-7 h-7 text-gray-400 group-hover:text-red-500 transition-colors" />
+                </button>
               </div>
-              <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الموظف (ابحث واختر)</label>
-                    <div className="relative">
-                      <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-                      <input 
-                        type="text"
-                        placeholder="ابحث بالاسم، رقم الموظف، أو الإقامة..."
-                        className="w-full pr-10 pl-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium mb-2 text-gray-900 dark:text-white"
-                        value={empSearch || ''}
-                        onChange={(e) => setEmpSearch(e.target.value)}
-                      />
+              <form onSubmit={handleSubmit} className="p-10 space-y-10 max-h-[75vh] overflow-y-auto custom-scrollbar">
+                {/* Employee Header Info */}
+                <div className="bg-gradient-to-br from-gray-50 to-white dark:from-gray-800/20 dark:to-gray-900 p-8 rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col xl:flex-row xl:items-end justify-between gap-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
+                  
+                  <div className="space-y-5 flex-1 relative z-10">
+                    <div className="flex items-center gap-2 mr-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                      <label className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em]">Select Employee / تحديد بيانات الموظف</label>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative group">
+                        <Search className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 transition-colors group-focus-within:text-blue-500" />
+                        <input 
+                          type="text"
+                          placeholder="ابحث بالاسم، رقم الموظف، أو الإقامة..."
+                          className="w-full pr-14 pl-5 py-5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none font-bold text-gray-900 dark:text-white shadow-sm transition-all text-lg placeholder:text-gray-300"
+                          value={empSearch || ''}
+                          onChange={(e) => setEmpSearch(e.target.value)}
+                        />
+                      </div>
+                      
                       <select 
                         required 
-                        className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" 
+                        className="w-full px-8 py-5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl focus:ring-8 focus:ring-blue-500/5 focus:border-blue-500 outline-none font-black text-gray-900 dark:text-white shadow-sm transition-all cursor-pointer text-lg appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23cbd5e1%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C/polyline%3E%3C/svg%3E')] bg-[length:1.25rem] bg-[right_1.5rem_center] bg-no-repeat" 
                         value={formData.employeeId || ''} 
                         onChange={(e) => handleEmployeeChange(e.target.value)}
                       >
-                        <option value="" className="dark:bg-gray-900">اختر الموظف من القائمة...</option>
+                        <option value="" className="dark:bg-gray-900">-- اختر الموظف النهائي من القائمة --</option>
                         {employees
-                          .filter(e => e.status === 'Active' || e.status === 'Leave')
-                          .filter(e => {
-                            if (formData.id) return true; // Don't filter if editing existing
-                            const isStandard = e.classification !== 'Saudi' && e.classification !== 'Accounting';
-                            return isStandard;
-                          })
+                          .filter(e => e.status === 'Active' || e.status === 'Leave' || e.status === 'Out of Sponsorship' || e.status === 'Out of Sponsorship (Active)')
                           .filter(e => 
                             (e.name || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
                             (e.employeeId || '').toLowerCase().includes((empSearch || '').toLowerCase()) ||
                             (e.iqamaNumber || '').toLowerCase().includes((empSearch || '').toLowerCase())
                           )
                           .map(e => (
-                            <option key={e.id} value={e.id} className="dark:bg-gray-900">{e.name} ({e.employeeId})</option>
+                            <option key={e.id} value={e.id} className="dark:bg-gray-900">{e.name} | الرقم: {e.employeeId}</option>
                           ))}
                       </select>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الشهر</label>
-                    <input type="month" required className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.month || ''} onChange={(e) => setFormData({...formData, month: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">أيام العمل الفعلية</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.actualWorkDays ?? 0} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات العمل في اليوم</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.dailyWorkHours ?? 0} onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})} />
-                  </div>
 
-                  <div className="md:col-span-3 border-b border-gray-100 dark:border-gray-800 pb-2">
-                    <h4 className="font-black text-emerald-600 dark:text-emerald-400">الدخل (الإضافات)</h4>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">الراتب الأساسي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.basicSalary ?? 0} onChange={(e) => setFormData({...formData, basicSalary: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل سكن</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.housingAllowance ?? 0} onChange={(e) => setFormData({...formData, housingAllowance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل نقل</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.transportAllowance ?? 0} onChange={(e) => setFormData({...formData, transportAllowance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل إعاشة</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.subsistenceAllowance ?? 0} onChange={(e) => setFormData({...formData, subsistenceAllowance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل جوال</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.mobileAllowance ?? 0} onChange={(e) => setFormData({...formData, mobileAllowance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدل إدارة</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.managementAllowance ?? 0} onChange={(e) => setFormData({...formData, managementAllowance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">بدلات أخرى</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherAllowances ?? 0} onChange={(e) => setFormData({...formData, otherAllowances: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.overtimeHours ?? 0} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">قيمة الإضافي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10" value={formData.overtimeValue ?? 0} onChange={(e) => setFormData({...formData, overtimeValue: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">زيادة راتب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryIncrease ?? 0} onChange={(e) => setFormData({...formData, salaryIncrease: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">دخل آخر</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherIncome ?? 0} onChange={(e) => setFormData({...formData, otherIncome: Number(e.target.value)})} />
-                  </div>
-
-                  <div className="md:col-span-3 border-b border-gray-100 dark:border-gray-800 pb-2">
-                    <h4 className="font-black text-red-600 dark:text-red-400">الخصومات</h4>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تأمين اجتماعي</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.socialInsurance ?? 0} onChange={(e) => setFormData({...formData, socialInsurance: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">استلام راتب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.salaryReceived ?? 0} onChange={(e) => setFormData({...formData, salaryReceived: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">سلف</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.loans ?? 0} onChange={(e) => setFormData({...formData, loans: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">أيام الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.absenceDays ?? 0} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">خصم الغياب</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-900/10" value={formData.absenceDeduction ?? 0} onChange={(e) => setFormData({...formData, absenceDeduction: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ساعات الخصم</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.deductionHours ?? 0} onChange={(e) => setFormData({...formData, deductionHours: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">تأخيرومغادرات</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.departureDelayDeduction ?? 0} onChange={(e) => setFormData({...formData, departureDelayDeduction: Number(e.target.value)})} />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">خصومات أخرى</label>
-                    <input type="number" className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-900 dark:text-white" value={formData.otherDeductions ?? 0} onChange={(e) => setFormData({...formData, otherDeductions: Number(e.target.value)})} />
-                  </div>
-
-                  <div className="md:col-span-3 space-y-2">
-                    <label className="text-sm font-bold text-gray-500 dark:text-gray-400 mr-2">ملاحظات</label>
-                    <textarea className="w-full px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium h-24 text-gray-900 dark:text-white" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} />
+                  <div className="flex items-center gap-4 bg-white dark:bg-gray-900 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm md:w-[280px]">
+                    <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Month / شهر الحساب</label>
+                       <input type="month" required className="bg-transparent border-none p-0 w-full font-black text-gray-900 dark:text-white outline-none" value={formData.month || ''} onChange={(e) => setFormData({...formData, month: e.target.value})} />
+                    </div>
                   </div>
                 </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-6 rounded-3xl flex justify-between items-center border border-blue-100 dark:border-blue-900/30">
-                  <div>
-                    <p className="text-sm font-bold text-blue-600 dark:text-blue-400">صافي الراتب المتوقع</p>
-                    <p className="text-3xl font-black text-blue-900 dark:text-blue-100">{formatCurrency(calculateTotals(formData).netSalary)}</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Basic Work Stats Block */}
+                  <div className="bg-white dark:bg-gray-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-sm space-y-6">
+                    <div className="flex items-center gap-3 border-b border-gray-50 dark:border-gray-800 pb-4">
+                      <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-black text-gray-900 dark:text-white">معايير العمل (Basis)</h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-400 uppercase mr-2 tracking-widest">أيام العمل</label>
+                        <input type="number" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-black text-gray-900 dark:text-white transition-all" value={formData.actualWorkDays ?? 0} onChange={(e) => setFormData({...formData, actualWorkDays: Number(e.target.value)})} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-black text-gray-400 uppercase mr-2 tracking-widest">ساعات اليوم</label>
+                        <input type="number" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-800 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-black text-gray-900 dark:text-white transition-all" value={formData.dailyWorkHours ?? 0} onChange={(e) => setFormData({...formData, dailyWorkHours: Number(e.target.value)})} />
+                      </div>
+                    </div>
                   </div>
-                  <button type="submit" className="px-12 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-blue-200 dark:shadow-none">حفظ الحركة</button>
+
+                  {/* Notes Block */}
+                  <div className="bg-amber-50/30 dark:bg-amber-900/5 p-8 rounded-[2.5rem] border border-amber-100/50 dark:border-amber-900/20 shadow-sm space-y-6">
+                    <div className="flex items-center gap-3 border-b border-amber-100/50 dark:border-amber-900/20 pb-4">
+                      <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-black text-amber-900 dark:text-amber-100">ملاحظات النظام والحركة</h4>
+                    </div>
+                    <textarea className="w-full px-5 py-4 bg-white/80 dark:bg-gray-900 border border-amber-100 dark:border-amber-800 rounded-2xl focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none font-bold h-24 text-gray-900 dark:text-white transition-all resize-none" value={formData.notes || ''} onChange={(e) => setFormData({...formData, notes: e.target.value})} placeholder="اكتب أي ملاحظات إضافية هنا..." />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  {/* Income Group */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 border-b-2 border-emerald-500 pb-3 mb-2">
+                       <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                         <TrendingUp className="w-5 h-5" />
+                       </div>
+                       <h4 className="font-black text-emerald-600 uppercase tracking-widest">Earnings / المستحقات</h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { id: 'basicSalary', label: 'الراتب الأساسي', icon: Wallet },
+                        { id: 'housingAllowance', label: 'بدل سكن', icon: Building2 },
+                        { id: 'transportAllowance', label: 'بدل نقل', icon: RotateCcw },
+                        { id: 'subsistenceAllowance', label: 'بدل إعاشة', icon: Wallet },
+                        { id: 'mobileAllowance', label: 'بدل جوال', icon: Wallet },
+                        { id: 'managementAllowance', label: 'بدل إدارة', icon: ShieldCheck },
+                        { id: 'otherAllowances', label: 'بدلات أخرى', icon: Plus },
+                        { id: 'salaryIncrease', label: 'زيادة راتب', icon: TrendingUp },
+                        { id: 'otherIncome', label: 'دخل آخر', icon: Plus },
+                      ].map((item) => (
+                        <div key={item.id} className="space-y-1.5 p-4 bg-emerald-50/30 dark:bg-emerald-900/5 rounded-2xl border border-emerald-100 dark:border-emerald-900/20 group hover:border-emerald-500 transition-all">
+                          <label className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 mr-1 uppercase tracking-tighter">{item.label}</label>
+                          <input 
+                            type="number" 
+                            className="w-full bg-transparent border-none p-0 font-black text-gray-900 dark:text-white outline-none text-lg tabular-nums" 
+                            value={(formData as any)[item.id] ?? 0} 
+                            onChange={(e) => setFormData({...formData, [item.id]: Number(e.target.value)})} 
+                          />
+                        </div>
+                      ))}
+                      
+                      {/* Special Overtime Block */}
+                      <div className="sm:col-span-2 space-y-4 p-5 bg-emerald-600 text-white rounded-3xl shadow-xl shadow-emerald-500/20 mt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black uppercase tracking-widest opacity-80">Overtime / العمل الإضافي</span>
+                          <TrendingUp className="w-4 h-4 opacity-50" />
+                        </div>
+                        <div className="flex items-center justify-between gap-6">
+                           <div className="space-y-1 flex-1">
+                             <label className="text-[10px] font-black opacity-60">Number of Hours</label>
+                             <input type="number" className="w-full bg-transparent border-none p-0 font-black text-2xl outline-none" value={formData.overtimeHours ?? 0} onChange={(e) => setFormData({...formData, overtimeHours: Number(e.target.value)})} />
+                           </div>
+                           <div className="w-px h-10 bg-white/20" />
+                           <div className="space-y-1 flex-1 text-left">
+                             <label className="text-[10px] font-black opacity-60">Value (Auto)</label>
+                             <div className="text-2xl font-black tabular-nums">{formatCurrency(formData.overtimeValue).split(' ')[0]}</div>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Deductions Group */}
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3 border-b-2 border-red-500 pb-3 mb-2">
+                       <div className="w-10 h-10 bg-red-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20">
+                         <TrendingDown className="w-5 h-5" />
+                       </div>
+                       <h4 className="font-black text-red-600 uppercase tracking-widest">Deductions / الاستقطاعات</h4>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { id: 'socialInsurance', label: 'تأمين اجتماعي', icon: ShieldCheck },
+                        { id: 'salaryReceived', label: 'استلام راتب', icon: Wallet },
+                        { id: 'loans', label: 'سلف', icon: Wallet },
+                        { id: 'otherDeductions', label: 'خصومات أخرى', icon: Trash2 },
+                        { id: 'deductionHours', label: 'ساعات الخصم', icon: History },
+                        { id: 'departureDelayDeduction', label: 'تأخير ومغادرات', icon: History },
+                      ].map((item) => (
+                        <div key={item.id} className="space-y-1.5 p-4 bg-red-50/30 dark:bg-red-900/5 rounded-2xl border border-red-100 dark:border-red-900/20 group hover:border-red-500 transition-all">
+                          <label className="text-[10px] font-black text-red-700 dark:text-red-400 mr-1 uppercase tracking-tighter">{item.label}</label>
+                          <input 
+                            type="number" 
+                            className="w-full bg-transparent border-none p-0 font-black text-gray-900 dark:text-white outline-none text-lg tabular-nums" 
+                            value={(formData as any)[item.id] ?? 0} 
+                            onChange={(e) => setFormData({...formData, [item.id]: Number(e.target.value)})} 
+                          />
+                        </div>
+                      ))}
+
+                      {/* Special Absence Block */}
+                      <div className="sm:col-span-2 space-y-4 p-5 bg-red-600 text-white rounded-3xl shadow-xl shadow-red-500/20 mt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-black uppercase tracking-widest opacity-80">Absence / الغياب</span>
+                          <TrendingDown className="w-4 h-4 opacity-50" />
+                        </div>
+                        <div className="flex items-center justify-between gap-6">
+                           <div className="space-y-1 flex-1">
+                             <label className="text-[10px] font-black opacity-60">Number of Days</label>
+                             <input type="number" className="w-full bg-transparent border-none p-0 font-black text-2xl outline-none" value={formData.absenceDays ?? 0} onChange={(e) => setFormData({...formData, absenceDays: Number(e.target.value)})} />
+                           </div>
+                           <div className="w-px h-10 bg-white/20" />
+                           <div className="space-y-1 flex-1 text-left">
+                             <label className="text-[10px] font-black opacity-60">Total Deduction (Auto)</label>
+                             <div className="text-2xl font-black tabular-nums">{formatCurrency(formData.absenceDeduction).split(' ')[0]}</div>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl -mx-8 -mb-8 p-10 border-t border-gray-100 dark:border-gray-800 flex flex-col md:flex-row md:items-center justify-between gap-8 shadow-[0_-20px_50px_rgba(0,0,0,0.05)]">
+                  <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/40">
+                      <Wallet className="w-10 h-10" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Estimated Net / صافي الراتب المتوقع</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-5xl font-black text-gray-900 dark:text-white tabular-nums tracking-tighter">
+                           {formatCurrency(calculateTotals(formData).netSalary).split(' ')[0]}
+                        </p>
+                        <span className="text-xl font-bold text-gray-400 uppercase">SAR</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-8 py-5 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-black rounded-3xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all text-lg"
+                    >
+                      إلغاء الإجراء
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={loading}
+                      className="px-12 py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-3xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-[0_15px_35px_-5px_rgba(37,99,235,0.4)] text-lg flex items-center gap-3 active:scale-95 disabled:opacity-50"
+                    >
+                      {loading ? 'جاري الحفظ...' : (
+                        <>
+                          <CheckCircle2 className="w-6 h-6" />
+                          <span>اعتماد وحفظ الكارت</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             </motion.div>
@@ -1869,6 +2210,440 @@ export const Transactions: React.FC = () => {
               <div className="flex gap-3">
                 <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 py-4 bg-red-600 hover:bg-red-700 text-white font-black rounded-2xl transition-all shadow-lg shadow-red-200 dark:shadow-none">نعم، احذف</button>
                 <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-white font-black rounded-2xl transition-all">إلغاء</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* View Card Modal (Printable) */}
+      <AnimatePresence>
+        {isViewCardOpen && selectedTxForView && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsViewCardOpen(false)} className="absolute inset-0 bg-gray-900/80 backdrop-blur-md" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="relative bg-white dark:bg-gray-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800"
+            >
+              <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between no-print">
+                <h3 className="text-xl font-black text-gray-900 dark:text-white">تفاصيل كارت العمل الشهري</h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => window.print()}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200 dark:shadow-none"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>طباعة الكارت</span>
+                  </button>
+                  <button onClick={() => setIsViewCardOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-10 bg-white text-black" id="printable-card">
+                {/* Official Header */}
+                <div className="flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-8 relative">
+                  <div className="text-right">
+                    <div className="text-xs font-black text-blue-600 mb-1 tracking-widest uppercase">Employee Monthly Pay Card</div>
+                    <h2 className="text-3xl font-black mb-1">{employees.find(e => e.id === selectedTxForView.employeeId)?.name}</h2>
+                    <div className="flex items-center gap-4 text-gray-500 font-bold text-sm">
+                      <span>الرقم: <span className="text-black font-black">{employees.find(e => e.id === selectedTxForView.employeeId)?.employeeId}</span></span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                      <span>المهنة: <span className="text-black font-black">{employees.find(e => e.id === selectedTxForView.employeeId)?.jobTitle}</span></span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-end">
+                    <div className="bg-gray-900 text-white px-6 py-2 rounded-xl font-black text-sm mb-2 shadow-lg">
+                      إصدار: {selectedTxForView.month}
+                    </div>
+                    <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter tabular-nums">
+                      Ref ID: {selectedTxForView.id?.slice(0, 8)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Indicators (Work Pct) */}
+                <div className="mb-10">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-black text-gray-400">إتمام أيام العمل الشهرية</span>
+                    <span className="text-sm font-black text-blue-600">{Math.round((selectedTxForView.actualWorkDays / 30) * 100)}%</span>
+                  </div>
+                  <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                    <div 
+                      className="h-full bg-blue-600 rounded-full" 
+                      style={{ width: `${(selectedTxForView.actualWorkDays / 30) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] font-bold text-gray-400">{selectedTxForView.actualWorkDays} يوم عمل فعلية</span>
+                    <span className="text-[10px] font-bold text-gray-400">المعيار: 30 يوم</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-12 mb-10">
+                  {/* Income Column */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 border-b-2 border-emerald-600 pb-2 mb-4">
+                      <div className="w-6 h-6 bg-emerald-600 rounded-lg flex items-center justify-center text-white">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                      </div>
+                      <h4 className="font-black text-emerald-700">المزايا والمستحقات (Income)</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {[
+                        { label: 'الراتب الأساسي', val: selectedTxForView.basicSalary },
+                        { label: 'بدل سكن', val: selectedTxForView.housingAllowance },
+                        { label: 'بدل نقل', val: selectedTxForView.transportAllowance },
+                        { label: 'بدل إعاشه', val: selectedTxForView.subsistenceAllowance },
+                        { label: `إضافي (${selectedTxForView.overtimeHours} ساعة)`, val: selectedTxForView.overtimeValue },
+                        ...(selectedTxForView.salaryIncrease > 0 ? [{ label: 'زيادة راتب استثنائية', val: selectedTxForView.salaryIncrease }] : [])
+                      ].map((item, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm group">
+                          <span className="text-gray-500 font-bold">{item.label}</span>
+                          <span className="font-black text-gray-900 group-hover:text-emerald-600 transition-colors uppercase tracking-tight tabular-nums">{formatCurrency(item.val)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-4 border-t-2 border-emerald-100 flex justify-between items-center">
+                      <span className="text-sm font-black text-emerald-800">إجمالي المزايا</span>
+                      <span className="text-xl font-black text-emerald-700 tabular-nums">{formatCurrency(selectedTxForView.totalIncome)}</span>
+                    </div>
+                  </div>
+
+                  {/* Deduction Column */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 border-b-2 border-red-600 pb-2 mb-4">
+                      <div className="w-6 h-6 bg-red-600 rounded-lg flex items-center justify-center text-white">
+                        <TrendingDown className="w-3.5 h-3.5" />
+                      </div>
+                      <h4 className="font-black text-red-700">الاستقطاعات والخصوم (Deductions)</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {[
+                        { label: 'تأمينات اجتماعية (GOSI)', val: selectedTxForView.socialInsurance },
+                        { label: 'سلف ومستردات', val: selectedTxForView.loans },
+                        { label: `غياب (${selectedTxForView.absenceDays} يوم)`, val: selectedTxForView.absenceDeduction },
+                        { label: 'تأخير وانصراف مبكر', val: selectedTxForView.departureDelayDeduction },
+                        { label: 'خصومات أخرى', val: selectedTxForView.otherDeductions }
+                      ].map((item, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm group">
+                          <span className="text-gray-500 font-bold">{item.label}</span>
+                          <span className="font-black text-gray-900 group-hover:text-red-600 transition-colors uppercase tracking-tight tabular-nums">{formatCurrency(item.val)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-4 border-t-2 border-red-100 flex justify-between items-center">
+                      <span className="text-sm font-black text-red-800">إجمالي الخصم</span>
+                      <span className="text-xl font-black text-red-700 tabular-nums">{formatCurrency(selectedTxForView.totalDeductions)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Final Net Box (Ultra Bold) */}
+                <div className="relative mb-12">
+                  <div className="absolute inset-0 bg-blue-600 blur-2xl opacity-10 rounded-full" />
+                  <div className="relative bg-gradient-to-br from-gray-900 to-blue-900 text-white p-8 rounded-[2.5rem] flex justify-between items-center shadow-2xl no-print-shadow">
+                    <div className="text-right">
+                      <p className="text-xs font-black text-blue-300 uppercase tracking-[0.2em] mb-2">Net Payable Salary / صافي الراتب</p>
+                      <h3 className="text-6xl font-black tabular-nums tracking-tighter">
+                        {formatCurrency(selectedTxForView.netSalary).split(' ')[0]}
+                        <span className="text-xl font-medium text-white/50 mr-2 uppercase">SAR</span>
+                      </h3>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10">
+                        <ShieldCheck className="w-8 h-8 text-white" />
+                      </div>
+                      <span className="text-[8px] font-black mt-2 text-blue-200">VERIFIED CARD</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedTxForView.notes && (
+                  <div className="bg-gray-50 p-6 rounded-3xl border-2 border-dashed border-gray-200 mb-12">
+                    <div className="flex items-center gap-2 mb-2">
+                       <AlertCircle className="w-4 h-4 text-gray-400" />
+                       <p className="text-[10px] font-black text-gray-400 uppercase">System Notes / ملاحظات</p>
+                    </div>
+                    <p className="text-sm font-bold text-gray-800 leading-relaxed">{selectedTxForView.notes}</p>
+                  </div>
+                )}
+
+                {/* Secure Footer (Print Format) */}
+                <div className="grid grid-cols-2 gap-20 pt-10 text-[11px] font-black border-t-2 border-gray-100">
+                  <div className="text-center">
+                    <div className="w-full h-24 border-b border-gray-200 mb-2" />
+                    <p className="text-gray-400">توقيع المستلم / Employee Signature</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-full h-24 border-b border-gray-200 mb-2" />
+                    <p className="text-gray-400">الختم والاعتماد / Authorized Approval</p>
+                  </div>
+                </div>
+
+                <div className="text-center mt-12">
+                   <p className="text-[8px] text-gray-300 font-bold uppercase tracking-widest">
+                     This document was automatically generated by Salarix HR on {new Date().toLocaleDateString('ar-SA')}
+                   </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Variance Analysis Modal */}
+      <AnimatePresence>
+        {isVarianceModalOpen && varianceResults && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsVarianceModalOpen(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm no-print" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white dark:bg-gray-900 w-full max-w-6xl h-[85vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 print:h-auto print:static print:rounded-none print:shadow-none print:border-none print:bg-white">
+              
+              {/* Header */}
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-sm bg-white dark:bg-gray-900 no-print">
+                <div className="flex items-center gap-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-700 text-white rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-500/20 transform -rotate-3">
+                    <TrendingUpDown className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">تحليل الفروقات الذكي (Variance Analysis)</h3>
+                    <p className="text-sm font-bold text-gray-400 mt-1">مقارنة شهر {selectedMonth} مع {varianceResults.prevMonth || 'نظام الفوارق'}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                   <button 
+                    onClick={() => window.print()}
+                    className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-black rounded-2xl hover:bg-gray-50 transition-all shadow-sm"
+                  >
+                    <Printer className="w-5 h-5" />
+                    <span>طباعة</span>
+                  </button>
+                  <button onClick={() => setIsVarianceModalOpen(false)} className="p-4 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-2xl transition-all active:scale-95">
+                    <X className="w-7 h-7" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-auto p-10 space-y-12 custom-scrollbar rtl text-right print:p-0 print:overflow-visible">
+                
+                {/* Print Only Header (Logo & Company Name) */}
+                <div className="hidden print:flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10 rtl">
+                  <div className="text-right">
+                    <h1 className="text-3xl font-black text-gray-900 leading-tight">{companySettings?.companyName}</h1>
+                    <p className="text-xl font-bold text-gray-600 mt-2">تقرير تحليل فروقات الرواتب والشهرية</p>
+                    <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 font-bold">
+                       <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> <span>الفترة: {selectedMonth}</span></div>
+                       <div className="flex items-center gap-1"><History className="w-4 h-4" /> <span>المقارنة بـ: {varianceResults.prevMonth || '---'}</span></div>
+                    </div>
+                  </div>
+                  {companySettings?.logoUrl && (
+                    <img src={companySettings.logoUrl} alt="Logo" className="h-24 w-auto object-contain" referrerPolicy="no-referrer" />
+                  )}
+                </div>
+
+                {/* Print Orientation Hack */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media print {
+                    @page { size: portrait; margin: 15mm; }
+                    body { -webkit-print-color-adjust: exact; }
+                    .no-print { display: none !important; }
+                  }
+                `}} />
+                
+                {/* Visual Summary Bento */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                  {[
+                    { 
+                      label: 'إجمالي رواتب الكاش', 
+                      val: varianceResults.summary.paymentCash, 
+                      color: 'bg-amber-600', 
+                      icon: Banknote,
+                      subLabel: 'Cash Salaries'
+                    },
+                    { 
+                      label: 'إجمالي رواتب البنك', 
+                      val: varianceResults.summary.paymentBank, 
+                      color: 'bg-emerald-600', 
+                      icon: Receipt,
+                      subLabel: 'Bank Transfers'
+                    },
+                    { 
+                      label: 'إجمالي الاستقطاعات', 
+                      val: varianceResults.summary.deductions, 
+                      color: 'bg-rose-600', 
+                      icon: TrendingDown,
+                      subLabel: 'Total Deductions'
+                    },
+                    { 
+                      label: 'موظفين في إجازة', 
+                      val: varianceResults.summary.leaves, 
+                      color: 'bg-blue-900', 
+                      icon: CalendarX,
+                      subLabel: 'On Leave',
+                      isNumber: true
+                    },
+                    { 
+                      label: 'صافي الرواتب', 
+                      val: varianceResults.summary.net, 
+                      color: 'bg-indigo-600', 
+                      icon: Wallet,
+                      subLabel: 'Net Salaries'
+                    },
+                  ].map((item, idx) => {
+                    const diff = item.val.current - item.val.prev;
+                    const isPositive = diff > 0.01;
+                    const isNegative = diff < -0.01;
+                    const Icon = item.icon;
+                    
+                    return (
+                      <motion.div 
+                        key={idx}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className={cn(
+                          "p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group",
+                          item.color
+                        )}
+                      >
+                         <Icon className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover:scale-110 transition-transform pointer-events-none" />
+                         <div className="relative z-10 space-y-4">
+                            <div className="flex items-center justify-between">
+                               <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                                  <Icon className="w-6 h-6" />
+                               </div>
+                               <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">
+                                  {item.subLabel}
+                                </div>
+                            </div>
+                            <div>
+                               <p className="text-xs font-bold text-white/70 mb-1">{item.label}</p>
+                               <h4 className="text-3xl font-black tabular-nums tracking-tighter">
+                                  {item.isNumber ? item.val.current : formatCurrency(item.val.current)}
+                                </h4>
+                            </div>
+                            <div className="flex items-center gap-3 pt-4 border-t border-white/10">
+                               <div className={cn(
+                                  "px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1",
+                                  isPositive ? "bg-emerald-400 text-emerald-950" : isNegative ? "bg-rose-400 text-rose-950" : "bg-white/20 text-white"
+                               )}>
+                                  {isPositive ? <ArrowUpRight className="w-3 h-3" /> : isNegative ? <ArrowDownRight className="w-3 h-3" /> : null}
+                                  {item.isNumber ? Math.abs(diff) : formatCurrency(Math.abs(diff))}
+                               </div>
+                               {item.isNumber ? (
+                                 <span className="text-[10px] font-bold opacity-60 italic">موظف</span>
+                               ) : (
+                                 <span className="text-[10px] font-bold opacity-60 italic">عدد الموظفين: {item.val.count}</span>
+                               )}
+                            </div>
+                         </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Detail Table */}
+                <div className="bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 overflow-hidden shadow-xl">
+                    <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between bg-gray-50/30 dark:bg-gray-800/20">
+                       <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
+                             <Users className="w-5 h-5" />
+                          </div>
+                          <h4 className="text-xl font-black text-gray-900 dark:text-white text-right">تفاصيل مقارنة الموظفين</h4>
+                       </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                       <table className="w-full text-right border-collapse">
+                          <thead>
+                             <tr className="bg-gray-50 dark:bg-gray-800">
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الموظف</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي السابق ({varianceResults.prevMonth || '---'})</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي الحالي ({selectedMonth})</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الفارق المالي</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">ملاحظة ذكية</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                             {varianceResults.comparisons.map((item: any, idx: number) => (
+                                <tr key={idx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors group">
+                                   <td className="p-6">
+                                      <div className="flex items-center gap-3">
+                                         <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center text-xs font-black text-gray-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors uppercase">
+                                            {item.name[0]}
+                                         </div>
+                                         <div>
+                                            <p className="font-black text-gray-900 dark:text-white">{item.name}</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Employee Record</p>
+                                         </div>
+                                      </div>
+                                   </td>
+                                   <td className="p-6 font-bold text-gray-500 tabular-nums">{formatCurrency(item.prevNet)}</td>
+                                   <td className="p-6 font-black text-gray-900 dark:text-white tabular-nums">{formatCurrency(item.currNet)}</td>
+                                   <td className={cn(
+                                      "p-6 font-black tabular-nums",
+                                      item.diff > 0.01 ? "text-emerald-600" : item.diff < -0.01 ? "text-rose-600" : "text-gray-400"
+                                   )}>
+                                      {item.diff > 0 ? '+' : ''}{formatCurrency(item.diff)}
+                                   </td>
+                                   <td className="p-6">
+                                      <span className={cn(
+                                         "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border",
+                                         item.note === 'موظف جديد' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                         item.note === 'مستبعد / في إجازة' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                                         "bg-gray-50 text-gray-400 border-gray-100 dark:bg-gray-800 dark:border-gray-700"
+                                      )}>
+                                         {item.note}
+                                      </span>
+                                   </td>
+                                </tr>
+                             ))}
+                          </tbody>
+                       </table>
+                    </div>
+                </div>
+
+                {/* Signatures & Approvals (Print Only) */}
+                <div className="hidden print:grid grid-cols-3 gap-12 mt-20 pt-10 border-t-2 border-gray-900">
+                  <div className="text-center space-y-6">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto flex items-center justify-center">
+                       <UserCheck className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div>
+                       <p className="font-black text-gray-900 text-lg">إعداد المحاسب</p>
+                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
+                       <p className="text-xs text-gray-400 mt-2 italic font-bold">التوقيع والتاريخ</p>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-6">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto flex items-center justify-center">
+                       <Building2 className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div>
+                       <p className="font-black text-gray-900 text-lg">مراجعة المدير المالي</p>
+                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
+                       <p className="text-xs text-gray-400 mt-2 italic font-bold">التوقيع والتاريخ</p>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-6">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto flex items-center justify-center">
+                       <ShieldCheck className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div>
+                       <p className="font-black text-gray-900 text-lg">الاعتماد النهائي</p>
+                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
+                       <p className="text-xs text-gray-400 mt-2 italic font-bold">الختم والتوقيع الرسمي</p>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </motion.div>
           </div>

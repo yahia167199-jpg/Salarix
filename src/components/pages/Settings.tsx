@@ -20,8 +20,11 @@ import { cn } from '../../lib/utils';
 import { Branch } from '../../types';
 import * as XLSX from 'xlsx';
 
+import { useSecurity } from '../../contexts/SecurityContext';
+
 export const Settings: React.FC = () => {
   const { companySettings, branches, sectors, managements, costCenterDepts } = useData();
+  const { idleTimeout, setIdleTimeout } = useSecurity();
   const [loading, setLoading] = useState(false);
   
   const [addingBranch, setAddingBranch] = useState(false);
@@ -459,6 +462,25 @@ export const Settings: React.FC = () => {
                   <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                 </div>
                 <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mr-1">هذه الكلمة تستخدم لقفل الشاشة وإعادة الدخول السريع</p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mr-1">وقت القفل التلقائي عند الخمول (بالدقائق)</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="120"
+                    step="1"
+                    value={idleTimeout}
+                    onChange={(e) => setIdleTimeout(parseInt(e.target.value))}
+                    className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                  />
+                  <div className="w-20 py-2 bg-gray-50 dark:bg-gray-800 rounded-xl text-center font-black text-blue-600 dark:text-blue-400 border border-gray-100 dark:border-gray-700">
+                    {idleTimeout} د
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-medium mr-1">سيتم قفل النظام تلقائياً إذا لم يتم الكشف عن أي نشاط لهذه المدة</p>
               </div>
             </div>
 

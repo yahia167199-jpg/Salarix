@@ -10,7 +10,11 @@ import {
   X,
   Calendar,
   Trash2,
-  Printer
+  Printer,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight,
+  AlertCircle
 } from 'lucide-react';
 import { db, collection, setDoc, doc, query, where, getDocs, deleteDoc, OperationType, handleFirestoreError } from '../../firebase';
 import { useData } from '../../contexts/DataContext';
@@ -24,7 +28,7 @@ import * as XLSX from 'xlsx';
 import { useMemo } from 'react';
 
 export const PayrollRuns: React.FC = () => {
-  const { payrollRuns: runs, employees: allEmployees, transactions: allTransactions } = useData();
+  const { payrollRuns: runs, employees: allEmployees, transactions: allTransactions, companySettings, branches } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [results, setResults] = useState<PayrollResult[]>([]);
@@ -54,14 +58,13 @@ export const PayrollRuns: React.FC = () => {
     // Requirement: Must have an active status (Active or Out of Sponsorship variants)
     const targetEmployees = Array.from(uniqueEmployeesMap.values())
       .filter(emp => {
-        // Updated Requirement: Bank only, Active only (no Leave), and must have Transactions
+        // Updated: Include both Bank and Cash employees for complete payroll calculation
         const isActive = emp.status === 'Active' || 
                         emp.status === 'Out of Sponsorship (Active)' || 
                         emp.status === 'Out of Sponsorship';
-        const isBank = emp.paymentMethod === 'Bank';
         const hasMovement = allTransactions.some(t => t.employeeId === emp.id && t.month === month);
         
-        return isActive && isBank && hasMovement;
+        return isActive && hasMovement;
       })
       .sort((a, b) => {
         const idA = parseInt(a.employeeId || '0', 10);
@@ -234,7 +237,12 @@ export const PayrollRuns: React.FC = () => {
   const fetchResults = async (runId: string) => {
     const q = query(collection(db, 'payrollResults'), where('payrollRunId', '==', runId));
     const snap = await getDocs(q);
-    setResults(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as PayrollResult)));
+    return snap.docs.map(doc => doc.data() as PayrollResult);
+  };
+
+  const fetchResultsAndSet = async (runId: string) => {
+    const data = await fetchResults(runId);
+    setResults(data);
   };
 
   const updateStatus = async (run: PayrollRun, newStatus: PayrollRun['status']) => {
@@ -286,14 +294,30 @@ export const PayrollRuns: React.FC = () => {
       return r.paymentMethod === 'Bank' && r.netSalary > 0 && hasMovement;
     });
     
-    // Create an active subset of results for correct reconciliations
-    const activeResults = results.filter(r => 
-      allTransactions.some(t => t.employeeId === r.employeeId && t.month === run.month)
-    );
+    // Create an active dataset of everyone who had movement this month (Bank + Cash)
+    const monthTx = allTransactions.filter(t => t.month === run.month);
+    const activeResults = monthTx.map(t => {
+      const res = results.find(r => r.employeeId === t.employeeId);
+      const emp = allEmployees.find(e => e.id === t.employeeId);
+      return {
+        employeeId: t.employeeId,
+        employeeName: res?.employeeName || emp?.name || '---',
+        officialEmployer: res?.officialEmployer || emp?.officialEmployer || 'غير محدد',
+        paymentMethod: res?.paymentMethod || emp?.paymentMethod || 'Bank',
+        netSalary: res ? res.netSalary : (Number(t.netSalary) || 0),
+        basicSalary: res ? res.basicSalary : (Number(t.basicSalary) || 0),
+        roundingDiff: res ? (res.roundingDiff || 0) : 0,
+        housingAllowance: res ? res.housingAllowance : (Number(t.housingAllowance) || 0),
+        otherEarnings: res ? res.otherEarnings : 0,
+        totalDeductions: res ? res.totalDeductions : (Number(t.totalDeductions) || 0),
+      };
+    });
+
     const [year, monthNum] = run.month.split('-');
     const formattedDate = `${monthNum}/${year}`;
 
-    const employeeRows = bankEmployees.map((r) => [
+    const employeeRows = bankEmployees.map((r, index) => [
+      index + 1,               // S.No
       r.bankCode || '',        // Bank
       r.bankAccount || '',     // Account Number
       r.netSalary,             // Total Salary
@@ -309,9 +333,10 @@ export const PayrollRuns: React.FC = () => {
     ]);
 
     const headers = [
+      'م',
       'Bank', 
       'Account Number', 
-      'Total Salary', 
+      'Total Salary (Net)', 
       'Comments', 
       'Employee Name', 
       'National ID / Iqama ID', 
@@ -323,112 +348,224 @@ export const PayrollRuns: React.FC = () => {
       'الفرع'
     ];
 
-    // 3. Totals Calculation (Bank Sheet specific)
+    // 3. Column Totals (Main Table)
     const sumTotalSalary = bankEmployees.reduce((sum, e) => sum + e.netSalary, 0);
     const sumBasic = bankEmployees.reduce((sum, e) => sum + e.basicSalary, 0);
     const sumHousing = bankEmployees.reduce((sum, e) => sum + e.housingAllowance, 0);
     const sumOtherEarnings = bankEmployees.reduce((sum, e) => sum + e.otherEarnings, 0);
     const sumDeductions = bankEmployees.reduce((sum, e) => sum + e.totalDeductions, 0);
-    const sumRoundingDiff = bankEmployees.reduce((sum, e) => sum + (e.roundingDiff || 0), 0);
-    
-    const calculatedNet = Number(((sumBasic + sumHousing + sumOtherEarnings) - sumDeductions).toFixed(2));
-    const systemDiff = Number((calculatedNet - (sumTotalSalary - sumRoundingDiff)).toFixed(2));
 
-    // 4. Branch Summary
+    const totalsRow = [
+      'الإجمالي', '', '', 
+      sumTotalSalary, '', '', '', '',
+      sumBasic, sumHousing, sumOtherEarnings, sumDeductions, ''
+    ];
+
+    // 4. Branch Summary (Dynamic)
     const branchMap = bankEmployees.reduce((acc: any, curr) => {
-      // Rule: If status is Out of Sponsorship, group under "خارج الكفالة"
-      const emp = allEmployees.find(e => e.id === curr.employeeId);
-      const isOutOfSponsorship = emp?.status === 'Out of Sponsorship' || emp?.status === 'Out of Sponsorship (Active)' || emp?.status === 'Out of Sponsorship (Leave)';
-      
-      const b = isOutOfSponsorship ? 'خارج الكفالة' : (curr.officialEmployer || 'غير محدد');
+      const b = curr.officialEmployer || 'غير محدد';
       acc[b] = (acc[b] || 0) + curr.netSalary;
       return acc;
     }, {});
     
-    const branchNames = [
-      'مصنع إيفاء لتعبئة المياه',
-      'شركة صالح سعيد طيشان و اولادة',
-      'شركة نهضه الصناعية',
-      'شركة صالح سعيد طيشان و اولادة - فرع الرياض',
-      'شركة صالح سعيد طيشان واولادة',
-      'بيتنا الافضل',
-      'خارج الكفالة',
-      'جملا',
-      'غير محدد'
-    ];
+    // Convert map to rows and sort by amount descending
+    const branchRows = Object.entries(branchMap)
+      .map(([name, total]) => [name, total])
+      .sort((a: any, b: any) => b[1] - a[1]);
 
-    const branchRows = branchNames.map(name => [name, branchMap[name] || 0]);
     const branchGrandTotal = Object.values(branchMap).reduce((sum: any, val: any) => sum + val, 0);
 
-    // 5. Reconciliation (Certified = Standard Employees only)
-    const getIsStandard = (r: PayrollResult) => {
-      const emp = allEmployees.find(e => (e.id === r.employeeId));
-      return emp?.classification !== 'Saudi' && emp?.classification !== 'Accounting';
-    };
+    // 5. System-wide stats (Bank vs Cash)
+    const bankResults = activeResults.filter(r => r.paymentMethod === 'Bank');
+    const cashResults = activeResults.filter(r => r.paymentMethod === 'Cash');
 
-    const certifiedBankAmount = activeResults
-      .filter(r => r.paymentMethod === 'Bank' && getIsStandard(r))
-      .reduce((sum, r) => sum + r.netSalary, 0);
-    
-    const certifiedCashAmount = activeResults
-      .filter(r => r.paymentMethod === 'Cash' && getIsStandard(r))
-      .reduce((sum, r) => sum + r.netSalary, 0);
+    const bankCount = bankResults.length;
+    const bankTotal = bankResults.reduce((sum, r) => sum + r.netSalary, 0);
 
-    const bankCount = activeResults.filter(r => r.paymentMethod === 'Bank').length;
-    const cashCount = activeResults.filter(r => r.paymentMethod === 'Cash').length;
+    const cashCount = cashResults.length;
+    const cashTotal = cashResults.reduce((sum, r) => sum + r.netSalary, 0);
+
     const totalEmployeesCount = activeResults.length;
-    
-    // الفرق بالزيادة = إجمالي Total Salary (من شيت البنك) – رواتب موظفين البنك (من المعتمد)
-    const excessDiff = Number((sumTotalSalary - certifiedBankAmount).toFixed(2));
+    const grandTotalSalaries = bankTotal + cashTotal;
 
-    // 6. Difference Breakdown
-    const accountingTotal = activeResults.reduce((sum, r) => {
+    // 6. Classification Specific Totals
+    // Accounting
+    const accountingStats = activeResults.reduce((acc, r) => {
       const emp = allEmployees.find(e => (e.id === r.employeeId));
-      return (emp?.classification === 'Accounting' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
-    }, 0);
+      if (emp?.classification === 'Accounting') {
+        acc.basic += r.basicSalary;
+        acc.net += r.netSalary;
+      }
+      return acc;
+    }, { basic: 0, net: 0 });
 
-    const saudiTotal = activeResults.reduce((sum, r) => {
+    // Saudi
+    const saudiStats = activeResults.reduce((acc, r) => {
       const emp = allEmployees.find(e => (e.id === r.employeeId));
-      return (emp?.classification === 'Saudi' && r.paymentMethod === 'Bank') ? sum + r.netSalary : sum;
-    }, 0);
+      if (emp?.classification === 'Saudi') {
+        acc.basic += r.basicSalary;
+        acc.net += r.netSalary;
+      }
+      return acc;
+    }, { basic: 0, net: 0 });
 
-    const breakdownSum = Number((accountingTotal + saudiTotal).toFixed(2));
-    // The final rounding difference is what's left of the excess after accounting/saudi
-    const finalRoundingDiff = Number((excessDiff - breakdownSum).toFixed(2));
+    // 7. Fraction Rounding Diff
+    const totalRoundingDiff = activeResults.reduce((sum, r) => sum + (r.roundingDiff || 0), 0);
 
-    // 7. Consolidating the final AOA
+    // 8. Consolidating the final AOA with professional structure
     const finalAoa = [
+      ['كشف مسير الرواتب البنكي - ' + run.month],
+      ['تاريخ الاستخراج: ' + new Date().toLocaleString('ar-SA')],
+      [],
       headers,
       ...employeeRows,
+      totalsRow,
       [],
-      ['1. إجمالي التحويل البنكي', sumTotalSalary],
+      ['📊 الملخص المالي التحليلي (Financial Summary)', 'القيمة', 'البيان'],
+      ['إجمالي صافي التحويل البنكي', sumTotalSalary, 'Net Bank Transfers'],
+      ['إجمالي الرواتب الأساسية', sumBasic, 'Total Basic Salaries'],
+      ['إجمالي بدل السكن', sumHousing, 'Total Housing Allowances'],
+      ['إجمالي الاستحقاقات الأخرى', sumOtherEarnings, 'Total Other Earnings'],
+      ['إجمالي الاستقطاعات', sumDeductions, 'Total Deductions'],
       [],
-      ['2. إجمالي مكونات الرواتب'],
-      ['إجمالي Basic Salary', sumBasic],
-      ['إجمالي Housing Allowance', sumHousing],
-      ['إجمالي Other Earnings', sumOtherEarnings],
-      ['إجمالي Deductions', sumDeductions],
-      [],
-      ['* إجمالي فرق جبر الكسور العشرية', sumRoundingDiff],
-      [],
-      ['🏢 ملخص الفروع (Branch Summary)'],
-      ['الفرع', 'مجموع Total Salary'],
+      ['🏢 ملخص الرواتب حسب الفروع (Branch Summary)'],
+      ['اسم الفرع / المنشأة', 'صافي الرواتب (Net)'],
       ...branchRows,
-      ['إجمالي كل الفروع', branchGrandTotal]
+      ['إجمالي كافة الفروع', branchGrandTotal],
+      [],
+      ['👥 إحصائيات التوزيع وطرق الاستلام'],
+      ['طريقة الاستلام', 'العدد', 'إجمالي الصافي (Net)'],
+      ['موظفين استلام بنكي (Bank)', bankCount, bankTotal],
+      ['موظفين استلام كاش (Cash System)', cashCount, cashTotal],
+      ['إجمالي كافة الموظفين (Grand Total)', totalEmployeesCount, grandTotalSalaries],
+      [],
+      ['📝 ملخص التصنيفات الإدارية'],
+      ['التصنيف', 'الأساسي (Basic)', 'الصافي (Net)'],
+      ['موظفي رواتب المحاسبات', accountingStats.basic, accountingStats.net],
+      ['موظفي الرواتب السعوديين', saudiStats.basic, saudiStats.net],
+      ['إجمالي رواتب السعوديين (الكل)', '', saudiStats.net],
+      [],
+      ['⚖️ تسويات وكسور'],
+      ['إجمالي فرق جبر الكسور العشرية (للكل)', totalRoundingDiff.toFixed(2)],
+      [],
+      ['كافة البيانات مستخرجة من النظام المحاسبي الموحد وفقاً للحركات المعتمدة'],
+      ['تمت المراجعة بواسطة: ________________', 'الاعتماد النهائي: ________________'],
     ];
 
-    // 8. Generate and Download
+    // 9. Generate and Download
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(finalAoa);
     
+    // Set column widths
     ws['!cols'] = [
-      { wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 20 },
-      { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 12 },
-      { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 20 }
+      { wch: 5 },  // م
+      { wch: 15 }, // Bank
+      { wch: 30 }, // Account Number
+      { wch: 20 }, // Total Salary (Net)
+      { wch: 20 }, // Comments
+      { wch: 35 }, // Employee Name
+      { wch: 25 }, // National ID / Iqama ID
+      { wch: 20 }, // Employee Address
+      { wch: 15 }, // Basic Salary
+      { wch: 15 }, // Housing Allowance
+      { wch: 15 }, // Other Earnings
+      { wch: 15 }, // Deductions
+      { wch: 25 }  // الفرع
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Bank_Payroll_Statement");
     XLSX.writeFile(wb, `Bank_Payroll_${run.month}.xlsx`);
+  };
+
+  const exportAnalyticsExcel = (run: PayrollRun, results: PayrollResult[]) => {
+    // 1. Unified Dataset: Everyone with a transaction this month
+    const monthTx = allTransactions.filter(t => t.month === run.month);
+    const combinedData = monthTx.map(t => {
+      const res = results.find(r => r.employeeId === t.employeeId);
+      const emp = allEmployees.find(e => e.id === t.employeeId);
+      return {
+        employeeId: t.employeeId,
+        employeeName: res?.employeeName || t.notes || emp?.name || '---',
+        officialEmployer: res?.officialEmployer || emp?.officialEmployer || 'غير محدد',
+        paymentMethod: res?.paymentMethod || emp?.paymentMethod || 'Bank',
+        classification: emp?.classification || 'Standard',
+        basicSalary: res ? res.basicSalary : (Number(t.basicSalary) || 0),
+        netSalary: res ? res.netSalary : (Number(t.netSalary) || 0),
+        roundingDiff: res ? (res.roundingDiff || 0) : 0
+      };
+    });
+
+    // 2. Branch Summary
+    const branchMap = combinedData.reduce((acc: any, d) => {
+      const b = d.officialEmployer || 'غير محدد';
+      acc[b] = (acc[b] || 0) + d.netSalary;
+      return acc;
+    }, {});
+    
+    const branchRows = Object.entries(branchMap)
+      .map(([name, total]) => [name, total])
+      .sort((a: any, b: any) => b[1] - a[1]);
+    const branchGrandTotal = Object.values(branchMap).reduce((sum: any, val: any) => sum + (val as number), 0);
+
+    // 3. Bank vs Cash
+    const bankRecords = combinedData.filter(d => d.paymentMethod === 'Bank');
+    const cashRecords = combinedData.filter(d => d.paymentMethod === 'Cash');
+    const bankCount = bankRecords.length;
+    const bankTotal = bankRecords.reduce((sum, d) => sum + d.netSalary, 0);
+    const cashCount = cashRecords.length;
+    const cashTotal = cashRecords.reduce((sum, d) => sum + d.netSalary, 0);
+    const totalEmployeesCount = combinedData.length;
+    const grandTotalNet = bankTotal + cashTotal;
+
+    // 4. Classifications
+    const accountingStats = combinedData.reduce((acc, d) => {
+      if (d.classification === 'Accounting') {
+        acc.basic += d.basicSalary;
+        acc.net += d.netSalary;
+      }
+      return acc;
+    }, { basic: 0, net: 0 });
+
+    const saudiStats = combinedData.reduce((acc, d) => {
+      if (d.classification === 'Saudi') {
+        acc.basic += d.basicSalary;
+        acc.net += d.netSalary;
+      }
+      return acc;
+    }, { basic: 0, net: 0 });
+
+    // 5. Total Rounding
+    const totalRoundingDiff = combinedData.reduce((sum, d) => sum + (d.roundingDiff || 0), 0);
+
+    const aoa = [
+      ['🏢 ملخص الرواتب حسب الفروع (Branch Summary)'],
+      ['اسم الفرع / المنشأة', 'إجمالي الصافي (Net)'],
+      ...branchRows,
+      ['إجمالي كافة الفروع', branchGrandTotal],
+      [],
+      ['👥 إحصائيات التوزيع وطرق الاستلام'],
+      ['طريقة الاستلام', 'العدد', 'إجمالي الصافي (Net)'],
+      ['موظفين استلام بنكي (Bank)', bankCount, bankTotal],
+      ['موظفين استلام كاش (Cash)', cashCount, cashTotal],
+      ['إجمالي كافة الموظفين (Grand Total)', totalEmployeesCount, grandTotalNet],
+      [],
+      ['📝 ملخص التصنيفات الإدارية'],
+      ['التصنيف', 'إجمالي الأساسي (Basic)', 'إجمالي الصافي (Net)'],
+      ['موظفي رواتب المحاسبات', accountingStats.basic, accountingStats.net],
+      ['موظفي الرواتب السعوديين', saudiStats.basic, saudiStats.net],
+      ['إجمالي رواتب السعوديين (الكل)', '-', saudiStats.net],
+      [],
+      ['إجمالي فرق جبر الكسور العشرية (للكل)', totalRoundingDiff.toFixed(2)],
+      [],
+      ['تاريخ التقرير: ' + new Date().toLocaleString('ar-SA')],
+      ['المصدر: النظام الموحد لإدارة الرواتب والتحليلات'],
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 45 }, { wch: 20 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, ws, "التحليلات");
+    XLSX.writeFile(wb, `Payroll_Analytics_${run.month}.xlsx`);
   };
 
   const sortedRuns = useMemo(() => {
@@ -488,7 +625,7 @@ export const PayrollRuns: React.FC = () => {
 
             <div className="flex gap-2">
               <button 
-                onClick={() => { setSelectedRun(run); fetchResults(run.id); }}
+                onClick={() => { setSelectedRun(run); fetchResultsAndSet(run.id); }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-400 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <Eye className="w-4 h-4" />
@@ -530,10 +667,17 @@ export const PayrollRuns: React.FC = () => {
                   </button>
                   <button 
                     onClick={() => exportToExcel(selectedRun, results)}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-none"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none"
                   >
                     <FileSpreadsheet className="w-5 h-5" />
                     <span>تصدير ملف البنك</span>
+                  </button>
+                  <button 
+                    onClick={() => exportAnalyticsExcel(selectedRun, results)}
+                    className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 dark:shadow-none"
+                  >
+                    <TrendingUp className="w-5 h-5" />
+                    <span>التحليلات الراتب الشهر</span>
                   </button>
                   <button 
                     onClick={() => window.print()}

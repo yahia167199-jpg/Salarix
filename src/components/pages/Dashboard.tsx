@@ -132,14 +132,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return acc;
       }, 0);
     
+    const prevRun = payrollRuns.sort((a, b) => b.month.localeCompare(a.month))[1];
+    const growth = prevRun && prevRun.totalNet > 0 
+      ? ((lastRun.totalNet - prevRun.totalNet) / prevRun.totalNet) * 100 
+      : 0;
+
     return {
       month: lastRun.month,
       totalBank: bankTotal,
       totalCash: cashTotal,
       totalGlobal: bankTotal + cashTotal,
       employeeCount: lastResults.length,
+      growth: growth
     };
-  }, [lastRun, lastResults, employees, transactions]);
+  }, [lastRun, lastResults, employees, transactions, payrollRuns]);
 
   return (
     <div className="space-y-10">
@@ -218,6 +224,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">آخر مسير تم اعتماده</p>
+                  {lastRunSummary.growth !== 0 && (
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[8px] font-black mr-2",
+                      lastRunSummary.growth > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                    )}>
+                      {lastRunSummary.growth > 0 ? '+' : ''}{lastRunSummary.growth.toFixed(1)}% عن السابق
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-3xl font-black text-gray-900 dark:text-white mb-1">
                   شهر {lastRunSummary.month}
@@ -415,6 +429,79 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             className="mt-8 w-full py-4 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-blue-600 hover:text-white transition-all group"
           >
             عرض كل الحركات
+            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 rotate-180" />
+          </button>
+        </div>
+
+        {/* Sector Insights - New Professional Indicator */}
+        <div className="bg-white dark:bg-gray-900 p-8 rounded-[3rem] shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col h-full">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-black text-gray-900 dark:text-white">توزيع الرواتب</h3>
+            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center text-indigo-600">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-6">
+            {useMemo(() => {
+              if (!lastRunSummary || lastResults.length === 0) return (
+                <div className="flex flex-col items-center justify-center h-full text-center opacity-40">
+                  <TrendingUp className="w-12 h-12 mb-4" />
+                  <p className="font-bold">يرجى اختيار شهر للمسير</p>
+                </div>
+              );
+              
+              const totals: Record<string, number> = {};
+              lastResults.forEach(r => {
+                const emp = employees.find(e => e.id === r.employeeId);
+                const s = r.sectors || emp?.sectors || 'غير محدد';
+                totals[s] = (totals[s] || 0) + (Number(r.netSalary) || 0);
+              });
+
+              // Add Cash from month transactions too
+              transactions
+                .filter(t => t.month === lastRunSummary.month)
+                .forEach(t => {
+                   const emp = employees.find(e => e.id === t.employeeId);
+                   if (emp?.paymentMethod === 'Cash' || (emp?.paymentMethod as any) === 'كاش') {
+                     const s = emp?.sectors || 'غير محدد';
+                     totals[s] = (totals[s] || 0) + (Number(t.netSalary) || 0);
+                   }
+                });
+
+              const sorted = Object.entries(totals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
+
+              const max = Math.max(...Object.values(totals));
+
+              return sorted.map(([name, val], idx) => (
+                <div key={idx} className="space-y-2">
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate max-w-[150px]">{name}</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-400">{formatCurrency(val)}</span>
+                  </div>
+                  <div className="h-2 w-full bg-gray-50 dark:bg-gray-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(val / max) * 100}%` }}
+                      transition={{ duration: 1, delay: idx * 0.1 }}
+                      className={cn(
+                        "h-full rounded-full",
+                        idx === 0 ? "bg-blue-600" : idx === 1 ? "bg-indigo-500" : idx === 2 ? "bg-violet-500" : "bg-purple-500"
+                      )}
+                    />
+                  </div>
+                </div>
+              ));
+            }, [lastRunSummary, lastResults, employees, transactions])}
+          </div>
+
+          <button 
+            onClick={() => onNavigate?.('summary-report')}
+            className="mt-8 w-full py-4 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-indigo-600 hover:text-white transition-all group"
+          >
+            تقرير القطاعات
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 rotate-180" />
           </button>
         </div>

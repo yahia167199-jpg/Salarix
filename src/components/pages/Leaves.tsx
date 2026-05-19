@@ -121,7 +121,13 @@ export const Leaves: React.FC = () => {
   };
 
   const handleExportBalances = () => {
-    const data = employees.map(emp => {
+    const sortedEmployees = [...employees].sort((a, b) => {
+      const idA = a.employeeId || '';
+      const idB = b.employeeId || '';
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    const data = sortedEmployees.map(emp => {
       const joinDate = emp.joinDate ? new Date(emp.joinDate) : null;
       const isValidJoinDate = joinDate && !isNaN(joinDate.getTime());
       const diffTime = isValidJoinDate ? Math.abs(new Date().getTime() - joinDate.getTime()) : 0;
@@ -139,17 +145,13 @@ export const Leaves: React.FC = () => {
         }, 0);
 
       const balance = calculateActualWorkDays(emp.lastDirectDate);
+      const isOnLeave = emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)';
 
       return {
-        'رقم الموظف': emp.employeeId,
+        'الرقم الوظيفي': emp.employeeId,
         'اسم الموظف': emp.name,
-        'رقم الهوية': emp.iqamaNumber,
-        'تاريخ التعيين': emp.joinDate,
-        'أيام العمل': serviceDays,
-        'الرصيد التراكمي': totalAccrued.toFixed(1),
-        'مستهلك من النظام': systemUsed,
-        'رصيد مستهلك سابق': emp.usedLeaveDays || 0,
-        'أيام العمل الفعلية من تاريخ آخر مباشرة': balance
+        'تاريخ اخر مباشره': emp.lastDirectDate || '',
+        'الحالة': isOnLeave ? 'في اجازة' : 'نشط',
       };
     });
 
@@ -166,7 +168,7 @@ export const Leaves: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws) as any[];
@@ -175,45 +177,41 @@ export const Leaves: React.FC = () => {
       let successCount = 0;
 
       for (const row of data) {
-        const empId = row['رقم الموظف']?.toString();
-        const iqama = row['رقم الهوية']?.toString();
-        const newRemainingBalance = parseFloat(row['الرصيد المتبقي']);
+        const empId = (row['الرقم الوظيفي'] || row['رقم الموظف'])?.toString();
+        const lastDirectDate = row['تاريخ اخر مباشره'];
 
-        if (isNaN(newRemainingBalance)) continue;
-
-        const employee = employees.find(e => e.employeeId === empId || e.iqamaNumber === iqama);
+        const employee = employees.find(e => e.employeeId === empId);
         if (employee) {
-          // Calculate what manualUsed should be to result in this imported balance
-          const joinDate = new Date(employee.joinDate);
-          const serviceDays = Math.ceil(Math.abs(new Date().getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
-          const accrued = (serviceDays / 365) * 21;
-          
-          const systemUsed = leaves
-            .filter(l => l.employeeId === employee.id && l.status === 'Completed')
-            .reduce((acc, curr) => {
-              const start = new Date(curr.startDate);
-              const end = new Date(curr.endDate);
-              if (isNaN(start.getTime()) || isNaN(end.getTime())) return acc;
-              const diff = Math.abs(end.getTime() - start.getTime());
-              return acc + (Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1);
-            }, 0);
+          const updates: any = {};
 
-          const neededManualUsed = accrued - systemUsed - newRemainingBalance;
+          // Handle Last Duty Date Update
+          if (lastDirectDate) {
+            let formattedDate = '';
+            if (lastDirectDate instanceof Date) {
+              formattedDate = format(lastDirectDate, 'yyyy-MM-dd');
+            } else {
+              formattedDate = lastDirectDate.toString();
+            }
+            if (formattedDate) {
+              updates.lastDirectDate = formattedDate;
+            }
+          }
 
-          try {
-            const empRef = doc(db, 'employees', employee.id);
-            await updateDoc(empRef, {
-              usedLeaveDays: Number(neededManualUsed.toFixed(1))
-            });
-            successCount++;
-          } catch (err) {
-            console.error('Error updating balance for', employee.name, err);
+          if (Object.keys(updates).length > 0) {
+            try {
+              const empRef = doc(db, 'employees', employee.id);
+              await updateDoc(empRef, updates);
+              successCount++;
+            } catch (err) {
+              console.error('Error updating data for', employee.name, err);
+            }
           }
         }
       }
 
       setLoading(false);
-      alert(`تم تحديث أرصدة ${successCount} موظف بنجاح`);
+      alert(`تم تحديث بيانات ${successCount} موظف بنجاح`);
+      e.target.value = '';
     };
     reader.readAsBinaryString(file);
   };
@@ -223,13 +221,19 @@ export const Leaves: React.FC = () => {
 
   const filteredOnLeaveEmployees = useMemo(() => {
     const searchLower = searchTerm.toLowerCase();
-    return employees.filter(e => 
-      (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)') && (
-        e.name.toLowerCase().includes(searchLower) ||
-        (e.employeeId || '').toLowerCase().includes(searchLower) ||
-        (e.iqamaNumber || '').toLowerCase().includes(searchLower)
+    return employees
+      .filter(e => 
+        (e.status === 'Leave' || e.status === 'Out of Sponsorship (Leave)') && (
+          e.name.toLowerCase().includes(searchLower) ||
+          (e.employeeId || '').toLowerCase().includes(searchLower) ||
+          (e.iqamaNumber || '').toLowerCase().includes(searchLower)
+        )
       )
-    );
+      .sort((a, b) => {
+        const idA = a.employeeId || '';
+        const idB = b.employeeId || '';
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
   }, [employees, searchTerm]);
 
   const calculateNetSalaryForReport = (emp: Employee, year: number, month: number) => {
@@ -522,17 +526,25 @@ export const Leaves: React.FC = () => {
   };
 
   const filteredLeaves = useMemo(() => {
-    return leaves.filter(l => {
-      const emp = employees.find(e => e.id === l.employeeId);
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = 
-        (l.employeeName || '').toLowerCase().includes(searchLower) ||
-        (emp?.employeeId || '').toLowerCase().includes(searchLower) ||
-        (emp?.iqamaNumber || '').toLowerCase().includes(searchLower);
-      
-      const matchesStatus = filterStatus === 'All' || l.status === filterStatus;
-      return matchesSearch && matchesStatus;
-    });
+    return leaves
+      .filter(l => {
+        const emp = employees.find(e => e.id === l.employeeId);
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          (l.employeeName || '').toLowerCase().includes(searchLower) ||
+          (emp?.employeeId || '').toLowerCase().includes(searchLower) ||
+          (emp?.iqamaNumber || '').toLowerCase().includes(searchLower);
+        
+        const matchesStatus = filterStatus === 'All' || l.status === filterStatus;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        const empA = employees.find(e => e.id === a.employeeId);
+        const empB = employees.find(e => e.id === b.employeeId);
+        const idA = empA?.employeeId || '';
+        const idB = empB?.employeeId || '';
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
   }, [leaves, searchTerm, filterStatus, employees]);
 
   const stats = useMemo(() => {
@@ -1226,6 +1238,11 @@ export const Leaves: React.FC = () => {
                       (e.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (e.iqamaNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
                     return matchesSearch;
+                  })
+                  .sort((a, b) => {
+                    const idA = a.employeeId || '';
+                    const idB = b.employeeId || '';
+                    return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
                   })
                   .map((emp) => {
                     const actualWorkDaysSinceLastDirect = calculateActualWorkDays(emp.lastDirectDate);

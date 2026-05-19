@@ -9,7 +9,7 @@ import {
   Printer,
   Shield
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useData } from '../../contexts/DataContext';
 import { formatCurrency, cn } from '../../lib/utils';
 import * as XLSX from 'xlsx';
@@ -26,7 +26,7 @@ const sectorOrder = [
   'ادارة العقار والاملاك',
   'قطاع الصناعة',
   'قطاع السلع الكماليه',
-  'قطاع ورش الصيانه و التصنيع'
+  'الورش الفنية'
 ];
 
 export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
@@ -37,6 +37,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
 
   // Use state but initialize with prop if available
   const [reportType, setReportType] = useState<'Summary' | 'Detailed'>(forcedType || 'Summary');
+  const [selectedSectorDetails, setSelectedSectorDetails] = useState<string | null>(null);
+  const [showSaudiInSummary, setShowSaudiInSummary] = useState(false);
 
   // Sync state if prop changes (though usually they are separate instances now)
   React.useEffect(() => {
@@ -87,8 +89,9 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     'محل مواد البناء الباحة': 'قطاع السلع الكماليه',
     'بتنا الافضل للمحروقات': 'قطاع السلع الكماليه',
     'بيتنا الافضل': 'قطاع السلع الكماليه',
-    // قطاع ورش الصيانه و التصنيع
-    'ورشه الخلاطه': 'قطاع ورش الصيانه و التصنيع',
+    // الورش الفنية
+    'ورشه الخلاطه': 'الورش الفنية',
+    'الورشة الفنية': 'الورش الفنية',
     // ادارة العقار والاملاك
     'ادارة العقار': 'ادارة العقار والاملاك',
     'ادارة العقار والاملاك': 'ادارة العقار والاملاك',
@@ -126,11 +129,11 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
 
     const sNormalized = normalizeArabic(s);
 
-    if (sNormalized.includes('سعودي') || sNormalized.includes('سعوديين') || sNormalized === 'رواتب السعوديين') {
+    if (sNormalized.includes('سعودي') || sNormalized.includes('سعوديين') || sNormalized.includes('رواتب السعوديين')) {
       return 'السعوديين';
     }
 
-    if (sNormalized.includes('اداره عامه')) {
+    if (sNormalized.includes('اداره عامه') || sNormalized === 'اداره الباحه' || sNormalized.includes('الادارة العامة')) {
       return 'الإدارة العامة';
     }
 
@@ -150,14 +153,43 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       return 'قطاع السلع الكماليه';
     }
 
-    if (sNormalized.includes('ورشه')) {
-      return 'قطاع ورش الصيانه و التصنيع';
+    if (sNormalized.includes('ورشه') || sNormalized.includes('ورش فنيه')) {
+      return 'الورش الفنية';
     }
 
     return s || 'غير محدد';
   };
 
   const selectedRun = payrollRuns.find(r => r.id === selectedRunId);
+  
+  // Flat employee results for details expansion
+  const flatEmployeesReport = useMemo(() => {
+    if (!selectedRun) return [];
+    
+    const combined: any[] = results.map(r => ({ ...r, source: 'Bank' }));
+    const monthTransactions = allTransactions.filter(t => t.month === selectedRun.month);
+    monthTransactions.forEach(t => {
+      const emp = employees.find(e => e.id === t.employeeId);
+      if (emp?.paymentMethod === 'Cash' || (emp?.paymentMethod as any) === 'كاش') {
+        combined.push({ ...t, source: 'Cash' });
+      }
+    });
+
+    return combined.map(r => {
+      const emp = employees.find(e => e.id === r.employeeId);
+      const dept = (r.costCenterDept || emp?.costCenterDept || r.department || '').trim();
+      const rawSectorValue = r.sectors || emp?.sectors || r.sector || '';
+      return {
+        ...r,
+        employeeId: emp?.employeeId || '---',
+        employeeName: emp?.name || '---',
+        costCenterDept: dept,
+        sectorName: getNormalizedSector(rawSectorValue, dept),
+        basic: Number(r.basicSalary) || 0,
+        netSalary: Number(r.netSalary) || 0,
+      };
+    });
+  }, [results, allTransactions, employees, selectedRun, costCenterDepts]);
 
   // Detailed report data logic
   const detailedReportData = useMemo(() => {
@@ -174,7 +206,7 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
       }
     });
 
-    const grouped: Record<string, Record<string, { basic: number; net: number; mainCC: string; dept: string }>> = {};
+    const grouped: Record<string, Record<string, { basic: number; net: number; mainCC: string; dept: string; names: string[] }>> = {};
     let totalBasic = 0;
     let totalNet = 0;
     let saudiTotal = 0;
@@ -182,22 +214,36 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
     combinedData.forEach(r => {
       const emp = employees.find(e => e.id === r.employeeId);
       
-      const dept = (r.costCenterDept || emp?.costCenterDept || r.department || 'غير محدد').trim();
-      const mainCC = (r.costCenterMain || emp?.costCenterMain || 'غير محدد').trim();
+      let dept = (r.costCenterDept || emp?.costCenterDept || r.department || 'غير محدد').trim();
+      const normDept = normalizeArabic(dept);
+      if (normDept.includes('اداره عامه') || normDept === 'اداره الباحه') dept = 'الإدارة العامة';
+      
+      let mainCC = (r.costCenterMain || emp?.costCenterMain || 'غير محدد').trim();
+      if (normalizeArabic(mainCC).includes('اداره عامه') || normalizeArabic(mainCC) === 'اداره الباحه') mainCC = 'الإدارة العامة';
+
       const rawSector = (r.sectors || emp?.sectors || r.sector || '').trim();
       const sectorName = getNormalizedSector(rawSector, dept);
       
-      const isSaudi = sectorName === 'السعوديين' || (emp?.classification as any) === 'رواتب السعوديين' || (emp?.classification as any) === 'Saudi Salaries';
+      // The user wants Saudis based on "Saudi Salaries" classification override
+      const isSaudi = sectorName === 'السعوديين' || 
+                      (emp?.classification as any) === 'رواتب السعوديين' || 
+                      (emp?.classification as any) === 'Saudi Salaries' ||
+                      (emp?.classification as any) === 'سعوديين';
 
       if (isSaudi) {
         saudiTotal += Number(r.netSalary) || 0;
       } else {
         if (!grouped[sectorName]) grouped[sectorName] = {};
         const groupKey = `${mainCC} - ${dept}`;
-        if (!grouped[sectorName][groupKey]) grouped[sectorName][groupKey] = { basic: 0, net: 0, mainCC, dept };
+        if (!grouped[sectorName][groupKey]) {
+          grouped[sectorName][groupKey] = { basic: 0, net: 0, mainCC, dept, names: [] };
+        }
         
         grouped[sectorName][groupKey].basic += Number(r.basicSalary) || 0;
         grouped[sectorName][groupKey].net += Number(r.netSalary) || 0;
+        if (emp && !grouped[sectorName][groupKey].names.includes(emp.name)) {
+          grouped[sectorName][groupKey].names.push(emp.name);
+        }
         
         totalBasic += Number(r.basicSalary) || 0;
         totalNet += Number(r.netSalary) || 0;
@@ -210,7 +256,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         name: item.dept,
         mainCC: item.mainCC,
         basic: item.basic,
-        net: item.net
+        net: item.net,
+        names: item.names
       })).sort((a, b) => a.name.localeCompare(b.name, 'ar')),
       sectorBasic: Object.values(entries).reduce((a, b) => a + (b as any).basic, 0),
       sectorNet: Object.values(entries).reduce((a, b) => a + (b as any).net, 0)
@@ -675,10 +722,17 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                             {sector.name}
                           </td>
                         )}
-                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold">{branch.mainCC}</td>
-                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold">{branch.name}</td>
-                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold px-4">{formatCurrency(branch.basic)}</td>
-                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold px-4">{formatCurrency(branch.net)}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black">{branch.mainCC}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black">
+                          <div>{branch.name}</div>
+                          {branch.names && branch.names.length > 0 && (
+                            <div className="text-[9px] text-gray-400 font-medium mt-1 leading-tight">
+                              ({branch.names.join('، ')})
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black px-4">{formatCurrency(branch.basic)}</td>
+                        <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black px-4">{formatCurrency(branch.net)}</td>
                       </tr>
                     ))}
                     {/* Sector Sub-total row as shown in image (yellow bar) */}
@@ -696,8 +750,8 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
                 {/* Grand Total Row (Green bar as in image) */}
                 <tr className="font-black text-gray-900 dark:text-white">
                   <td colSpan={3} className="p-3 border-2 border-gray-900 dark:border-gray-700 bg-[#00b050] text-center text-white text-lg">الإجمالي</td>
-                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold bg-white dark:bg-gray-800 text-lg">{formatCurrency(detailedReportData.totalBasic)}</td>
-                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-bold bg-[#ff0000] text-white text-lg">
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black bg-white dark:bg-gray-800 text-lg">{formatCurrency(detailedReportData.totalBasic)}</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center font-black bg-[#ff0000] text-white text-lg">
                     {formatCurrency(detailedReportData.totalNet)}
                   </td>
                 </tr>
@@ -707,16 +761,16 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
 
                 {/* Saudi Salaries (Yellow bar as in image) */}
                 <tr className="font-black text-gray-900 dark:text-white">
-                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800">رواتب السعوديين</td>
-                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-yellow-400 dark:bg-yellow-500 text-gray-900">
+                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800 font-black">رواتب السعوديين</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-yellow-400 dark:bg-yellow-500 text-gray-900 font-black">
                     {formatCurrency(detailedReportData.saudiTotal)}
                   </td>
                 </tr>
 
                 {/* Final Total row as in image (red bar) */}
                 <tr className="font-black text-gray-900 dark:text-white">
-                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800">اجماي رواتب شهر {selectedRun.month}</td>
-                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-[#ff0000] text-white">
+                  <td colSpan={4} className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-right pr-4 bg-white dark:bg-gray-800 font-black">اجماي رواتب شهر {selectedRun.month}</td>
+                  <td className="p-1.5 border-2 border-gray-900 dark:border-gray-700 text-center bg-[#ff0000] text-white font-black">
                     {formatCurrency(detailedReportData.totalNet + detailedReportData.saudiTotal)}
                   </td>
                 </tr>
@@ -814,67 +868,130 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {reportData.map((s, idx) => (
-                  <tr key={idx} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors", idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-[#fefce8]/30 dark:bg-yellow-900/10")}>
-                    <td className="p-2 font-bold text-gray-800 dark:text-gray-300 border border-gray-300 dark:border-gray-700">{s.sectorName}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.basic)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.housing)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.transport)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.subsistence)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.otherAllowances)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.mobile)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.management)}</td>
-                    <td className="p-2 text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-300 dark:border-gray-700 bg-blue-50/10 dark:bg-blue-900/5">{formatCurrency(s.otherIncome)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5">{s.otHours}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5">{formatCurrency(s.otAmount)}</td>
-                    <td className="p-2 text-center font-black text-blue-800 dark:text-blue-200 border border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">{formatCurrency(s.totalIncome)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.gosi)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.cash)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.loans)}</td>
-                    <td className="p-2 text-center text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">{formatCurrency(s.otherDeductions)}</td>
-                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{s.deductionHours}</td>
-                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{formatCurrency(s.delayDeduction)}</td>
-                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{s.absenceDays}</td>
-                    <td className="p-2 text-center text-red-500 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5">{formatCurrency(s.absenceDeduction)}</td>
-                    <td className="p-2 text-center font-black text-red-800 dark:text-red-200 border border-gray-300 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">{formatCurrency(s.totalDeductions)}</td>
-                    <td className="p-2 text-center font-black text-emerald-800 dark:text-emerald-200 border border-gray-300 dark:border-gray-700 bg-emerald-50 dark:bg-emerald-900/20">{formatCurrency(s.netSalary)}</td>
+                  <React.Fragment key={idx}>
+                    <tr 
+                      onClick={() => setSelectedSectorDetails(selectedSectorDetails === s.sectorName ? null : s.sectorName)}
+                      className={cn(
+                        "hover:bg-blue-50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors group", 
+                        idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-[#fefce8]/30 dark:bg-yellow-900/10",
+                        selectedSectorDetails === s.sectorName && "bg-blue-50/50 dark:bg-blue-900/20"
+                      )}
+                    >
+                      <td className="p-2 font-black text-gray-900 border border-gray-300 dark:border-gray-700 flex items-center justify-between">
+                        <span>{s.sectorName}</span>
+                        <ChevronDown className={cn("w-4 h-4 text-gray-400 transform transition-transform group-hover:text-blue-500", selectedSectorDetails === s.sectorName && "rotate-180 text-blue-500")} />
+                      </td>
+                      <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.basic)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.housing)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.transport)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.subsistence)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.otherAllowances)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.mobile)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.management)}</td>
+                    <td className="p-2 text-center font-black text-blue-700 dark:text-blue-400 border border-gray-300 dark:border-gray-700 bg-blue-50/10 dark:bg-blue-900/5 tabular-nums">{formatCurrency(s.otherIncome)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5 tabular-nums">{s.otHours}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 bg-orange-50/10 dark:bg-orange-900/5 tabular-nums">{formatCurrency(s.otAmount)}</td>
+                    <td className="p-2 text-center font-black text-blue-900 dark:text-blue-200 border border-gray-300 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20 tabular-nums">{formatCurrency(s.totalIncome)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.gosi)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.cash)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.loans)}</td>
+                    <td className="p-2 text-center font-black text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-700 tabular-nums">{formatCurrency(s.otherDeductions)}</td>
+                    <td className="p-2 text-center font-black text-red-600 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5 tabular-nums">{s.deductionHours}</td>
+                    <td className="p-2 text-center font-black text-red-600 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5 tabular-nums">{formatCurrency(s.delayDeduction)}</td>
+                    <td className="p-2 text-center font-black text-red-600 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5 tabular-nums">{s.absenceDays}</td>
+                    <td className="p-2 text-center font-black text-red-600 dark:text-red-400 border border-gray-300 dark:border-gray-700 bg-red-50/10 dark:bg-red-900/5 tabular-nums">{formatCurrency(s.absenceDeduction)}</td>
+                    <td className="p-2 text-center font-black text-red-900 dark:text-red-200 border border-gray-300 dark:border-gray-700 bg-red-50 dark:bg-red-900/20 tabular-nums">{formatCurrency(s.totalDeductions)}</td>
+                    <td className="p-2 text-center font-black text-emerald-900 dark:text-emerald-200 border border-gray-300 dark:border-gray-700 bg-emerald-50 dark:bg-emerald-900/20 tabular-nums">{formatCurrency(s.netSalary)}</td>
                   </tr>
+                  
+                  {/* Sector Detailed Expansion */}
+                  <AnimatePresence>
+                    {selectedSectorDetails === s.sectorName && (
+                      <tr>
+                        <td colSpan={22} className="p-0 border border-gray-300 dark:border-gray-700">
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="bg-blue-50/20 dark:bg-blue-900/5 overflow-hidden"
+                          >
+                            <div className="p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-sm font-black text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                                  <Users className="w-4 h-4" />
+                                  تفاصيل موظفي {s.sectorName}
+                                </h4>
+                              </div>
+                              <div className="overflow-x-auto rounded-xl border border-blue-100 dark:border-blue-900/30">
+                                <table className="w-full text-xs text-right">
+                                  <thead className="bg-blue-100/50 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 font-black">
+                                    <tr>
+                                      <th className="p-2 border-l border-blue-200 dark:border-blue-800">الرقم</th>
+                                      <th className="p-2 border-l border-blue-200 dark:border-blue-800">اسم الموظف</th>
+                                      <th className="p-2 border-l border-blue-200 dark:border-blue-800">القسم / مركز التكلفة</th>
+                                      <th className="p-2 border-l border-blue-200 dark:border-blue-800">المرتب الأساسي</th>
+                                      <th className="p-2">صافي المستحق</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {flatEmployeesReport
+                                      .filter(emp => emp.sectorName === s.sectorName)
+                                      .map((emp, eIdx) => (
+                                        <tr key={eIdx} className="border-t border-blue-100 dark:border-blue-900/20 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+                                          <td className="p-2 font-bold tabular-nums">{emp.employeeId}</td>
+                                          <td className="p-2 font-black">{emp.employeeName}</td>
+                                          <td className="p-2 text-gray-500">{emp.costCenterDept || '---'}</td>
+                                          <td className="p-2 font-bold tabular-nums">{formatCurrency(emp.basic)}</td>
+                                          <td className="p-2 font-black text-blue-700 dark:text-blue-300 tabular-nums">{formatCurrency(emp.netSalary)}</td>
+                                        </tr>
+                                      ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </td>
+                      </tr>
+                    )}
+                  </AnimatePresence>
+                  </React.Fragment>
                 ))}
               </tbody>
               <tfoot className="bg-gray-100 dark:bg-gray-800 font-black text-gray-900 dark:text-white border-t-2 border-gray-300 dark:border-gray-700">
                 <tr className="bg-white dark:bg-gray-900">
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">الاجمالي</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.basic)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.housing)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.transport)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.subsistence)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherAllowances)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.mobile)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.management)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-700 dark:text-blue-400">{formatCurrency(totals.otherIncome)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{totals.otHours}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otAmount)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50">{formatCurrency(totals.totalIncome)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.gosi)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.cash)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.loans)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherDeductions)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{totals.deductionHours}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{formatCurrency(totals.delayDeduction)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{totals.absenceDays}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400">{formatCurrency(totals.absenceDeduction)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/50">{formatCurrency(totals.totalDeductions)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50">{formatCurrency(totals.netSalary)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.basic)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.housing)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.transport)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.subsistence)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.otherAllowances)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.mobile)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.management)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-700 dark:text-blue-400 font-black">{formatCurrency(totals.otherIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{totals.otHours}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.otAmount)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50 font-black text-lg">{formatCurrency(totals.totalIncome)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.gosi)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.cash)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.loans)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">{formatCurrency(totals.otherDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400 font-black">{totals.deductionHours}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400 font-black">{formatCurrency(totals.delayDeduction)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400 font-black">{totals.absenceDays}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-600 dark:text-red-400 font-black">{formatCurrency(totals.absenceDeduction)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/50 font-black text-lg">{formatCurrency(totals.totalDeductions)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/50 font-black text-lg">{formatCurrency(totals.netSalary)}</td>
                 </tr>
                 {/* Visual extra rows to match the double total lines in image */}
                 <tr className="bg-white dark:bg-gray-900">
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black">الاجمالي</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.basic)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.housing)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.transport)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.subsistence)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otherAllowances)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.mobile)}</td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.management)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.basic)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.housing)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.transport)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.subsistence)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.otherAllowances)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.mobile)}</td>
+                  <td className="p-2 border border-gray-300 dark:border-gray-700 text-center font-black tabular-nums">{formatCurrency(totals.management)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center text-blue-700 dark:text-blue-400">{formatCurrency(totals.otherIncome)}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{totals.otHours}</td>
                   <td className="p-2 border border-gray-300 dark:border-gray-700 text-center">{formatCurrency(totals.otAmount)}</td>
