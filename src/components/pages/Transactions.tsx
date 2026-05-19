@@ -1127,12 +1127,18 @@ export const Transactions: React.FC = () => {
 
         return {
           name: curr?.employeeName || prev?.employeeName || emp?.name || '---',
+          employeeId: emp?.employeeId || '---',
           prevNet: prev?.netSalary || 0,
           currNet: curr?.netSalary || 0,
           diff: (curr?.netSalary || 0) - (prev?.netSalary || 0),
           note
         };
-      }).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      }).sort((a, b) => {
+        const idA = parseInt(a.employeeId || '0', 10);
+        const idB = parseInt(b.employeeId || '0', 10);
+        if (isNaN(idA) || isNaN(idB)) return (a.employeeId || '').localeCompare(b.employeeId || '');
+        return idA - idB;
+      });
 
       setVarianceResults({ summary, comparisons, prevMonth });
       setIsVarianceModalOpen(true);
@@ -2579,6 +2585,7 @@ export const Transactions: React.FC = () => {
                        <table className="w-full text-right border-collapse">
                           <thead>
                              <tr className="bg-gray-50 dark:bg-gray-800">
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الرقم</th>
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الموظف</th>
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي ({formatMonthArabic(varianceResults.prevMonth)})</th>
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي ({formatMonthArabic(selectedMonth)})</th>
@@ -2589,6 +2596,7 @@ export const Transactions: React.FC = () => {
                           <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
                              {varianceResults.comparisons.map((item: any, idx: number) => (
                                 <tr key={idx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors group">
+                                   <td className="p-6 font-bold text-gray-500 tabular-nums">{item.employeeId}</td>
                                    <td className="p-6">
                                       <div className="flex items-center gap-3">
                                          <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center text-xs font-black text-gray-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors uppercase">
