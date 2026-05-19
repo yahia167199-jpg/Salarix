@@ -1011,10 +1011,25 @@ export const Transactions: React.FC = () => {
     }
   };
 
+  const formatMonthArabic = (monthStr: string) => {
+    if (!monthStr) return '---';
+    const [year, month] = monthStr.split('-');
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+    return `${months[parseInt(month) - 1]} ${year}`;
+  };
+
   const getPreviousMonth = (currentMonthStr: string) => {
     const [year, month] = currentMonthStr.split('-').map(Number);
-    const date = new Date(year, month - 2, 1);
-    return date.toISOString().slice(0, 7);
+    let prevYear = year;
+    let prevMonth = month - 1;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear = year - 1;
+    }
+    return `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
   };
 
   const handleVarianceAnalysis = async () => {
@@ -2414,7 +2429,7 @@ export const Transactions: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">تحليل الفروقات الذكي (Variance Analysis)</h3>
-                    <p className="text-sm font-bold text-gray-400 mt-1">مقارنة شهر {selectedMonth} مع {varianceResults.prevMonth || 'نظام الفوارق'}</p>
+                    <p className="text-sm font-bold text-gray-400 mt-1">مقارنة {formatMonthArabic(selectedMonth)} مع {formatMonthArabic(varianceResults.prevMonth)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2440,8 +2455,8 @@ export const Transactions: React.FC = () => {
                     <h1 className="text-3xl font-black text-gray-900 leading-tight">{companySettings?.companyName}</h1>
                     <p className="text-xl font-bold text-gray-600 mt-2">تقرير تحليل فروقات الرواتب والشهرية</p>
                     <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 font-bold">
-                       <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> <span>الفترة: {selectedMonth}</span></div>
-                       <div className="flex items-center gap-1"><History className="w-4 h-4" /> <span>المقارنة بـ: {varianceResults.prevMonth || '---'}</span></div>
+                       <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> <span>الفترة: {formatMonthArabic(selectedMonth)}</span></div>
+                       <div className="flex items-center gap-1"><History className="w-4 h-4" /> <span>المقارنة بـ: {formatMonthArabic(varianceResults.prevMonth)}</span></div>
                     </div>
                   </div>
                   {companySettings?.logoUrl && (
@@ -2565,8 +2580,8 @@ export const Transactions: React.FC = () => {
                           <thead>
                              <tr className="bg-gray-50 dark:bg-gray-800">
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الموظف</th>
-                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي السابق ({varianceResults.prevMonth || '---'})</th>
-                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي الحالي ({selectedMonth})</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي ({formatMonthArabic(varianceResults.prevMonth)})</th>
+                                <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الصافي ({formatMonthArabic(selectedMonth)})</th>
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">الفارق المالي</th>
                                 <th className="p-6 text-xs font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">ملاحظة ذكية</th>
                              </tr>
