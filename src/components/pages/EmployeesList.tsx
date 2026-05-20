@@ -390,7 +390,178 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
   };
 
   const handlePrintPDF = () => {
-    window.print();
+    setIsPrinting(true);
+    const [year, month] = selectedPrintMonth.split('-').map(Number);
+    const monthName = format(new Date(year, month - 1), 'MMMM yyyy', { locale: undefined }); // Using default is fine or manually map
+    const monthLongAr = new Intl.DateTimeFormat('ar-SA', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1));
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const printContent = document.createElement('div');
+    printContent.dir = 'rtl';
+    printContent.className = 'p-4 bg-white';
+    
+    const header = `
+      <div style="background: linear-gradient(135deg, #1e3a8a, #312e81); border-radius: 24px; padding: 40px; color: white; margin-bottom: 30px; position: relative; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.3);">
+        <div style="position: relative; z-index: 10;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="text-align: right;">
+              <h1 style="font-size: 32px; font-weight: 900; margin: 0; letter-spacing: -0.025em; color: #fff;">سجل الموظفين والرواتب</h1>
+              <p style="font-size: 16px; font-weight: bold; margin-top: 8px; opacity: 0.9; color: #bfdbfe;">تقرير شامل - لشهر ${monthLongAr}</p>
+            </div>
+            <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2);">
+              <span style="font-size: 30px; font-weight: 900;">SR</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 20px; border-top: 1px solid rgba(255,255,255,0.1); pt-20px; margin-top: 20px; padding-top: 20px;">
+            <div>
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 4px;">إجمالي الموظفين المشمولين</p>
+              <p style="font-size: 18px; font-weight: 900; margin: 0; color: white;">${filteredEmployees.length} موظف</p>
+            </div>
+            <div style="flex-grow: 1;"></div>
+            <div style="text-align: left;">
+              <p style="font-size: 11px; font-weight: 900; color: rgba(255,255,255,0.5); margin: 0; margin-bottom: 4px;">تاريخ إصدار التقرير</p>
+              <p style="font-size: 14px; font-weight: bold; margin: 0; color: white;">${format(new Date(), 'yyyy-MM-dd')}</p>
+            </div>
+          </div>
+        </div>
+        <div style="position: absolute; top: -50px; left: -50px; width: 250px; height: 250px; background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%); border-radius: 50%;"></div>
+      </div>
+    `;
+
+    const tableRows = filteredEmployees.map(emp => {
+      const allowancesTotal = (emp.housingAllowance || 0) + 
+        (emp.transportAllowance || 0) + 
+        (emp.subsistenceAllowance || 0) + 
+        (emp.managementAllowance || 0) + 
+        (emp.mobileAllowance || 0) + 
+        (emp.otherAllowances || 0) +
+        (emp.allowances || []).reduce((sum, a) => sum + a.amount, 0);
+
+      const totalSalary = (emp.basicSalary || 0) + allowancesTotal;
+      
+      let workDays = daysInMonth;
+      let netSalary = totalSalary;
+
+      if (emp.status === 'Leave') {
+        const activeLeave = leaves.find(l => l.employeeId === emp.id && l.status === 'Active');
+        if (activeLeave) {
+          const leaveStart = new Date(activeLeave.startDate);
+          const targetDate = new Date(year, month - 1, 1);
+          
+          if (leaveStart < targetDate) {
+            workDays = 0;
+            netSalary = 0;
+          } else if (leaveStart.getMonth() === targetDate.getMonth() && leaveStart.getFullYear() === targetDate.getFullYear()) {
+            workDays = leaveStart.getDate() - 1;
+            netSalary = (totalSalary / daysInMonth) * workDays;
+          }
+        } else {
+            workDays = 0;
+            netSalary = 0;
+        }
+      }
+
+      return `
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;">
+          <td style="padding: 16px; border-right: 4px solid ${emp.status === 'Leave' ? '#3b82f6' : 'transparent'};">
+            <div style="font-weight: 900; color: #1e293b; font-size: 14px;">${emp.name}</div>
+            <div style="font-size: 11px; font-weight: bold; color: #64748b; margin-top: 4px;">${emp.jobTitle}</div>
+          </td>
+          <td style="padding: 16px; font-weight: 800; color: #1e3a8a; text-align: center;">${emp.employeeId}</td>
+          <td style="padding: 16px; font-weight: 600; color: #475569; text-align: center;">${emp.nationality || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.sectorManagement || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.sectors || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #475569; text-align: right;">${emp.costCenterMain || '---'}</td>
+          <td style="padding: 16px; font-size: 11px; color: #64748b; text-align: right; max-width: 100px;">${emp.costCenterDept || '---'}</td>
+          <td style="padding: 16px; text-align: center;">
+            <span style="padding: 6px 12px; border-radius: 10px; font-size: 10px; font-weight: 900; background: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#f0fdf4' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#eff6ff' : '#fef2f2'}; color: ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#15803d' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#1d4ed8' : '#b91c1c'}; border: 1px solid ${(emp.status === 'Active' || emp.status === 'Out of Sponsorship (Active)') ? '#dcfce7' : (emp.status === 'Leave' || emp.status === 'Out of Sponsorship (Leave)') ? '#dbeafe' : '#fee2e2'};">
+              {emp.status === 'Active' ? 'نشط' : 
+               emp.status === 'Leave' ? 'إجازة' : 
+               emp.status === 'Out of Sponsorship' ? 'خارج الكفالة' : 
+               emp.status === 'Out of Sponsorship (Active)' ? 'خارج الكفالة (نشط)' :
+               emp.status === 'Out of Sponsorship (Leave)' ? 'خارج الكفالة (إجازة)' :
+               'انهاء خدمة'}
+            </span>
+          </td>
+          <td style="padding: 16px; text-align: center; font-size: 12px; font-weight: bold; color: #475569;">${emp.lastDirectDate || '---'}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 600;">${emp.basicSalary}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 600;">${allowancesTotal}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 900;">${totalSalary}</td>
+          <td style="padding: 16px; text-align: center; font-weight: 900; color: #1e3a8a; background: #f8fafc;">${Math.round(netSalary)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const table = `
+      <table style="width: 100%; border-collapse: separate; border-spacing: 0; text-align: right; direction: rtl;">
+        <thead>
+          <tr style="background: #f8fafc;">
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: right; border-bottom: 2px solid #e2e8f0; font-size: 12px; width: 220px;">الموظف / المهنة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">م</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الجنسية</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">ادارة القطاع</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">القطاعات</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">مركز التكلفة / رئيسي</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 10px;">مركز التكلفة / قسم</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الحالة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">آخر مباشرة</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الأطاسي</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">البدلات</th>
+            <th style="padding: 20px; font-weight: 900; color: #64748b; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px;">الإجمالي</th>
+            <th style="padding: 20px; font-weight: 900; color: #1e3a8a; text-align: center; border-bottom: 2px solid #e2e8f0; font-size: 12px; background: #f1f5f9;">صافي الراتب</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    `;
+
+    printContent.innerHTML = header + table;
+    
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.top = '0';
+    printFrame.style.left = '0';
+    printFrame.style.width = '1px';
+    printFrame.style.height = '1px';
+    printFrame.style.opacity = '0.01';
+    printFrame.style.border = 'none';
+    printFrame.style.zIndex = '-9999';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+    if (frameDoc) {
+      frameDoc.open();
+      frameDoc.write(`
+        <html>
+          <head>
+            <title>تقرير الموظفين - ${monthLongAr}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+              body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 20px; background: white; -webkit-print-color-adjust: exact; }
+              @page { size: landscape; margin: 1cm; }
+              @media print {
+                body { padding: 0; margin: 0; }
+              }
+            </style>
+          </head>
+          <body dir="rtl">
+            ${printContent.outerHTML}
+          </body>
+        </html>
+      `);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.focus();
+        printFrame.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
+      }, 500);
+    }
+    setIsPrinting(false);
   };
 
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -556,18 +727,9 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
   }, [employees, searchTerm, classificationFilter, statusFilter]);
 
   return (
-    <div className="space-y-6 printable-area">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          @page { size: landscape; margin: 10mm; }
-          body * { visibility: hidden !important; }
-          .printable-area, .printable-area * { visibility: visible !important; }
-          .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
-          .no-print { display: none !important; }
-        }
-      `}} />
+    <div className="space-y-6">
       {/* Header Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 flex-1">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -673,7 +835,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           <table className="w-full text-right">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
-                <th className="px-6 py-5 text-right w-12 no-print">
+                <th className="px-6 py-5 text-right w-12">
                   <input 
                     type="checkbox" 
                     className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600 focus:ring-blue-500"
@@ -690,7 +852,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">المرتب الأساسي</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">إجمالي المرتب</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">حالة الموظف</th>
-                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center no-print">الإجراءات</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
@@ -721,7 +883,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                         )
                       )}
                     >
-                    <td className="px-6 py-5 no-print">
+                    <td className="px-6 py-5">
                       <input 
                         type="checkbox" 
                         className={cn(
@@ -824,7 +986,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                          emp.status === 'End of Service' ? 'إنهاء خدمات' : 'غير نشط'}
                       </div>
                     </td>
-                    <td className="px-6 py-5 no-print">
+                    <td className="px-6 py-5">
                       <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => setViewingEmployee(emp)}

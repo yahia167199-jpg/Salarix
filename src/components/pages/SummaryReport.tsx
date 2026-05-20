@@ -671,38 +671,25 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none printable-area"
+          className="bg-white dark:bg-gray-900 rounded-[2.5rem] border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
           <div className="p-12 text-center border-b-2 border-gray-50 dark:border-gray-800 flex flex-col gap-6">
-            <style dangerouslySetInnerHTML={{ __html: `
-              @media print {
-                @page { size: landscape; margin: 10mm; }
-                body * { visibility: hidden !important; }
-                .printable-area, .printable-area * { visibility: visible !important; }
-                .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
-                .no-print { display: none !important; }
-              }
-            `}} />
             {/* Print Only Header */}
             <div className="hidden print:flex items-center justify-between w-full mb-8">
               <div className="text-right">
-                <h1 className="text-xl font-black text-gray-900">{companySettings?.companyName || 'شركة صالح سعيد طيشان واولاده'}</h1>
+                <h1 className="text-xl font-black text-gray-900">شركة صالح سعيد طيشان واولاده</h1>
                 <p className="text-xs font-bold text-gray-500">للتجارة والمقاولات</p>
                 <div className="mt-2 text-[10px] text-gray-400 font-medium">
                   المملكة العربية السعودية - الباحة
                 </div>
               </div>
               <div className="w-24 h-24 flex items-center justify-center">
-                {companySettings?.logoUrl ? (
-                  <img 
-                    src={companySettings.logoUrl} 
-                    alt="Logo" 
-                    className="max-w-full max-h-full object-contain"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 rounded-xl flex items-center justify-center text-[10px] text-gray-400">LOGO</div>
-                )}
+                <img 
+                  src="/src/assets/images/company_logo_placeholder_1778968862348.png" 
+                  alt="Logo" 
+                  className="max-w-full max-h-full object-contain"
+                  referrerPolicy="no-referrer"
+                />
               </div>
             </div>
 
@@ -815,38 +802,25 @@ export const SummaryReport: React.FC<SummaryReportProps> = ({ forcedType }) => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none printable-area"
+          className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden print:shadow-none print:border-none"
         >
           <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex flex-col gap-6">
-            <style dangerouslySetInnerHTML={{ __html: `
-              @media print {
-                @page { size: portrait; margin: 10mm; }
-                body * { visibility: hidden !important; }
-                .printable-area, .printable-area * { visibility: visible !important; }
-                .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
-                .no-print { display: none !important; }
-              }
-            `}} />
             {/* Print Only Header */}
             <div className="hidden print:flex items-center justify-between w-full mb-8">
               <div className="text-right">
-                <h1 className="text-xl font-black text-gray-900">{companySettings?.companyName || 'شركة صالح سعيد طيشان واولاده'}</h1>
+                <h1 className="text-xl font-black text-gray-900">شركة صالح سعيد طيشان واولاده</h1>
                 <p className="text-xs font-bold text-gray-500">للتجارة والمقاولات</p>
                 <div className="mt-2 text-[10px] text-gray-400 font-medium">
                   المملكة العربية السعودية - الباحة
                 </div>
               </div>
               <div className="w-24 h-24 flex items-center justify-center">
-                {companySettings?.logoUrl ? (
-                  <img 
-                    src={companySettings.logoUrl} 
-                    alt="Logo" 
-                    className="max-w-full max-h-full object-contain"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 rounded-xl flex items-center justify-center text-[10px] text-gray-400">LOGO</div>
-                )}
+                <img 
+                  src="/src/assets/images/company_logo_placeholder_1778968862348.png" 
+                  alt="Logo" 
+                  className="max-w-full max-h-full object-contain"
+                  referrerPolicy="no-referrer"
+                />
               </div>
             </div>
 

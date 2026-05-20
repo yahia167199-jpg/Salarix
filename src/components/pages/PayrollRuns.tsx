@@ -650,20 +650,8 @@ export const PayrollRuns: React.FC = () => {
         {selectedRun && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRun(null)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white dark:bg-gray-900 w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800 printable-area print:static print:h-auto print:rounded-none print:shadow-none print:border-none">
-              
-              {/* Print Orientation & Fixes */}
-              <style dangerouslySetInnerHTML={{ __html: `
-                @media print {
-                  @page { size: portrait; margin: 10mm; }
-                  body * { visibility: hidden !important; }
-                  .printable-area, .printable-area * { visibility: visible !important; }
-                  .printable-area { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; height: auto !important; }
-                  .no-print { display: none !important; }
-                }
-              `}} />
-
-              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50 no-print">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="relative bg-white dark:bg-gray-900 w-full max-w-5xl h-[80vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100 dark:border-gray-800">
+              <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
                 <div>
                   <h3 className="text-2xl font-black text-gray-900 dark:text-white">تفاصيل مسير {selectedRun.month}</h3>
                   <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">الحالة: {selectedRun.status}</p>
@@ -702,21 +690,6 @@ export const PayrollRuns: React.FC = () => {
                 </div>
               </div>
               <div className="flex-1 overflow-auto p-8">
-                
-                {/* Print Only Header */}
-                <div className="hidden print:flex justify-between items-start border-b-4 border-gray-900 pb-8 mb-10 rtl">
-                  <div className="text-right">
-                    <h1 className="text-3xl font-black text-gray-900 leading-tight">{companySettings?.companyName}</h1>
-                    <p className="text-xl font-bold text-gray-600 mt-2">كشف مسير الرواتب التفصيلي</p>
-                    <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 font-bold">
-                       <div className="flex items-center gap-1"><Calendar className="w-4 h-4" /> <span>الفترة: {selectedRun?.month}</span></div>
-                    </div>
-                  </div>
-                  {companySettings?.logoUrl && (
-                    <img src={companySettings.logoUrl} alt="Logo" className="h-24 w-auto object-contain" referrerPolicy="no-referrer" />
-                  )}
-                </div>
-
                 <table className="w-full text-right">
                   <thead className="sticky top-0 bg-white dark:bg-gray-900 z-10">
                     <tr className="border-b border-gray-100 dark:border-gray-800">
@@ -739,31 +712,6 @@ export const PayrollRuns: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-
-                {/* Signatures & Approvals (Print Only) */}
-                <div className="hidden print:grid grid-cols-3 gap-12 mt-20 pt-10 border-t-2 border-gray-900">
-                  <div className="text-center space-y-6">
-                    <div>
-                       <p className="font-black text-gray-900 text-lg">إعداد المحاسب</p>
-                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
-                       <p className="text-xs text-gray-400 mt-2 italic font-bold">التوقيع والتاريخ</p>
-                    </div>
-                  </div>
-                  <div className="text-center space-y-6">
-                    <div>
-                       <p className="font-black text-gray-900 text-lg">مراجعة المدير المالي</p>
-                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
-                       <p className="text-xs text-gray-400 mt-2 italic font-bold">التوقيع والتاريخ</p>
-                    </div>
-                  </div>
-                  <div className="text-center space-y-6">
-                    <div>
-                       <p className="font-black text-gray-900 text-lg">الاعتماد النهائي</p>
-                       <div className="mt-8 h-20 border-b border-gray-300 w-48 mx-auto"></div>
-                       <p className="text-xs text-gray-400 mt-2 italic font-bold">الختم والتوقيع الرسمي</p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </motion.div>
           </div>
