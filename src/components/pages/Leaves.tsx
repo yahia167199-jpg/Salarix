@@ -582,7 +582,7 @@ export const Leaves: React.FC = () => {
 
 
       {/* Header & Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 no-print">
         <div className="md:col-span-1">
           <button
             onClick={() => setIsModalOpen(true)}
@@ -685,7 +685,7 @@ export const Leaves: React.FC = () => {
       </AnimatePresence>
 
       {/* View Toggle */}
-      <div className="flex bg-white dark:bg-gray-900 p-1 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 shadow-sm w-fit mb-4 overflow-x-auto max-w-full">
+      <div className="flex bg-white dark:bg-gray-900 p-1 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 shadow-sm w-fit mb-4 overflow-x-auto max-w-full no-print">
         <button
           onClick={() => setActiveView('ActiveLeaves')}
           className={cn(
@@ -719,7 +719,7 @@ export const Leaves: React.FC = () => {
       </div>
 
       {/* Filters & Search */}
-      <div className="bg-white dark:bg-gray-900 rounded-3xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col md:flex-row gap-4 items-center no-print">
         <div className="relative flex-1">
           <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
           <input

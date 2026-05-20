@@ -281,7 +281,7 @@ export const IqamaRenewal: React.FC = () => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            className="overflow-hidden no-print"
           >
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2rem] p-6 text-white shadow-xl shadow-blue-500/20 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -307,7 +307,7 @@ export const IqamaRenewal: React.FC = () => {
       </AnimatePresence>
 
       {/* Stats Header */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 no-print">
         <StatCard 
           label="إجمالي الموظفين" 
           value={stats.total} 
@@ -349,7 +349,7 @@ export const IqamaRenewal: React.FC = () => {
 
       {/* Main Content Card */}
       <div className="bg-white dark:bg-gray-900 rounded-[3rem] border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-        <div className="p-8 border-b border-gray-50 dark:border-gray-800 space-y-6">
+        <div className="p-8 border-b border-gray-50 dark:border-gray-800 space-y-6 no-print">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex flex-wrap items-center gap-4 flex-1">
               <div className="relative group flex-1 max-w-sm">
@@ -438,7 +438,7 @@ export const IqamaRenewal: React.FC = () => {
                 <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-right">خارج المملكة</th>
                 <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-right">الجنسية</th>
                 <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">المتبقي</th>
-                <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center">الإجراءات</th>
+                <th className="px-8 py-5 text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider text-center no-print">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
@@ -599,7 +599,7 @@ export const IqamaRenewal: React.FC = () => {
                         )}>التاريخ غير محدد</span>
                       )}
                     </td>
-                    <td className="px-8 py-5">
+                    <td className="px-8 py-5 no-print">
                       <div className="flex items-center justify-center gap-2">
                         {editingId === emp.id ? (
                           <>

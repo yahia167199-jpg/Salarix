@@ -567,7 +567,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
         }
       `}} />
       {/* Header Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div className="flex flex-wrap items-center gap-4 flex-1">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -673,7 +673,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
           <table className="w-full text-right">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
-                <th className="px-6 py-5 text-right w-12">
+                <th className="px-6 py-5 text-right w-12 no-print">
                   <input 
                     type="checkbox" 
                     className="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-blue-600 focus:ring-blue-500"
@@ -690,7 +690,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">المرتب الأساسي</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">إجمالي المرتب</th>
                 <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">حالة الموظف</th>
-                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">الإجراءات</th>
+                <th className="px-6 py-5 text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center no-print">الإجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
@@ -721,7 +721,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                         )
                       )}
                     >
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 no-print">
                       <input 
                         type="checkbox" 
                         className={cn(
@@ -824,7 +824,7 @@ export const EmployeesList: React.FC<{ filterClassification?: EmployeeCategory }
                          emp.status === 'End of Service' ? 'إنهاء خدمات' : 'غير نشط'}
                       </div>
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-6 py-5 no-print">
                       <div className="flex items-center justify-center gap-1">
                         <button 
                           onClick={() => setViewingEmployee(emp)}
