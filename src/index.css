@@ -47,12 +47,15 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  /* If a printable area exists, hide everything else */
-  body:has(.printable-area) > *:not(.printable-area):not(script) {
-    display: none !important;
+  /* Hide all elements during print by default */
+  body * {
+    visibility: hidden;
+  }
+  /* Show only the printable area and its children */
+  .printable-area, .printable-area * {
+    visibility: visible !important;
   }
   .printable-area {
-    visibility: visible !important;
     display: block !important;
     position: absolute !important;
     left: 0 !important;
